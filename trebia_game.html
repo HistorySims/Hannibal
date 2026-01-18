@@ -1,517 +1,631 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>Battle of the Trebia</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Trebia: Final</title>
 <style>
-  body {
-    margin: 0; background: #111; color: #fff;
-    font-family: 'Courier New', monospace;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 100vh; overflow: hidden;
-    user-select: none; -webkit-user-select: none;
+  :root{
+    --bg:#1a1a1c;
+    --red:#ef4444; --gold:#f59e0b; --blue:#3b82f6; --text:#e7e7ea;
   }
-  
-  #game-container {
-    position: relative;
-    border: 4px solid #444;
-    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;}
+
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,sans-serif;
+    height:100dvh; width:100%;
+    overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
   }
 
-  canvas { display: block; image-rendering: pixelated; }
-
-  #ui-layer {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+  #game-box{
+    position:relative; width:100%; height:100%;
+    max-width:800px; background:#2e2e30; 
+    overflow:hidden;
+    box-shadow:0 0 20px rgba(0,0,0,0.5);
   }
 
-  .top-bar {
-    background: rgba(0,0,0,0.8); padding: 10px; text-align: center;
-    border-bottom: 2px solid #555;
-  }
-  
-  #turn-indicator {
-    font-size: 20px; font-weight: bold; color: #ef4444; text-transform: uppercase;
+  canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
+
+  /* FOG */
+  #fog-layer{
+    position:absolute; inset:0; pointer-events:none; z-index:5;
+    background: linear-gradient(to bottom, rgba(200,210,220,0.95) 0%, rgba(200,210,220,0.85) 40%, rgba(200,210,220,0.6) 100%);
+    transition: opacity 2s ease-in-out;
   }
 
-  #controls {
-    pointer-events: auto; padding: 10px; background: rgba(0,0,0,0.9);
-    display: flex; justify-content: space-around; border-top: 2px solid #555;
+  /* HUD */
+  .hud-top{
+    position:absolute; top:10px; left:0; width:100%; height:40px; z-index:15;
+    display:flex; justify-content:center; align-items:center;
+    pointer-events:none; font-weight:900; font-size:15px;
+    text-shadow:0 1px 3px #000; gap:15px;
+  }
+  .team-rom{color:var(--red);}
+  .team-han{color:#93c5fd;}
+
+  /* CONTROLS */
+  .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
+
+  #stick-zone{
+    position:absolute; bottom:20px; left:20px;
+    width:140px; height:140px; pointer-events:auto;
+    background:rgba(0,0,0,0.1); border-radius:50%;
+  }
+  .stick-bg{
+    width:100%; height:100%; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.2); position:relative;
+  }
+  .stick-nub{
+    position:absolute; top:50%; left:50%;
+    width:50px; height:50px; margin:-25px 0 0 -25px;
+    background:rgba(255,255,255,0.8); border-radius:50%;
+    box-shadow:0 2px 5px rgba(0,0,0,0.5);
   }
 
-  button {
-    background: #333; color: #fff; border: 2px solid #fff;
-    padding: 10px 20px; font-family: inherit; font-size: 16px; font-weight: bold;
-    cursor: pointer; text-transform: uppercase;
+  .btn-wrapper{
+    position:absolute; bottom:30px; right:30px;
+    display:flex; flex-direction:column; gap:15px;
+    pointer-events:auto; align-items:center;
   }
-  button:active { background: #555; }
-  button:disabled { opacity: 0.5; border-color: #555; color: #888; }
-  
-  #overlay {
-    position: absolute; inset: 0; background: rgba(0,0,0,0.85);
-    display: none; align-items: center; justify-content: center; flex-direction: column;
-    pointer-events: auto; z-index: 50;
+  #btn-attack{
+    width:75px; height:75px;
+    background:rgba(245,158,11,0.95);
+    border:3px solid #fff; border-radius:50%;
+    display:grid; place-items:center;
+    box-shadow:0 4px 10px rgba(0,0,0,0.6);
   }
-  #overlay h1 { font-size: 48px; margin: 0 0 20px 0; letter-spacing: 4px; }
-  #overlay p { font-size: 18px; color: #ccc; max-width: 80%; text-align: center; margin-bottom: 30px;}
+  #btn-attack:active{transform:scale(0.95); background:#d97706;}
+  .sword-icon{font-size:32px;}
 
-  /* Hit splat animation */
-  .splat {
-    position: absolute; color: #fff; font-weight: bold; font-size: 24px;
-    text-shadow: 2px 2px 0 #000; pointer-events: none;
-    animation: floatUp 1s forwards;
+  #center-msg{
+    position:absolute; top:30%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; width:90%; pointer-events:none; z-index:30;
   }
-  @keyframes floatUp { 0%{opacity:1; transform:translateY(0);} 100%{opacity:0; transform:translateY(-30px);} }
+  .big-text{
+    font-size:24px; font-weight:900; color:#fff;
+    text-shadow:0 2px 8px rgba(0,0,0,1);
+    opacity:0; transition:opacity 0.5s;
+  }
 
+  #overlay{
+    position:absolute; inset:0; background:rgba(0,0,0,0.95); z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:20px; text-align:center;
+  }
+  h1{color:#93c5fd; margin:0 0 10px 0; font-size:32px; letter-spacing:2px;}
+  p{color:#ccc; margin-bottom:20px; font-size:15px; max-width:360px; line-height:1.5;}
+  .btn-start{
+    background:var(--red); color:#fff; border:none; padding:14px 30px;
+    font-size:18px; font-weight:900; border-radius:8px;
+    box-shadow:0 4px 0 #991b1b;
+  }
 </style>
 </head>
 <body>
 
-<div id="game-container">
-  <canvas id="cv"></canvas>
+<div id="game-box">
+  <div id="fog-layer"></div>
   
-  <div id="ui-layer">
-    <div class="top-bar">
-      <div id="turn-indicator">ROMAN TURN</div>
-      <div style="font-size:12px; color:#aaa; margin-top:4px;">Objective: Defeat the Carthaginians</div>
-    </div>
-    
-    <div id="controls">
-      <button id="waitBtn" onclick="endAction()">Wait</button>
-      <button id="endTurnBtn" onclick="endTurn()">End Turn</button>
-    </div>
+  <div id="overlay">
+    <h1>TREBIA</h1>
+    <p><b>Winter, 218 BC.</b></p>
+    <p>Cross the freezing river to ambush Hannibal.</p>
+    <p><b>Warning:</b> The river is freezing. If you get wet, you will be slow for the entire battle.</p>
+    <button class="btn-start" onclick="startGame()">CROSS THE RIVER</button>
   </div>
 
-  <div id="overlay">
-    <h1 id="winTitle">VICTORY</h1>
-    <p id="winDesc">The Trebia is crossed. The path is open.</p>
-    <button onclick="returnToMap()">Return to Map</button>
+  <div class="hud-top">
+    <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
+    <span class="team-han">CARTHAGE: <span id="ui-han">0</span></span>
+  </div>
+
+  <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <canvas id="cv"></canvas>
+
+  <div class="controls-layer">
+    <div id="stick-zone"><div class="stick-bg"><div class="stick-nub" id="stick"></div></div></div>
+    <div class="btn-wrapper">
+      <div id="btn-attack" ontouchstart="handleAttack(event)" onmousedown="handleAttack(event)">
+        <div class="sword-icon">⚔️</div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-/* ================= CONFIG ================= */
-const TILE_S = 48; // Tile Size
-const COLS = 7;
-const ROWS = 9;
-const CV = document.getElementById('cv');
-const CTX = CV.getContext('2d');
-const STORAGE_KEY = "spw_campaign_progress_v1";
-
-/* COLORS */
-const C = {
-  grass: '#3f6212',
-  river: '#1e3a8a', // Deep blue
-  riverLite: '#3b82f6',
-  snow: '#e5e7eb',
-  highlight: 'rgba(255,255,255,0.2)',
-  move: 'rgba(251, 191, 36, 0.4)', // Yellow overlay
-  attack: 'rgba(239, 68, 68, 0.6)', // Red overlay
-  roman: '#dc2626',
-  carth: '#d97706',
-  selected: '#fbbf24'
+// =========================
+//  ASSETS & SPRITES
+// =========================
+const P = {
+  metal:'#b7bcc5', black:'#111114',
+  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
+  gold:'#fbbf24', white:'#e7e7ea', elephant: '#555',
+  ice: '#a5f3fc', deep: '#172554', reeds: '#22d3ee', // Lighter Reeds
+  shadow:'rgba(0,0,0,0.35)'
 };
+const CANVAS = document.getElementById('cv');
+const CTX = CANVAS.getContext('2d');
+const BOX = document.getElementById('game-box');
 
-/* GAME STATE */
-let units = [];
-let turn = 'player'; // 'player' or 'enemy'
-let selectedUnit = null;
-let animState = null; // Block input during animations
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
 
-// Level Layout (0=Grass, 1=River, 2=Snow)
-// Romans start bottom (Grass), Must cross River (Middle), To Enemy (Snow)
-const MAP = [
-  [2,2,2,2,2,2,2],
-  [2,2,2,2,2,2,2],
-  [2,2,2,2,2,2,2], // Enemy Line
-  [1,1,1,1,1,1,1], // River
-  [1,1,1,1,1,1,1], // River
-  [0,0,0,0,0,0,0], // Bank
-  [0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0]  // Player Start
-];
-
-/* ================= CLASSES ================= */
-class Unit {
-  constructor(type, team, x, y){
-    this.type = type; // 'legion', 'velite', 'horse', 'elephant'
-    this.team = team; // 'player', 'enemy'
-    this.x = x;
-    this.y = y;
-    this.maxHp = (type==='elephant') ? 8 : (type==='legion') ? 5 : 3;
-    this.hp = this.maxHp;
-    this.moveRange = (type==='horse') ? 4 : 3;
-    this.range = (type==='velite') ? 2 : 1;
-    this.dmg = (type==='elephant') ? 3 : 2;
-    this.hasActed = false;
-  }
+function drawSprite(u, scale){
+  const x = u.x * TILE - (u.type==='elephant'?0:4); 
+  const y = u.y * TILE - 8;
+  const s = scale;
+  let coat = u.type==='roman'?P.roman:(u.type==='yours'?P.you:P.inv);
   
-  draw(ctx){
-    const cx = this.x * TILE_S;
-    const cy = this.y * TILE_S;
-    const p = 4; // padding
+  // FROZEN EFFECT (Turn Cyan)
+  if(u.frozen > 0) coat = '#06b6d4'; 
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.beginPath(); ctx.ellipse(cx+TILE_S/2, cy+TILE_S-6, TILE_S/3, 6, 0, 0, Math.PI*2); ctx.fill();
-
-    // Base Color
-    ctx.fillStyle = (this.team === 'player') ? C.roman : C.carth;
-    if(this.hasActed) ctx.fillStyle = '#555'; // Greyed out
-    
-    // Shape based on type
-    if(this.type === 'elephant'){
-       ctx.fillRect(cx+p, cy+p, TILE_S-2*p, TILE_S-2*p); // Big square
-       ctx.fillStyle = '#fff'; // Tusks
-       ctx.fillRect(cx+10, cy+30, 6, 12); ctx.fillRect(cx+32, cy+30, 6, 12);
-    } else if(this.type === 'horse'){
-       ctx.beginPath(); ctx.moveTo(cx+TILE_S/2, cy+p); ctx.lineTo(cx+TILE_S-p, cy+TILE_S-p); ctx.lineTo(cx+p, cy+TILE_S-p); ctx.fill();
-    } else {
-       // Infantry / Velite
-       ctx.fillRect(cx+12, cy+10, 24, 30);
-       // Head
-       ctx.fillStyle = '#fca5a5'; 
-       ctx.fillRect(cx+16, cy+4, 16, 10);
-       // Helmet
-       ctx.fillStyle = (this.team==='player') ? '#fcd34d' : '#fff';
-       ctx.fillRect(cx+14, cy+2, 20, 6);
-    }
-
-    // Selection Ring
-    if(this === selectedUnit){
-      ctx.strokeStyle = C.selected; ctx.lineWidth = 3;
-      ctx.strokeRect(cx+2, cy+2, TILE_S-4, TILE_S-4);
-    }
-    
-    // HP Bar
-    const hpW = 36;
-    ctx.fillStyle = '#000'; ctx.fillRect(cx+6, cy-6, hpW, 6);
-    const hpPct = this.hp / this.maxHp;
-    ctx.fillStyle = (hpPct > 0.5) ? '#22c55e' : '#ef4444';
-    ctx.fillRect(cx+7, cy-5, (hpW-2)*hpPct, 4);
-  }
-}
-
-/* ================= INIT ================= */
-function init(){
-  CV.width = COLS * TILE_S;
-  CV.height = ROWS * TILE_S;
-  
-  // PLAYER UNITS (Romans)
-  units.push(new Unit('legion', 'player', 2, 7));
-  units.push(new Unit('legion', 'player', 3, 7)); // Sempronius (Center)
-  units.push(new Unit('legion', 'player', 4, 7));
-  units.push(new Unit('velite', 'player', 3, 8)); // Support back
-
-  // ENEMY UNITS (Carthage)
-  units.push(new Unit('elephant', 'enemy', 3, 1)); // Boss
-  units.push(new Unit('horse', 'enemy', 1, 2));
-  units.push(new Unit('horse', 'enemy', 5, 2));
-  units.push(new Unit('legion', 'enemy', 2, 2));
-  units.push(new Unit('legion', 'enemy', 4, 2));
-
-  draw();
-}
-
-/* ================= LOGIC ================= */
-
-function getUnitAt(x, y){ return units.find(u => u.x === x && u.y === y && u.hp > 0); }
-function dist(a, b){ return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
-
-function draw(){
-  // 1. Draw Map
-  for(let y=0; y<ROWS; y++){
-    for(let x=0; x<COLS; x++){
-      const type = MAP[y][x];
-      CTX.fillStyle = (type===2) ? C.snow : (type===1) ? C.river : C.grass;
-      CTX.fillRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
-      
-      // Grid lines
-      CTX.strokeStyle = 'rgba(0,0,0,0.1)';
-      CTX.lineWidth = 1;
-      CTX.strokeRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
-      
-      // River texture
-      if(type===1){
-        CTX.fillStyle = C.riverLite;
-        CTX.fillRect(x*TILE_S + 5, y*TILE_S + 10, 10, 2);
-        CTX.fillRect(x*TILE_S + 25, y*TILE_S + 30, 15, 2);
-      }
-    }
-  }
-
-  // 2. Highlights (Move/Attack)
-  if(selectedUnit && !animState && selectedUnit.team === 'player' && !selectedUnit.hasActed){
-    // Show Move Range
-    for(let y=0; y<ROWS; y++){
-      for(let x=0; x<COLS; x++){
-        const d = Math.abs(x - selectedUnit.x) + Math.abs(y - selectedUnit.y);
-        const u = getUnitAt(x,y);
-        
-        // Move Highlight
-        if(d <= selectedUnit.moveRange && !u){
-           CTX.fillStyle = C.move;
-           CTX.fillRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
-        }
-        
-        // Attack Highlight
-        if(u && u.team !== 'player' && d <= selectedUnit.range){
-           CTX.fillStyle = C.attack;
-           CTX.fillRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
-        }
-      }
-    }
-  }
-
-  // 3. Units
-  units.forEach(u => { if(u.hp>0) u.draw(CTX); });
-}
-
-/* ================= INPUT ================= */
-CV.addEventListener('pointerup', e => {
-  if(turn !== 'player' || animState) return;
-  
-  const rect = CV.getBoundingClientRect();
-  const tx = Math.floor((e.clientX - rect.left) / TILE_S);
-  const ty = Math.floor((e.clientY - rect.top) / TILE_S);
-  
-  const target = getUnitAt(tx, ty);
-
-  // 1. Select Unit
-  if(target && target.team === 'player'){
-    if(!target.hasActed) selectedUnit = target;
-    draw();
+  // ELEPHANT
+  if(u.type === 'elephant'){
+    const es = s * 2; 
+    CTX.fillStyle = 'rgba(0,0,0,0.4)';
+    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill(); 
+    CTX.fillStyle = '#666'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
+    CTX.fillStyle = '#888'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
+    CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 6*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 6*s);
+    CTX.fillStyle = '#555'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
     return;
   }
 
-  // 2. Action (Move or Attack)
-  if(selectedUnit){
-    const d = Math.abs(tx - selectedUnit.x) + Math.abs(ty - selectedUnit.y);
-    
-    // Attack?
-    if(target && target.team === 'enemy' && d <= selectedUnit.range){
-      attack(selectedUnit, target);
-      return;
-    }
-    
-    // Move?
-    if(!target && d <= selectedUnit.moveRange){
-      move(selectedUnit, tx, ty);
-      return;
-    }
-  }
-});
-
-function move(unit, x, y){
-  unit.x = x; 
-  unit.y = y;
-  // Don't end turn immediately on move, allow attack after? 
-  // For simplicity: Move ends action unless we add complex UI.
-  // Let's make Move count as action for now to keep it simple.
-  endAction();
+  // STANDARD UNIT
+  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+  px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
+  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+  if(u.type==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
+  else if(u.type==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
+  else if(u.type==='invader'){ px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
 }
 
-function attack(att, def){
-  // Anim
-  animState = true;
+function drawRiverTile(x, y, type){
+  const s = TILE;
+  const X = x*s; const Y = y*s;
   
-  // Bump animation
-  const ox = att.x, oy = att.y;
-  const dx = (def.x - att.x)*0.3;
-  const dy = (def.y - att.y)*0.3;
-  
-  let f = 0;
-  const int = setInterval(()=>{
-    f++;
-    if(f < 5){
-      att.x += dx/5; att.y += dy/5;
-    } else if(f < 10) {
-      att.x -= dx/5; att.y -= dy/5;
-    } else {
-      clearInterval(int);
-      att.x = ox; att.y = oy;
-      
-      // Damage calculation
-      const dmg = att.dmg; // Simple fixed damage
-      def.hp -= dmg;
-      showSplat(def.x, def.y, `-${dmg}`);
-      
-      if(def.hp <= 0) {
-        // Kill
-        units = units.filter(u => u !== def);
-        checkWin();
-      }
-      
-      animState = false;
-      if(turn === 'player') endAction();
-      draw();
+  if(type === 1){ // DEEP
+    CTX.fillStyle = P.deep;
+    CTX.fillRect(X,Y,s,s);
+    if((Math.floor(Date.now()/600) + x)%4 === 0){
+      CTX.fillStyle = 'rgba(0,0,0,0.3)'; CTX.fillRect(X, Y+s/2, s, 2);
     }
-    draw();
-  }, 30);
-}
-
-function endAction(){
-  if(selectedUnit){
-    selectedUnit.hasActed = true;
-    selectedUnit = null;
-    draw();
-    
-    // Check if all players acted
-    if(!units.some(u => u.team === 'player' && !u.hasActed)){
-      setTimeout(endTurn, 500);
-    }
+  } else { // REEDS (Safe)
+    CTX.fillStyle = P.reeds;
+    CTX.fillRect(X,Y,s,s);
+    CTX.fillStyle = '#155e75';
+    px(X+4, Y+4, 2, '#155e75'); px(X+12, Y+10, 2, '#155e75'); px(X+18, Y+2, 2, '#155e75');
   }
 }
 
-function endTurn(){
-  // 1. Process End of Turn Effects (River Cold)
-  const currentTeam = (turn === 'player') ? 'player' : 'enemy';
-  units.forEach(u => {
-    if(u.team === currentTeam && u.hp > 0){
-      // Check River
-      if(MAP[u.y][u.x] === 1){
-        u.hp -= 1;
-        showSplat(u.x, u.y, "Cold!", "#3b82f6");
-      }
-      // Reset Action
-      u.hasActed = false;
-    }
-  });
+// =========================
+//  CONFIG
+// =========================
+const TILE = 24;
+const GRID_W = 40;
+const GRID_H = 60;
+let SCALE = 2;
 
-  // Clean up dead from cold
-  units = units.filter(u => u.hp > 0);
-  checkWin();
+const PACE = {
+  move: 15,
+  frozenMove: 40,
+  elephantSpeed: 25,
+  panicSpeed: 10
+};
 
-  // 2. Switch Turn
-  turn = (turn === 'player') ? 'enemy' : 'player';
-  document.getElementById('turn-indicator').textContent = (turn === 'player') ? "ROMAN TURN" : "CARTHAGE TURN";
-  document.getElementById('turn-indicator').style.color = (turn === 'player') ? "#ef4444" : "#d97706";
+// =========================
+//  STATE
+// =========================
+let gameActive = false;
+let cam = {x:0, y:0};
+let grid = []; 
+let terrain = []; // 0=ground, 1=deep, 2=reeds
+let units = [];
+let particles = [];
+let snow = [];
+let floats = [];
+let player = null;
+
+let battlePhase = 0; // 0=Cross, 1=Reveal, 2=Rout
+let phaseTimer = 0;
+
+let input = {dx:0, dy:0};
+let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
+
+function startGame(){
+  document.getElementById('overlay').style.display = 'none';
+  if(gameActive) return;
+  gameActive = true;
+  resize();
+  setupMap();
+  requestAnimationFrame(loop);
+}
+
+function setupMap(){
+  units = []; grid = []; particles = []; floats = []; snow = [];
+  grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
+  terrain = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
   
-  selectedUnit = null;
+  battlePhase = 0; phaseTimer = 0;
+
+  const CX = Math.floor(GRID_W/2);
+  const CY = Math.floor(GRID_H/2);
+
+  // --- RIVER GENERATION ---
+  // 4 Tiles Wide Total (y=30 to y=33)
+  for(let y=30; y<34; y++){
+    for(let x=0; x<GRID_W; x++){
+      let band = Math.floor(x / 3);
+      if(band % 2 === 0) terrain[y][x] = 2; // Reeds
+      else terrain[y][x] = 1; // Deep
+    }
+  }
+
+  // Player
+  player = spawnUnit(CX, 50, 'yours');
+  cam.x = player.x*TILE; cam.y = player.y*TILE;
+
+  // Roman Army
+  for(let x=0; x<GRID_W; x++){
+    for(let y=48; y<55; y++){
+      // Spawn mostly
+      if(Math.random()>0.2) spawnUnit(x,y,'roman');
+    }
+  }
+
+  // Snow
+  for(let i=0; i<50; i++) snow.push({x:Math.random()*GRID_W*TILE, y:Math.random()*GRID_H*TILE, s:Math.random()*2+1});
+
+  showMsg("FOLLOW THE REEDS!", "#fff");
+}
+
+function spawnUnit(gx, gy, type){
+  if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H||grid[gy][gx]) return null;
+  let hp = type==='elephant' ? 80 : (type==='yours'?50:6);
+  let u = { 
+    id:Math.random(), x:gx, y:gy, type, hp, maxHp:hp, 
+    cooldown:Math.random()*20, frozen:0, state:'normal' 
+  };
+  units.push(u);
+  grid[gy][gx] = u;
+  return u;
+}
+
+// =========================
+//  LOGIC
+// =========================
+function loop(){
+  if(!gameActive) return;
+  update();
   draw();
-
-  if(turn === 'enemy'){
-    setTimeout(aiTurn, 1000);
-  }
+  requestAnimationFrame(loop);
 }
 
-/* ================= AI ================= */
-async function aiTurn(){
-  const enemies = units.filter(u => u.team === 'enemy');
-  
-  for(const e of enemies){
-    if(e.hp <= 0) continue;
-    
-    // 1. Find Closest Target
-    let targets = units.filter(u => u.team === 'player');
-    if(targets.length === 0) break;
-    
-    targets.sort((a,b) => dist(e, a) - dist(e, b));
-    let target = targets[0];
-    let d = dist(e, target);
-    
-    // 2. Attack if in range
-    if(d <= e.range){
-      await new Promise(r => setTimeout(r, 500));
-      attack(e, target);
-      await new Promise(r => setTimeout(r, 600)); // Wait for attack anim
-      continue;
-    }
-    
-    // 3. Move towards
-    if(d > e.range){
-      // Simple Move Logic: Move towards target x/y but don't overlap
-      let bestX = e.x, bestY = e.y, minD = 999;
-      
-      // Check neighbors
-      const moves = [
-        {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}
-      ];
-      
-      // Shuffle moves for variety
-      moves.sort(()=>Math.random()-0.5);
+function update(){
+  phaseTimer++;
 
-      for(let m of moves){
-        let nx = e.x + m.x; 
-        let ny = e.y + m.y;
-        if(nx>=0 && nx<COLS && ny>=0 && ny<ROWS && !getUnitAt(nx,ny)){
-           let distToTarg = Math.abs(nx - target.x) + Math.abs(ny - target.y);
-           if(distToTarg < minD){
-             minD = distToTarg;
-             bestX = nx; bestY = ny;
-           }
+  // Ambush Trigger
+  if(battlePhase === 0 && player.y < 28){
+    battlePhase = 1;
+    document.getElementById('fog-layer').style.opacity = 0;
+    showMsg("THE FOG LIFTS...", "#fff");
+    
+    // SPAWN TRAP
+    setTimeout(()=>{
+      showMsg("IT'S MAGO! BEHIND US!", "#ef4444");
+      battlePhase = 2; // ROUT START
+      
+      // Elephants
+      spawnUnit(15, 12, 'elephant');
+      spawnUnit(20, 10, 'elephant');
+      spawnUnit(25, 12, 'elephant');
+      
+      // Main Infantry
+      for(let x=0; x<40; x+=3){
+        for(let y=5; y<15; y+=3){
+          if(Math.random()>0.5) spawnUnit(x, y, 'invader');
         }
       }
-      
-      // Execute move
-      e.x = bestX; e.y = bestY;
-      draw();
-      await new Promise(r => setTimeout(r, 400));
+
+      // MAGO'S AMBUSH (Behind the river)
+      for(let x=0; x<40; x+=4){
+        spawnUnit(x, 50, 'invader');
+        spawnUnit(x+1, 51, 'invader');
+      }
+
+    }, 2000);
+  }
+
+  // Camera
+  let tx = player.x*TILE;
+  let ty = player.y*TILE;
+  cam.x += (tx - cam.x)*0.1;
+  cam.y += (ty - cam.y)*0.1;
+
+  units.sort((a,b)=>a.y-b.y);
+
+  for(let u of units){
+    if(u.hp<=0) continue;
+
+    // TERRAIN
+    let t = terrain[u.y][u.x];
+    if(t === 1){ // Deep Water
+      if(frameStep(30)){
+        u.hp -= 3;
+        spawnFloat("Drowning", u.x, u.y, "#3b82f6");
+      }
+      u.frozen = 1350; // MASSIVE FREEZE (Effectively permanent)
+    } else if (t === 2){ // Reeds
+      if(u.frozen <= 0) u.frozen = 1350; 
+    }
+
+    if(u.frozen > 0) u.frozen--;
+
+    if(u.type==='yours'){
+      if(u.cooldown>0) u.cooldown--;
+      if(u.cooldown<=0 && (input.dx||input.dy)){
+        tryMove(u, input.dx, input.dy);
+        u.cooldown = (u.frozen>0) ? PACE.frozenMove : PACE.move;
+      }
+    } else {
+      handleAI(u);
     }
   }
   
-  endTurn();
+  units = units.filter(u=>u.hp>0);
+  updateFX();
+  
+  if(player.hp<=0) gameOver("Died in the Trebia.");
+  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman').length;
+  document.getElementById('ui-han').innerText  = units.filter(u=>u.type==='invader'||u.type==='elephant').length;
 }
 
-/* ================= UI HELPER ================= */
-function showSplat(x, y, text, color='#fff'){
-  const el = document.createElement('div');
-  el.className = 'splat';
-  el.textContent = text;
-  el.style.color = color;
-  el.style.left = (x*TILE_S + 10) + 'px';
-  el.style.top = (y*TILE_S - 10) + 'px';
-  document.getElementById('game-container').appendChild(el);
-  setTimeout(()=>el.remove(), 1000);
+function handleAI(u){
+  if(u.cooldown>0){ u.cooldown--; return; }
+
+  let speed = PACE.move;
+  let md = {x:0, y:0};
+
+  if(u.type === 'elephant'){
+    speed = PACE.elephantSpeed;
+    let target = findNearestEnemy(u);
+    if(target){
+      md = getStep(u, target);
+      // TRAMPLE
+      let tx = u.x + md.x; let ty = u.y + md.y;
+      if(grid[ty] && grid[ty][tx] && grid[ty][tx].type !== 'invader' && grid[ty][tx].type !== 'elephant'){
+        let victim = grid[ty][tx];
+        victim.hp -= 20; 
+        spawnBlood(victim.x, victim.y);
+        spawnFloat("CRUSH", victim.x, victim.y, "#f00");
+        let pushY = victim.y + 1;
+        if(pushY < GRID_H && !grid[pushY][victim.x]){
+           grid[victim.y][victim.x]=null; victim.y=pushY; grid[victim.y][victim.x]=victim;
+        }
+      }
+    }
+  } 
+  else if(u.type === 'roman'){
+    if(battlePhase === 2){
+      // PANIC MODE
+      speed = PACE.panicSpeed;
+      if(Math.random() > 0.2) md = {x: (Math.random()>0.5?1:-1), y: 1}; 
+      else md = {x: (Math.random()-0.5)*2 > 0 ? 1 : -1, y: (Math.random()-0.5)*2 > 0 ? 1 : -1};
+      spawnFloat("!", u.x, u.y, "#fff");
+    } else {
+      // SMART ADVANCE: Stick to Reeds (2)
+      let nextY = u.y - 1;
+      let nextX = u.x;
+      
+      if(isSafe(nextX, nextY)){
+        md = {x:0, y:-1};
+      } else if(isSafe(nextX-1, nextY) || isSafe(nextX-1, u.y)){
+        md = {x:-1, y:0};
+      } else if(isSafe(nextX+1, nextY) || isSafe(nextX+1, u.y)){
+        md = {x:1, y:0};
+      } else {
+        md = {x:0, y:-1}; // Forced to swim
+      }
+    }
+  }
+  else if(u.type === 'invader'){
+     let target = findNearestEnemy(u);
+     if(target){
+       if(dist(u,target)<=1.5){
+         attack(u, target);
+         u.cooldown = 45;
+         return;
+       }
+       md = getStep(u, target);
+     }
+  }
+
+  if(md.x||md.y) tryMove(u, md.x, md.y);
+  u.cooldown = (u.frozen>0) ? speed * 2.5 : speed;
+  u.cooldown += Math.random()*10;
 }
 
-function checkWin(){
-  const players = units.filter(u => u.team === 'player').length;
-  const enemies = units.filter(u => u.team === 'enemy').length;
-  
-  const ov = document.getElementById('overlay');
-  const t = document.getElementById('winTitle');
-  const d = document.getElementById('winDesc');
-  
-  // 1. Determine Win/Loss text
-  if(players === 0){
-    // DEFEAT (Historical Result)
-    ov.style.display = 'flex';
-    t.textContent = "DEFEAT";
-    t.style.color = "#ef4444"; // Red
-    d.textContent = "The legions are broken. The survivors retreat south toward Etruria.";
-    
-    // SAVE PROGRESS ANYWAY (Fail Forward)
-    saveProgress(); 
+function isSafe(x, y){
+  if(x<0 || x>=GRID_W || y<0 || y>=GRID_H) return false;
+  return terrain[y][x] !== 1; // 1 is Deep Water
+}
 
-  } else if(enemies === 0){
-    // VICTORY (Alternate History)
-    ov.style.display = 'flex';
-    t.textContent = "VICTORY";
-    t.style.color = "#fbbf24"; // Gold
-    d.textContent = "Against all odds, the river is crossed. Hannibal falls back.";
-    
-    // SAVE PROGRESS
-    saveProgress();
+function tryMove(u, dx, dy){
+  let tx=u.x+dx, ty=u.y+dy;
+  if(tx<0||tx>=GRID_W||ty<0||ty>=GRID_H || grid[ty][tx]) return;
+  grid[u.y][u.x]=null; u.x=tx; u.y=ty; grid[ty][tx]=u;
+}
+
+function attack(atk, def){
+  let dmg = 1;
+  if(def.type === 'elephant'){
+    // FIX: Backstab is when ATTACKER Y < ELEPHANT Y (North of Elephant)
+    // because Elephant faces South.
+    if(atk.y < def.y){
+       dmg = 80; 
+       spawnFloat("BACKSTAB!", def.x, def.y, P.gold);
+    } else {
+       dmg = 0; 
+       spawnFloat("TINK", def.x, def.y, "#ccc");
+    }
+  }
+  def.hp -= dmg;
+  spawnBlood(def.x, def.y);
+  if(dmg > 0) spawnFloat("-"+dmg, def.x, def.y, "#ef4444");
+
+  if(def.hp<=0){
+    grid[def.y][def.x]=null;
+    spawnFloat("KILL", def.x, def.y, P.gold);
   }
 }
 
-function saveProgress(){
-  // Unlock the next node in the map
-  let s = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-  s.trebia = true; 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+// =========================
+//  VISUALS & FX
+// =========================
+function draw(){
+  CTX.fillStyle=P.black;
+  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
+
+  CTX.save();
+  let cx = CANVAS.width/2 - cam.x;
+  let cy = CANVAS.height/2 - cam.y;
+  CTX.translate(Math.round(cx), Math.round(cy));
+
+  CTX.fillStyle='#2e2e30';
+  CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
+  
+  CTX.fillStyle='#555';
+  for(let i=0; i<100; i++) CTX.fillRect((i*47)% (GRID_W*TILE), (i*31)% (GRID_H*TILE), 2, 2);
+
+  for(let y=0; y<GRID_H; y++){
+    for(let x=0; x<GRID_W; x++){
+      if(terrain[y][x] > 0) drawRiverTile(x, y, terrain[y][x]);
+    }
+  }
+
+  for(let u of units) drawSprite(u, SCALE);
+  for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+  
+  CTX.font="bold 12px monospace"; CTX.textAlign="center";
+  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
+  CTX.globalAlpha=1;
+
+  CTX.fillStyle = '#fff';
+  for(let s of snow){
+    CTX.fillRect(s.x, s.y, s.s, s.s);
+    s.y += 1; s.x += Math.sin(Date.now()/1000);
+    if(s.y > GRID_H*TILE) s.y = 0;
+  }
+  CTX.restore();
 }
 
-
-function returnToMap(){
-  window.location.href = "map.html";
+// =========================
+//  UTILS & INPUT
+// =========================
+let frameC=0; function frameStep(n){ return (frameC++%n)===0; }
+function dist(a,b){ return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); }
+function getStep(u,t){
+  let dx=t.x-u.x, dy=t.y-u.y;
+  if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
+  return {x:0, y:Math.sign(dy)};
+}
+function findNearestEnemy(u){
+  let target=null, minDist=99;
+  for(let o of units){
+    if(Math.abs(o.x-u.x)>10 || Math.abs(o.y-u.y)>10) continue;
+    let isEnemy = (u.type==='invader'||u.type==='elephant') ? (o.type==='roman'||o.type==='yours') : (o.type==='invader'||o.type==='elephant');
+    if(isEnemy){ let d=dist(u,o); if(d<minDist){minDist=d; target=o;} }
+  }
+  return target;
+}
+function spawnBlood(gx, gy){
+  for(let i=0;i<3;i++) particles.push({x:gx*TILE+TILE/2, y:gy*TILE+TILE/2, vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3, life:1, color:'#900'});
+}
+function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
+function updateFX(){
+  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.life-=0.05}); particles=particles.filter(p=>p.life>0);
+  floats.forEach(f=>{f.y-=0.3; f.life-=0.02}); floats=floats.filter(f=>f.life>0);
+}
+function showMsg(txt, col){
+  const el=document.getElementById('battle-text'); el.innerText=txt; el.style.color=col; el.style.opacity=1; setTimeout(()=>el.style.opacity=0, 2500);
+}
+function gameOver(t){
+  gameActive=false;
+  document.getElementById('overlay').style.display='flex';
+  document.querySelector('#overlay h1').innerText="DEFEAT";
+  document.querySelectorAll('#overlay p')[0].innerHTML=t;
+  document.querySelectorAll('#overlay p')[1].innerHTML="";
+  document.querySelectorAll('#overlay p')[2].innerHTML="Tap to Restart";
 }
 
-init();
-
+const stickZone=document.getElementById('stick-zone');
+const stickEl=document.getElementById('stick');
+stickZone.addEventListener('touchstart',e=>{stick.active=true; stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY; stick.curX=stick.startX; stick.curY=stick.startY;}, {passive:false});
+stickZone.addEventListener('touchmove',e=>{if(!stick.active)return; e.preventDefault(); stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY; updateStick();}, {passive:false});
+const endStick=()=>{stick.active=false; stickEl.style.transform='translate(0,0)'; input.dx=0; input.dy=0;};
+stickZone.addEventListener('touchend', endStick); stickZone.addEventListener('touchcancel', endStick);
+function updateStick(){
+  let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY, d=Math.sqrt(dx*dx+dy*dy);
+  if(d>40){dx=(dx/d)*40; dy=(dy/d)*40;}
+  stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
+  input.dx=0; input.dy=0; if(d>10){ if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx); else input.dy=Math.sign(dy); }
+}
+window.handleAttack = function(e){
+  e.stopPropagation(); e.preventDefault(); if(!gameActive||!player||player.hp<=0)return;
+  const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  for(let d of dirs){
+    let tx=player.x+d[0], ty=player.y+d[1];
+    if(grid[ty]&&grid[ty][tx]) attack(player, grid[ty][tx]);
+  }
+  spawnFloat("SWING", player.x, player.y, "#fff");
+};
+function resize(){ CANVAS.width=BOX.clientWidth; CANVAS.height=BOX.clientHeight; CTX.imageSmoothingEnabled=false; }
+window.addEventListener('resize', resize);
 </script>
+<script>
+// --- HISTORICAL CONTEXT MODULE ---
+(function addHistoryModule(){
+    // 1. Data
+    const historyData = `
+        <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF THE TREBIA (218 BC)</h2>
+        <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
+            <p><strong style="color:#fff">FORCES:</strong><br>
+            <span style="color:#ef4444">Rome:</span> ~42,000 (Sempronius Longus)<br>
+            <span style="color:#93c5fd">Carthage:</span> ~30,000 (Hannibal)</p>
+            
+            <p><strong style="color:#fff">CASUALTIES:</strong><br>
+            <span style="color:#ef4444">Rome:</span> ~26,000-32,000 killed/captured<br>
+            <span style="color:#93c5fd">Carthage:</span> ~5,000 (mostly Celtic allies)</p>
+            
+            <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
+            Hannibal's first major victory. He baited the Romans into crossing the freezing river before breakfast, leaving them tired and hungry. His brother Mago hid 2,000 elite troops in a ravine (the "fog" in this game) to attack the Roman rear.</p>
+        </div>
+        <button class="btn-start" onclick="location.reload()" style="margin-top:20px;">BACK TO GAME</button>
+    `;
+
+    // 2. Add Button to Intro
+    const introBox = document.querySelector('.intro-box') || document.querySelector('#overlay');
+    const btn = document.createElement('button');
+    btn.innerText = "HISTORY";
+    btn.className = "btn-start";
+    btn.style.backgroundColor = "#475569";
+    btn.style.marginTop = "10px";
+    btn.style.boxShadow = "0 4px 0 #334155";
+    btn.onclick = () => {
+        introBox.innerHTML = historyData;
+    };
+    
+    // Check if we are inserting into the intro box (Desktop) or overlay (Mobile)
+    if(document.querySelector('.intro-box')) {
+        document.querySelector('.intro-box').appendChild(btn);
+    } else {
+        introBox.appendChild(btn);
+    }
+})();
+</script>
+
 </body>
 </html>
+
