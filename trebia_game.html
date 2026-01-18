@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Battle of the Trebia</title>
+<style>
+  body {
+    margin: 0; background: #111; color: #fff;
+    font-family: 'Courier New', monospace;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100vh; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  
+  #game-container {
+    position: relative;
+    border: 4px solid #444;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+  }
+
+  canvas { display: block; image-rendering: pixelated; }
+
+  #ui-layer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+  }
+
+  .top-bar {
+    background: rgba(0,0,0,0.8); padding: 10px; text-align: center;
+    border-bottom: 2px solid #555;
+  }
+  
+  #turn-indicator {
+    font-size: 20px; font-weight: bold; color: #ef4444; text-transform: uppercase;
+  }
+
+  #controls {
+    pointer-events: auto; padding: 10px; background: rgba(0,0,0,0.9);
+    display: flex; justify-content: space-around; border-top: 2px solid #555;
+  }
+
+  button {
+    background: #333; color: #fff; border: 2px solid #fff;
+    padding: 10px 20px; font-family: inherit; font-size: 16px; font-weight: bold;
+    cursor: pointer; text-transform: uppercase;
+  }
+  button:active { background: #555; }
+  button:disabled { opacity: 0.5; border-color: #555; color: #888; }
+  
+  #overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+    display: none; align-items: center; justify-content: center; flex-direction: column;
+    pointer-events: auto; z-index: 50;
+  }
+  #overlay h1 { font-size: 48px; margin: 0 0 20px 0; letter-spacing: 4px; }
+  #overlay p { font-size: 18px; color: #ccc; max-width: 80%; text-align: center; margin-bottom: 30px;}
+
+  /* Hit splat animation */
+  .splat {
+    position: absolute; color: #fff; font-weight: bold; font-size: 24px;
+    text-shadow: 2px 2px 0 #000; pointer-events: none;
+    animation: floatUp 1s forwards;
+  }
+  @keyframes floatUp { 0%{opacity:1; transform:translateY(0);} 100%{opacity:0; transform:translateY(-30px);} }
+
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="cv"></canvas>
+  
+  <div id="ui-layer">
+    <div class="top-bar">
+      <div id="turn-indicator">ROMAN TURN</div>
+      <div style="font-size:12px; color:#aaa; margin-top:4px;">Objective: Defeat the Carthaginians</div>
+    </div>
+    
+    <div id="controls">
+      <button id="waitBtn" onclick="endAction()">Wait</button>
+      <button id="endTurnBtn" onclick="endTurn()">End Turn</button>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <h1 id="winTitle">VICTORY</h1>
+    <p id="winDesc">The Trebia is crossed. The path is open.</p>
+    <button onclick="returnToMap()">Return to Map</button>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const TILE_S = 48; // Tile Size
+const COLS = 7;
+const ROWS = 9;
+const CV = document.getElementById('cv');
+const CTX = CV.getContext('2d');
+const STORAGE_KEY = "spw_campaign_progress_v1";
+
+/* COLORS */
+const C = {
+  grass: '#3f6212',
+  river: '#1e3a8a', // Deep blue
+  riverLite: '#3b82f6',
+  snow: '#e5e7eb',
+  highlight: 'rgba(255,255,255,0.2)',
+  move: 'rgba(251, 191, 36, 0.4)', // Yellow overlay
+  attack: 'rgba(239, 68, 68, 0.6)', // Red overlay
+  roman: '#dc2626',
+  carth: '#d97706',
+  selected: '#fbbf24'
+};
+
+/* GAME STATE */
+let units = [];
+let turn = 'player'; // 'player' or 'enemy'
+let selectedUnit = null;
+let animState = null; // Block input during animations
+
+// Level Layout (0=Grass, 1=River, 2=Snow)
+// Romans start bottom (Grass), Must cross River (Middle), To Enemy (Snow)
+const MAP = [
+  [2,2,2,2,2,2,2],
+  [2,2,2,2,2,2,2],
+  [2,2,2,2,2,2,2], // Enemy Line
+  [1,1,1,1,1,1,1], // River
+  [1,1,1,1,1,1,1], // River
+  [0,0,0,0,0,0,0], // Bank
+  [0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0]  // Player Start
+];
+
+/* ================= CLASSES ================= */
+class Unit {
+  constructor(type, team, x, y){
+    this.type = type; // 'legion', 'velite', 'horse', 'elephant'
+    this.team = team; // 'player', 'enemy'
+    this.x = x;
+    this.y = y;
+    this.maxHp = (type==='elephant') ? 8 : (type==='legion') ? 5 : 3;
+    this.hp = this.maxHp;
+    this.moveRange = (type==='horse') ? 4 : 3;
+    this.range = (type==='velite') ? 2 : 1;
+    this.dmg = (type==='elephant') ? 3 : 2;
+    this.hasActed = false;
+  }
+  
+  draw(ctx){
+    const cx = this.x * TILE_S;
+    const cy = this.y * TILE_S;
+    const p = 4; // padding
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(cx+TILE_S/2, cy+TILE_S-6, TILE_S/3, 6, 0, 0, Math.PI*2); ctx.fill();
+
+    // Base Color
+    ctx.fillStyle = (this.team === 'player') ? C.roman : C.carth;
+    if(this.hasActed) ctx.fillStyle = '#555'; // Greyed out
+    
+    // Shape based on type
+    if(this.type === 'elephant'){
+       ctx.fillRect(cx+p, cy+p, TILE_S-2*p, TILE_S-2*p); // Big square
+       ctx.fillStyle = '#fff'; // Tusks
+       ctx.fillRect(cx+10, cy+30, 6, 12); ctx.fillRect(cx+32, cy+30, 6, 12);
+    } else if(this.type === 'horse'){
+       ctx.beginPath(); ctx.moveTo(cx+TILE_S/2, cy+p); ctx.lineTo(cx+TILE_S-p, cy+TILE_S-p); ctx.lineTo(cx+p, cy+TILE_S-p); ctx.fill();
+    } else {
+       // Infantry / Velite
+       ctx.fillRect(cx+12, cy+10, 24, 30);
+       // Head
+       ctx.fillStyle = '#fca5a5'; 
+       ctx.fillRect(cx+16, cy+4, 16, 10);
+       // Helmet
+       ctx.fillStyle = (this.team==='player') ? '#fcd34d' : '#fff';
+       ctx.fillRect(cx+14, cy+2, 20, 6);
+    }
+
+    // Selection Ring
+    if(this === selectedUnit){
+      ctx.strokeStyle = C.selected; ctx.lineWidth = 3;
+      ctx.strokeRect(cx+2, cy+2, TILE_S-4, TILE_S-4);
+    }
+    
+    // HP Bar
+    const hpW = 36;
+    ctx.fillStyle = '#000'; ctx.fillRect(cx+6, cy-6, hpW, 6);
+    const hpPct = this.hp / this.maxHp;
+    ctx.fillStyle = (hpPct > 0.5) ? '#22c55e' : '#ef4444';
+    ctx.fillRect(cx+7, cy-5, (hpW-2)*hpPct, 4);
+  }
+}
+
+/* ================= INIT ================= */
+function init(){
+  CV.width = COLS * TILE_S;
+  CV.height = ROWS * TILE_S;
+  
+  // PLAYER UNITS (Romans)
+  units.push(new Unit('legion', 'player', 2, 7));
+  units.push(new Unit('legion', 'player', 3, 7)); // Sempronius (Center)
+  units.push(new Unit('legion', 'player', 4, 7));
+  units.push(new Unit('velite', 'player', 3, 8)); // Support back
+
+  // ENEMY UNITS (Carthage)
+  units.push(new Unit('elephant', 'enemy', 3, 1)); // Boss
+  units.push(new Unit('horse', 'enemy', 1, 2));
+  units.push(new Unit('horse', 'enemy', 5, 2));
+  units.push(new Unit('legion', 'enemy', 2, 2));
+  units.push(new Unit('legion', 'enemy', 4, 2));
+
+  draw();
+}
+
+/* ================= LOGIC ================= */
+
+function getUnitAt(x, y){ return units.find(u => u.x === x && u.y === y && u.hp > 0); }
+function dist(a, b){ return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
+
+function draw(){
+  // 1. Draw Map
+  for(let y=0; y<ROWS; y++){
+    for(let x=0; x<COLS; x++){
+      const type = MAP[y][x];
+      CTX.fillStyle = (type===2) ? C.snow : (type===1) ? C.river : C.grass;
+      CTX.fillRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
+      
+      // Grid lines
+      CTX.strokeStyle = 'rgba(0,0,0,0.1)';
+      CTX.lineWidth = 1;
+      CTX.strokeRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
+      
+      // River texture
+      if(type===1){
+        CTX.fillStyle = C.riverLite;
+        CTX.fillRect(x*TILE_S + 5, y*TILE_S + 10, 10, 2);
+        CTX.fillRect(x*TILE_S + 25, y*TILE_S + 30, 15, 2);
+      }
+    }
+  }
+
+  // 2. Highlights (Move/Attack)
+  if(selectedUnit && !animState && selectedUnit.team === 'player' && !selectedUnit.hasActed){
+    // Show Move Range
+    for(let y=0; y<ROWS; y++){
+      for(let x=0; x<COLS; x++){
+        const d = Math.abs(x - selectedUnit.x) + Math.abs(y - selectedUnit.y);
+        const u = getUnitAt(x,y);
+        
+        // Move Highlight
+        if(d <= selectedUnit.moveRange && !u){
+           CTX.fillStyle = C.move;
+           CTX.fillRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
+        }
+        
+        // Attack Highlight
+        if(u && u.team !== 'player' && d <= selectedUnit.range){
+           CTX.fillStyle = C.attack;
+           CTX.fillRect(x*TILE_S, y*TILE_S, TILE_S, TILE_S);
+        }
+      }
+    }
+  }
+
+  // 3. Units
+  units.forEach(u => { if(u.hp>0) u.draw(CTX); });
+}
+
+/* ================= INPUT ================= */
+CV.addEventListener('pointerup', e => {
+  if(turn !== 'player' || animState) return;
+  
+  const rect = CV.getBoundingClientRect();
+  const tx = Math.floor((e.clientX - rect.left) / TILE_S);
+  const ty = Math.floor((e.clientY - rect.top) / TILE_S);
+  
+  const target = getUnitAt(tx, ty);
+
+  // 1. Select Unit
+  if(target && target.team === 'player'){
+    if(!target.hasActed) selectedUnit = target;
+    draw();
+    return;
+  }
+
+  // 2. Action (Move or Attack)
+  if(selectedUnit){
+    const d = Math.abs(tx - selectedUnit.x) + Math.abs(ty - selectedUnit.y);
+    
+    // Attack?
+    if(target && target.team === 'enemy' && d <= selectedUnit.range){
+      attack(selectedUnit, target);
+      return;
+    }
+    
+    // Move?
+    if(!target && d <= selectedUnit.moveRange){
+      move(selectedUnit, tx, ty);
+      return;
+    }
+  }
+});
+
+function move(unit, x, y){
+  unit.x = x; 
+  unit.y = y;
+  // Don't end turn immediately on move, allow attack after? 
+  // For simplicity: Move ends action unless we add complex UI.
+  // Let's make Move count as action for now to keep it simple.
+  endAction();
+}
+
+function attack(att, def){
+  // Anim
+  animState = true;
+  
+  // Bump animation
+  const ox = att.x, oy = att.y;
+  const dx = (def.x - att.x)*0.3;
+  const dy = (def.y - att.y)*0.3;
+  
+  let f = 0;
+  const int = setInterval(()=>{
+    f++;
+    if(f < 5){
+      att.x += dx/5; att.y += dy/5;
+    } else if(f < 10) {
+      att.x -= dx/5; att.y -= dy/5;
+    } else {
+      clearInterval(int);
+      att.x = ox; att.y = oy;
+      
+      // Damage calculation
+      const dmg = att.dmg; // Simple fixed damage
+      def.hp -= dmg;
+      showSplat(def.x, def.y, `-${dmg}`);
+      
+      if(def.hp <= 0) {
+        // Kill
+        units = units.filter(u => u !== def);
+        checkWin();
+      }
+      
+      animState = false;
+      if(turn === 'player') endAction();
+      draw();
+    }
+    draw();
+  }, 30);
+}
+
+function endAction(){
+  if(selectedUnit){
+    selectedUnit.hasActed = true;
+    selectedUnit = null;
+    draw();
+    
+    // Check if all players acted
+    if(!units.some(u => u.team === 'player' && !u.hasActed)){
+      setTimeout(endTurn, 500);
+    }
+  }
+}
+
+function endTurn(){
+  // 1. Process End of Turn Effects (River Cold)
+  const currentTeam = (turn === 'player') ? 'player' : 'enemy';
+  units.forEach(u => {
+    if(u.team === currentTeam && u.hp > 0){
+      // Check River
+      if(MAP[u.y][u.x] === 1){
+        u.hp -= 1;
+        showSplat(u.x, u.y, "Cold!", "#3b82f6");
+      }
+      // Reset Action
+      u.hasActed = false;
+    }
+  });
+
+  // Clean up dead from cold
+  units = units.filter(u => u.hp > 0);
+  checkWin();
+
+  // 2. Switch Turn
+  turn = (turn === 'player') ? 'enemy' : 'player';
+  document.getElementById('turn-indicator').textContent = (turn === 'player') ? "ROMAN TURN" : "CARTHAGE TURN";
+  document.getElementById('turn-indicator').style.color = (turn === 'player') ? "#ef4444" : "#d97706";
+  
+  selectedUnit = null;
+  draw();
+
+  if(turn === 'enemy'){
+    setTimeout(aiTurn, 1000);
+  }
+}
+
+/* ================= AI ================= */
+async function aiTurn(){
+  const enemies = units.filter(u => u.team === 'enemy');
+  
+  for(const e of enemies){
+    if(e.hp <= 0) continue;
+    
+    // 1. Find Closest Target
+    let targets = units.filter(u => u.team === 'player');
+    if(targets.length === 0) break;
+    
+    targets.sort((a,b) => dist(e, a) - dist(e, b));
+    let target = targets[0];
+    let d = dist(e, target);
+    
+    // 2. Attack if in range
+    if(d <= e.range){
+      await new Promise(r => setTimeout(r, 500));
+      attack(e, target);
+      await new Promise(r => setTimeout(r, 600)); // Wait for attack anim
+      continue;
+    }
+    
+    // 3. Move towards
+    if(d > e.range){
+      // Simple Move Logic: Move towards target x/y but don't overlap
+      let bestX = e.x, bestY = e.y, minD = 999;
+      
+      // Check neighbors
+      const moves = [
+        {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}
+      ];
+      
+      // Shuffle moves for variety
+      moves.sort(()=>Math.random()-0.5);
+
+      for(let m of moves){
+        let nx = e.x + m.x; 
+        let ny = e.y + m.y;
+        if(nx>=0 && nx<COLS && ny>=0 && ny<ROWS && !getUnitAt(nx,ny)){
+           let distToTarg = Math.abs(nx - target.x) + Math.abs(ny - target.y);
+           if(distToTarg < minD){
+             minD = distToTarg;
+             bestX = nx; bestY = ny;
+           }
+        }
+      }
+      
+      // Execute move
+      e.x = bestX; e.y = bestY;
+      draw();
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+  
+  endTurn();
+}
+
+/* ================= UI HELPER ================= */
+function showSplat(x, y, text, color='#fff'){
+  const el = document.createElement('div');
+  el.className = 'splat';
+  el.textContent = text;
+  el.style.color = color;
+  el.style.left = (x*TILE_S + 10) + 'px';
+  el.style.top = (y*TILE_S - 10) + 'px';
+  document.getElementById('game-container').appendChild(el);
+  setTimeout(()=>el.remove(), 1000);
+}
+
+function checkWin(){
+  const players = units.filter(u => u.team === 'player').length;
+  const enemies = units.filter(u => u.team === 'enemy').length;
+  
+  const ov = document.getElementById('overlay');
+  const t = document.getElementById('winTitle');
+  const d = document.getElementById('winDesc');
+  
+  // 1. Determine Win/Loss text
+  if(players === 0){
+    // DEFEAT (Historical Result)
+    ov.style.display = 'flex';
+    t.textContent = "DEFEAT";
+    t.style.color = "#ef4444"; // Red
+    d.textContent = "The legions are broken. The survivors retreat south toward Etruria.";
+    
+    // SAVE PROGRESS ANYWAY (Fail Forward)
+    saveProgress(); 
+
+  } else if(enemies === 0){
+    // VICTORY (Alternate History)
+    ov.style.display = 'flex';
+    t.textContent = "VICTORY";
+    t.style.color = "#fbbf24"; // Gold
+    d.textContent = "Against all odds, the river is crossed. Hannibal falls back.";
+    
+    // SAVE PROGRESS
+    saveProgress();
+  }
+}
+
+function saveProgress(){
+  // Unlock the next node in the map
+  let s = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  s.trebia = true; 
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+
+function returnToMap(){
+  window.location.href = "map.html";
+}
+
+init();
+
+</script>
+</body>
+</html>
