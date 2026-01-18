@@ -242,16 +242,29 @@ canvas.addEventListener("pointerup", e=>{
 
 function openBattle(i){
   const b = battles[i];
+  
+  // 1. If we have a dedicated boot file, go there!
+  if(b.url){
+    // Mark as visited immediately (optional, or do this after winning)
+    if(i === nextIndex()){
+      state[b.id]=true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+    window.location.href = b.url;
+    return;
+  }
+
+  // 2. Otherwise, show the placeholder modal (for future levels)
   mTitle.textContent = b.name;
   mText.textContent = `${b.name} placeholder screen. Click below to return.`;
   modal.style.display="flex";
 
-  // Unlock this battle if it's the current one
   if(i === nextIndex()){
     state[b.id]=true;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }
 }
+
 
 closeBtn.onclick = ()=>{
   modal.style.display="none";
