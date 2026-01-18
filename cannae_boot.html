@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Cannae: The Pivot</title>
+<style>
+    body {
+        margin: 0; padding: 0; background: #000;
+        height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: 'Courier New', Courier, monospace; overflow: hidden;
+    }
+    #stage {
+        position: relative; width: 100%; max-width: 600px; 
+        /* CHANGED: Portrait for better framing */
+        aspect-ratio: 3/4;
+        background: #111; overflow: hidden;
+        border: 2px solid #333;
+        box-shadow: 0 0 30px rgba(0,0,0,0.9);
+    }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+    
+    /* DIALOGUE BOX */
+    #dialogue-box {
+        position: absolute; bottom: 0; left: 0;
+        width: 100%; background: #1f1f1f; 
+        border-top: 4px solid #b91c1c; 
+        padding: 15px 20px; display: none; z-index: 30;
+        cursor: pointer; height: 130px;
+        box-sizing: border-box;
+    }
+    .speaker-name {
+        font-weight: 900; font-size: 16px; text-transform: uppercase;
+        margin-bottom: 8px; letter-spacing: 2px;
+    }
+    .speech-text {
+        color: #e7e7ea; font-size: 17px; line-height: 1.3; white-space: pre-wrap;
+    }
+    .click-prompt {
+        position: absolute; bottom: 10px; right: 20px;
+        font-size: 12px; color: #777; animation: blink 1s infinite;
+    }
+
+    /* TITLE SCREEN */
+    #title-screen {
+        position: absolute; inset: 0; 
+        background: #7f1d1d; 
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 50; text-align: center;
+        opacity: 0; transition: opacity 2s;
+    }
+    h1 { 
+        font-size: 64px; color: #fbbf24; margin: 0; 
+        text-transform: uppercase; letter-spacing: 4px; 
+        text-shadow: 0 4px 0 #000;
+    }
+    h2 { font-size: 18px; color: #fff; margin-bottom: 30px; letter-spacing: 2px; font-weight:800; }
+    
+    button {
+        background: #111; color: #fff; border: 4px solid #fff;
+        padding: 15px 40px; font-size: 20px; font-weight: 900; cursor: pointer;
+        text-transform: uppercase; 
+        box-shadow: 0 6px 0 #000;
+    }
+    button:active { transform: translateY(4px); box-shadow: 0 2px 0 #000; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+    <canvas id="cv"></canvas>
+    
+    <div id="dialogue-box" onclick="nextLine()">
+        <div class="speaker-name" id="speaker">Name</div>
+        <div class="speech-text" id="speech"></div>
+        <div class="click-prompt">TAP TO CONTINUE ▼</div>
+    </div>
+
+    <div id="title-screen">
+        <h1>CANNAE</h1>
+        <h2>The Slaughter Begins</h2>
+        <button onclick="window.location.href='cannae_game.html'">Start Battle</button>
+    </div>
+</div>
+
+<script>
+const C = document.getElementById('cv');
+const CTX = C.getContext('2d');
+const BOX = document.getElementById('dialogue-box');
+const TXT = document.getElementById('speech');
+const NAME = document.getElementById('speaker');
+
+// CHANGED: Portrait resolution
+const W = 320;
+const H = 420;
+
+const P = {
+  marble: '#e5e5e5', shadow: '#a3a3a3', dark: '#111',
+  toga: '#f3f4f6', purple: '#7e22ce', 
+  fabius: '#f59e0b', 
+  varro: '#ef4444',  
+  paullus: '#60a5fa', 
+  skin: '#d4a373',
+  roman: '#c53030'
+};
+
+const SCRIPT = [
+    {
+        scene: 'face', char: 'Fabius', mood: 'tired',
+        text: "My Dictatorship is over. I hand the legions back to you, Consuls."
+    },
+    {
+        scene: 'face', char: 'Fabius', mood: 'tired',
+        text: "I kept Rome safe by waiting. Do not undo my work in a single afternoon."
+    },
+    {
+        scene: 'face', char: 'Varro', mood: 'angry',
+        text: "Safe? You call burning fields safe? The people are starving, Fabius!"
+    },
+    {
+        scene: 'face', char: 'Varro', mood: 'yell',
+        text: "No more delays! No more running! Rome elected ME to end this war."
+    },
+    {
+        scene: 'face', char: 'Paullus', mood: 'worry',
+        text: "Varro, caution. We have the numbers, but the plain is flat. We should..."
+    },
+    {
+        scene: 'face', char: 'Varro', mood: 'smug',
+        text: "Caution is for old men! Today I hold the command."
+    },
+    {
+        scene: 'army', mood: 'normal',
+        text: "Look at this army. Eighty thousand men! The largest force in history!"
+    },
+    {
+        scene: 'army', mood: 'tight',
+        text: "Pack them tight! Shoulder to shoulder! Make a wall of flesh!"
+    },
+    {
+        scene: 'face', char: 'Varro', mood: 'yell',
+        text: "We will punch straight through their center! CRUSH THEM!"
+    }
+];
+
+let lineIdx = 0;
+let charIdx = 0;
+let currentLine = "";
+let typeTimer = null;
+let frame = 0;
+let compression = 0; 
+
+function init(){
+    C.width = W;
+    C.height = H;
+    startLine();
+    loop();
+}
+
+function startLine(){
+    if(lineIdx >= SCRIPT.length){
+        endSequence();
+        return;
+    }
+    
+    const line = SCRIPT[lineIdx];
+    BOX.style.display = 'block';
+    NAME.innerText = line.char || "Varro";
+    
+    if(line.char === 'Fabius') { NAME.style.color = P.fabius; BOX.style.borderTopColor = P.fabius; }
+    else if(line.char === 'Varro') { NAME.style.color = P.varro; BOX.style.borderTopColor = P.varro; }
+    else if(line.char === 'Paullus') { NAME.style.color = P.paullus; BOX.style.borderTopColor = P.paullus; }
+    else { NAME.style.color = '#fff'; BOX.style.borderTopColor = '#fff'; }
+
+    currentLine = line.text;
+    TXT.innerText = "";
+    charIdx = 0;
+    
+    if(typeTimer) clearInterval(typeTimer);
+    typeTimer = setInterval(typeWriter, 25);
+}
+
+function typeWriter(){
+    if(charIdx < currentLine.length){
+        TXT.innerText += currentLine.charAt(charIdx);
+        charIdx++;
+    } else {
+        clearInterval(typeTimer);
+    }
+}
+
+function nextLine(){
+    if(charIdx < currentLine.length){
+        TXT.innerText = currentLine;
+        charIdx = currentLine.length;
+        clearInterval(typeTimer);
+    } else {
+        lineIdx++;
+        startLine();
+    }
+}
+
+function endSequence(){
+    BOX.style.display = 'none';
+    const ts = document.getElementById('title-screen');
+    ts.style.display = 'flex';
+    setTimeout(()=> ts.style.opacity = 1, 50);
+}
+
+function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+
+function drawFace(char, mood){
+    rect(0,0,W,H, '#1c1917'); 
+    const cx = W/2;
+    // CHANGED: Shifted up for Portrait mode
+    const cy = H * 0.4; 
+
+    let skin = P.skin;
+    let toga = '#fff';
+    let sash = P.purple;
+    let hair = '#5c4033';
+
+    if(char === 'Fabius'){
+        toga = P.fabius; sash = '#b45309'; hair = '#9ca3af';
+    } else if (char === 'Varro'){
+        toga = '#fff'; sash = P.varro; hair = '#000';
+    } else if (char === 'Paullus'){
+        toga = '#fff'; sash = P.paullus; hair = '#5c4033';
+    }
+
+    rect(cx-60, cy+50, 120, 150, toga); // Extended body
+    if(char !== 'Fabius') rect(cx-50, cy+50, 20, 150, sash); 
+
+    rect(cx-20, cy+30, 40, 20, skin);
+    rect(cx-35, cy-35, 70, 70, skin);
+    
+    rect(cx-36, cy-35, 72, 12, hair);
+    rect(cx-38, cy-25, 6, 20, hair); 
+    rect(cx+32, cy-25, 6, 20, hair);
+
+    let eyeH = (mood==='tired') ? 2 : 4;
+    rect(cx-20, cy-10, 12, eyeH, '#000');
+    rect(cx+8, cy-10, 12, eyeH, '#000');
+
+    if(mood === 'angry' || mood === 'yell'){
+        rect(cx-20, cy-15, 12, 3, hair);
+        rect(cx+8, cy-15, 12, 3, hair);
+    } else if (mood === 'worry'){
+        rect(cx-20, cy-18, 12, 2, hair);
+        rect(cx+8, cy-18, 12, 2, hair);
+    }
+
+    if(mood === 'yell'){
+        rect(cx-12, cy+25, 24, 10, '#300'); 
+        rect(cx-10, cy+25, 20, 2, '#fff');
+        if(frame%4===0) CTX.translate(1,1);
+    } else if(mood === 'smug'){
+        rect(cx-10, cy+25, 20, 2, '#5c4033');
+        rect(cx+8, cy+23, 2, 2, '#5c4033');
+    } else {
+        rect(cx-10, cy+30, 20, 2, '#5c4033');
+    }
+}
+
+function drawArmy(mood){
+    rect(0,0,W,H, '#2d332d'); 
+    
+    let targetComp = 0;
+    if(mood === 'tight') targetComp = 1;
+    
+    compression += (targetComp - compression) * 0.05;
+    
+    const startGap = 20;
+    const endGap = 2; 
+    const currentGap = startGap - (startGap - endGap) * compression;
+    
+    const cols = 10;
+    const rows = 12; // Increased rows for taller screen
+    const soldierW = 16;
+    
+    const totalW = cols * (soldierW + currentGap);
+    const startX = (W - totalW)/2 + 10;
+    const startY = 30;
+
+    for(let r=0; r<rows; r++){
+        for(let c=0; c<cols; c++){
+            let x = startX + c * (soldierW + currentGap);
+            let y = startY + r * (soldierW + currentGap/2); 
+            
+            let bob = Math.sin(frame/5 + c + r)*1;
+            
+            CTX.fillStyle = 'rgba(0,0,0,0.3)';
+            CTX.beginPath(); CTX.ellipse(x+8, y+14, 8, 4, 0, 0, Math.PI*2); CTX.fill();
+
+            rect(x+4, y+6+bob, 8, 10, P.roman); 
+            rect(x+2, y+10+bob, 4, 4, '#b7bcc5');
+            rect(x+10, y+10+bob, 4, 4, '#b7bcc5'); 
+            
+            rect(x+5, y+2+bob, 6, 6, '#111');
+            rect(x+6, y+1+bob, 4, 6, P.fabius); 
+            
+            if(mood === 'tight' && compression < 0.8 && r===0 && (c===0 || c===cols-1)){
+                let ax = (c===0) ? x-15 : x+25;
+                let ay = y+8;
+                CTX.fillStyle = '#fff';
+                CTX.beginPath();
+                if(c===0){ 
+                    CTX.moveTo(ax, ay-5); CTX.lineTo(ax+10, ay); CTX.lineTo(ax, ay+5);
+                } else { 
+                    CTX.moveTo(ax, ay-5); CTX.lineTo(ax-10, ay); CTX.lineTo(ax, ay+5);
+                }
+                CTX.fill();
+            }
+        }
+    }
+}
+
+function loop(){
+    frame++;
+    CTX.setTransform(1, 0, 0, 1, 0, 0); 
+
+    if(lineIdx < SCRIPT.length){
+        const current = SCRIPT[lineIdx];
+        if(current.scene === 'face') drawFace(current.char, current.mood);
+        else if(current.scene === 'army') drawArmy(current.mood);
+    } else {
+        drawArmy('tight');
+    }
+
+    requestAnimationFrame(loop);
+}
+
+init();
+
+</script>
+</body>
+</html>
