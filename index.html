@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>Second Punic War – Campaign</title>
+<title>Second Punic War – Debug Grid</title>
 
 <style>
 html,body{
@@ -19,6 +19,7 @@ canvas{
   height:100vh;
   display:block;
   image-rendering: pixelated;
+  cursor: crosshair; /* Helps with targeting */
 }
 
 #hud{
@@ -33,45 +34,16 @@ canvas{
   pointer-events:none;
 }
 
-#progress{
-  position:fixed;
-  bottom:12px;
-  left:50%;
-  transform:translateX(-50%);
-  font-size:12px;
-  color:rgba(255,255,255,0.6);
-}
-
-#modal{
-  position:fixed;
-  inset:0;
-  display:none;
-  align-items:center;
-  justify-content:center;
-  background:rgba(0,0,0,0.75);
-}
-
-#card{
-  background:#0b0b0c;
-  border:1px solid #fbbf24;
-  padding:18px;
-  width:min(90vw,420px);
-  color:#e7e7ea;
-}
-
-#card h1{
-  margin:0 0 10px 0;
-  color:#fbbf24;
-  font-size:18px;
-}
-
-button{
-  font-family:inherit;
-  margin-top:12px;
-  padding:8px 12px;
-  background:#1e293b;
-  border:1px solid #fbbf24;
-  color:#f8fafc;
+#debug-info {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    color: #ef4444;
+    background: rgba(0,0,0,0.8);
+    padding: 8px;
+    border: 1px solid #ef4444;
+    font-size: 14px;
+    pointer-events: none;
 }
 </style>
 </head>
@@ -81,158 +53,157 @@ button{
 <canvas id="c"></canvas>
 
 <div id="hud">
-  <div>SECOND PUNIC WAR</div>
-  <div>Campaign</div>
+  <div>DEBUG MODE</div>
+  <div>Grid Overlay</div>
 </div>
 
-<div id="progress"></div>
-
-<div id="modal">
-  <div id="card">
-    <h1 id="mTitle"></h1>
-    <p id="mText"></p>
-    <button id="closeBtn">Return to Map</button>
-  </div>
-</div>
+<div id="debug-info">Hover for coords</div>
 
 <script>
 /* ===================== CONFIG ===================== */
 
-const MAP_SRC = "IMG_4198.jpeg"; // ← YOUR IMAGE
+const MAP_SRC = "IMG_4198.jpeg"; 
 const STORAGE_KEY = "spw_campaign_progress_v1";
 
-/* Approximate positions (percent of image) */
+// Current (wrong) positions - we will fix these next!
 const battles = [
   { id:"trebia",  name:"Trebia",         x:0.58, y:0.26 },
   { id:"tras",    name:"Lake Trasimene", x:0.50, y:0.36 },
   { id:"fabian",  name:"Fabian Tactics", x:0.54, y:0.42 },
   { id:"cannae",  name:"Cannae",         x:0.63, y:0.52 },
-  { id:"zama",    name:"Zama",           x:0.34, y:0.74 } // fudged south
+  { id:"zama",    name:"Zama",           x:0.34, y:0.74 } 
 ];
 
 /* ===================== SETUP ===================== */
 
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
-ctx.imageSmoothingEnabled = false;
+const debugDiv = document.getElementById("debug-info");
 
-const modal = document.getElementById("modal");
-const mTitle = document.getElementById("mTitle");
-const mText  = document.getElementById("mText");
-const closeBtn = document.getElementById("closeBtn");
-const progressLine = document.getElementById("progress");
+ctx.imageSmoothingEnabled = false;
 
 let mapImg = new Image();
 mapImg.src = MAP_SRC;
 
-let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+let mouseX = 0;
+let mouseY = 0;
 
 function resize(){
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
+  draw();
 }
 window.addEventListener("resize", resize);
-resize();
 
-/* ===================== HELPERS ===================== */
+/* ===================== DRAW GRID & DEBUG ===================== */
 
-function nextIndex(){
-  for(let i=0;i<battles.length;i++){
-    if(!state[battles[i].id]) return i;
-  }
-  return battles.length;
+function drawGrid() {
+    ctx.lineWidth = 1;
+    ctx.font = "10px monospace";
+    ctx.textAlign = "left";
+
+    // Draw Vertical Lines (X)
+    for(let i=0; i<=10; i++){
+        let x = (i/10) * canvas.width;
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+        
+        // Label
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillText("x:"+ (i/10).toFixed(1), x + 2, 12);
+    }
+
+    // Draw Horizontal Lines (Y)
+    for(let i=0; i<=10; i++){
+        let y = (i/10) * canvas.height;
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillText("y:"+ (i/10).toFixed(1), 5, y - 2);
+    }
 }
 
-function drawMarker(x,y,active){
-  ctx.fillStyle = active ? "#fbbf24" : "rgba(251,191,36,0.5)";
-  ctx.fillRect(x-6,y-18,12,36);
-  ctx.fillRect(x-18,y-6,36,12);
+function drawCursorCoords() {
+    // Draw crosshair at mouse
+    const x = mouseX * canvas.width;
+    const y = mouseY * canvas.height;
+
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y);
+    ctx.lineTo(x + 10, y);
+    ctx.moveTo(x, y - 10);
+    ctx.lineTo(x, y + 10);
+    ctx.stroke();
+
+    // Update the floating debug box
+    debugDiv.textContent = `X: ${mouseX.toFixed(2)} | Y: ${mouseY.toFixed(2)}`;
 }
 
-function drawArrow(ax,ay,bx,by){
-  ctx.strokeStyle = "#ef4444";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(ax,ay);
-  ctx.lineTo(bx,by);
-  ctx.stroke();
-}
-
-/* ===================== DRAW ===================== */
+/* ===================== MAIN DRAW ===================== */
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // draw map
-  ctx.drawImage(mapImg, 0,0, canvas.width, canvas.height);
-
-  const unlocked = nextIndex();
-
-  // arrows
-  for(let i=0;i<unlocked;i++){
-    const A = battles[i-1];
-    const B = battles[i];
-    if(!A) continue;
-    drawArrow(
-      A.x*canvas.width, A.y*canvas.height,
-      B.x*canvas.width, B.y*canvas.height
-    );
+  // 1. Draw Map
+  if(mapImg.complete) {
+      ctx.drawImage(mapImg, 0,0, canvas.width, canvas.height);
   }
 
-  // markers + labels
-  battles.forEach((b,i)=>{
-    if(i > unlocked) return;
+  // 2. Draw the Grid
+  drawGrid();
+
+  // 3. Draw existing markers (so you can see how far off they are)
+  battles.forEach((b)=>{
     const x = b.x*canvas.width;
     const y = b.y*canvas.height;
-    drawMarker(x,y,i===unlocked);
-
-    ctx.fillStyle="#000";
+    
+    // Draw marker
+    ctx.fillStyle = "rgba(251,191,36,0.5)";
+    ctx.fillRect(x-6,y-18,12,36);
+    ctx.fillRect(x-18,y-6,36,12);
+    
+    // Label
+    ctx.fillStyle="#fff";
     ctx.font="12px ui-monospace";
     ctx.textAlign="center";
     ctx.fillText(b.name,x,y-22);
   });
 
-  progressLine.textContent = `Progress: ${Object.keys(state).length}/${battles.length}`;
+  // 4. Draw Mouse tracker
+  drawCursorCoords();
 }
 
 mapImg.onload = draw;
 
 /* ===================== INTERACTION ===================== */
 
-canvas.addEventListener("pointerup", e=>{
-  const r = canvas.getBoundingClientRect();
-  const mx = (e.clientX-r.left)/r.width;
-  const my = (e.clientY-r.top)/r.height;
-
-  const unlocked = nextIndex();
-
-  for(let i=0;i<=unlocked;i++){
-    const b = battles[i];
-    const dx = mx - b.x;
-    const dy = my - b.y;
-    if(dx*dx+dy*dy < 0.002){
-      openBattle(i);
-      break;
-    }
-  }
-});
-
-function openBattle(i){
-  const b = battles[i];
-  mTitle.textContent = b.name;
-  mText.textContent = `${b.name} placeholder screen.`;
-  modal.style.display="flex";
-
-  if(i === nextIndex()){
-    state[b.id]=true;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
+// Track mouse/touch movement for coordinates
+function updateCoords(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    mouseX = (clientX - r.left) / r.width;
+    mouseY = (clientY - r.top) / r.height;
+    requestAnimationFrame(draw);
 }
 
-closeBtn.onclick = ()=>{
-  modal.style.display="none";
-  draw();
-};
+canvas.addEventListener("mousemove", e => updateCoords(e.clientX, e.clientY));
+canvas.addEventListener("touchmove", e => {
+    e.preventDefault(); // stop scrolling while debugging
+    updateCoords(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive: false});
+
+// Initial draw
+resize();
+
 </script>
 </body>
 </html>
