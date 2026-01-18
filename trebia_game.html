@@ -148,7 +148,27 @@ const P = {
 const CANVAS = document.getElementById('cv');
 const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
+const NEXT_PAGE = "map.html";
 
+const HISTORY_HTML = `
+  <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF THE TREBIA (218 BC)</h2>
+  <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
+    <p><strong style="color:#fff">FORCES:</strong><br>
+    <span style="color:#ef4444">Rome:</span> ~42,000 (Sempronius Longus)<br>
+    <span style="color:#93c5fd">Carthage:</span> ~30,000 (Hannibal)</p>
+
+    <p><strong style="color:#fff">CASUALTIES:</strong><br>
+    <span style="color:#ef4444">Rome:</span> ~26,000–32,000 killed or captured<br>
+    <span style="color:#93c5fd">Carthage:</span> ~5,000 (mostly Celtic allies)</p>
+
+    <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
+    Hannibal’s first major victory. The Romans were baited into crossing the freezing river before breakfast, leaving them cold, hungry, and exhausted. Mago’s hidden force struck their rear.</p>
+  </div>
+
+  <button class="btn-start" id="btn-map" style="margin-top:20px;">
+    RETURN TO MAP
+  </button>
+`;
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
 
 function drawSprite(u, scale){
@@ -551,13 +571,22 @@ function updateFX(){
 function showMsg(txt, col){
   const el=document.getElementById('battle-text'); el.innerText=txt; el.style.color=col; el.style.opacity=1; setTimeout(()=>el.style.opacity=0, 2500);
 }
-function gameOver(t){
-  gameActive=false;
-  document.getElementById('overlay').style.display='flex';
-  document.querySelector('#overlay h1').innerText="DEFEAT";
-  document.querySelectorAll('#overlay p')[0].innerHTML=t;
-  document.querySelectorAll('#overlay p')[1].innerHTML="";
-  document.querySelectorAll('#overlay p')[2].innerHTML="Tap to Restart";
+function gameOver(reason){
+  gameActive = false;
+
+  const overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+
+  overlay.innerHTML = `
+    <h1>DEFEAT</h1>
+    <p><b>${reason}</b></p>
+    <p style="margin-bottom:10px;">The battle is over.</p>
+    ${HISTORY_HTML}
+  `;
+
+  document.getElementById('btn-map').onclick = () => {
+    window.location.href = NEXT_PAGE;
+  };
 }
 
 const stickZone=document.getElementById('stick-zone');
