@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+  <title>Second Punic War — Cinema Mode</title>
+  <style>
+    /* Dark cinematic background */
+    html,body{margin:0;height:100%;background:#020617;overflow:hidden;touch-action:manipulation; font-family: ui-monospace, Menlo, Consolas, monospace;}
+    
+    /* The Game Layer (Pixelated) */
+    canvas{
+      width:100vw;height:100vh;display:block;
+      image-rendering:pixelated; image-rendering:crisp-edges;
+      position: absolute; top:0; left:0; z-index: 1;
+    }
+
+    /* The UI Layer (Crisp High-Res) */
+    #ui-layer {
+      position: absolute; top:0; left:0; width:100%; height:100%;
+      z-index: 10; pointer-events: none;
+      /* Changed: Align to top */
+      display: flex; flex-direction: column; justify-content: flex-start;
+    }
+
+    #hud {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:14px 16px; color:rgba(231,231,234,0.9); font-size:14px;
+      text-shadow:0 2px 4px rgba(0,0,0,0.8);
+      /* Ensure HUD stays on top */
+      position: relative; z-index: 20;
+    }
+
+    /* The Text Box - Moved to TOP */
+    #narration-box {
+      margin: 10px 16px 0 16px; /* Just below HUD */
+      padding: 16px;
+      background: linear-gradient(to bottom, rgba(5,5,8,0.95), rgba(15,15,20,0.98));
+      border: 1px solid rgba(245,158,11,0.5);
+      border-radius: 4px;
+      min-height: 80px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: opacity 0.3s ease;
+      pointer-events: auto; /* Allow clicking text box if needed */
+    }
+
+    #narration-text {
+      color: #e2e8f0; font-size: 16px; line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    
+    #narration-text strong { color: #fbbf24; font-weight: normal; }
+
+    #hint {
+      text-align: center; color: rgba(255,255,255,0.5); font-size: 12px;
+      margin-top: 8px; opacity: 0; transition: opacity 0.3s;
+    }
+    #hint.show { opacity: 1; }
+
+  </style>
+</head>
+<body>
+
+  <canvas id="c"></canvas>
+
+  <div id="ui-layer">
+    <div id="hud">
+      <div style="font-weight:bold; letter-spacing:1px; color:#fbbf24;">SECOND PUNIC WAR</div>
+      <div id="scene-counter">1/8</div>
+    </div>
+    
+    <div id="narration-box">
+      <div id="narration-text"></div>
+      <div id="hint">TAP TO CONTINUE</div>
+    </div>
+  </div>
+
+<script>
+/* ==============================
+// CONFIG
+============================== */
+const CFG = {
+  SCALE_DIV: 2.6, 
+  TYPE_SPEED: 0.4, // SLOWER TYPING (was 0.6)
+  DEBOUNCE_MS: 300,
+  TAP_MIN_SCENE_AGE: 1.0, 
+};
+
+/* ===== Setup ===== */
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d", { alpha:false });
+const uiText = document.getElementById("narration-text");
+const uiCounter = document.getElementById("scene-counter");
+const uiHint = document.getElementById("hint");
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function easeOut(t){ return 1 - Math.pow(1-t, 3); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function I(n){ return n|0; }
+
+function resize(){
+  const W = Math.max(210, Math.floor(window.innerWidth / CFG.SCALE_DIV));
+  const H = Math.max(360, Math.floor(window.innerHeight / CFG.SCALE_DIV));
+  canvas.width = W; canvas.height = H;
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ===== Palette ===== */
+const C = {
+  ink:"#0b0b0c", white:"#e7e7ea",
+  shadow:"rgba(0,0,0,0.5)", metal:"#94a3b8",
+  roman:"#ef4444", carth:"#f59e0b",
+  woodDark:"#451a03", woodLight:"#78350f",
+  skin:"#a16207", tunic:"#f1f5f9", royalPurple:"#7e22ce", gold:"#fbbf24"
+};
+
+/* ===== Graphics Utilities ===== */
+function rect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(I(x),I(y),I(w),I(h)); }
+
+function fillGradient(x, y, w, h, c1, c2, vertical=true) {
+  const g = vertical 
+    ? ctx.createLinearGradient(x, y, x, y+h)
+    : ctx.createLinearGradient(x, y, x+w, y);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  ctx.fillStyle = g;
+  ctx.fillRect(I(x), I(y), I(w), I(h));
+}
+
+function shadowEllipse(cx,cy,rx,ry){
+  ctx.fillStyle=C.shadow;
+  ctx.beginPath(); ctx.ellipse(I(cx),I(cy),I(rx),I(ry),0,0,Math.PI*2); ctx.fill();
+}
+
+/* ===== Character Sprites ===== */
+function drawUnit(x, y, s, type){
+  shadowEllipse(x+4*s, y+7*s, 4*s, 2*s);
+  rect(x+1*s, y+6*s, s, s, C.ink);
+  rect(x+6*s, y+6*s, s, s, C.ink);
+  rect(x+2*s, y+5*s, s, s, C.metal);
+  rect(x+5*s, y+5*s, s, s, C.metal);
+  const coat = (type==="roman") ? C.roman : C.carth;
+  for(let dx=2; dx<=5; dx++) rect(x+dx*s, y+3*s, s, s, coat);
+  rect(x+3*s, y+0*s, s, s, (type==="roman") ? C.carth : C.white);
+  rect(x+4*s, y+0*s, s, s, (type==="roman") ? C.carth : C.white);
+}
+
+function drawCommander(x, y, s){
+  // Podium
+  rect(x-2*s, y+6*s, 12*s, 4*s, "#57534e");
+  // Unit on top
+  drawUnit(x, y-2*s, s, "carth");
+  // Raised Sword
+  rect(x+7*s, y-6*s, 1*s, 6*s, "#cbd5e1"); // Blade
+  rect(x+6*s, y-1*s, 3*s, 1*s, "#475569"); // Hilt
+  rect(x+7*s, y+3*s, 1*s, 3*s, C.metal); // Arm up
+}
+
+function drawBoyHannibal(x, y, s){
+  shadowEllipse(x+4*s, y+7*s, 3*s, 1.5*s);
+  rect(x+2*s, y+3*s, 4*s, 4*s, C.tunic);
+  rect(x+2.5*s, y+7*s, 1*s, 1*s, C.skin); rect(x+4.5*s, y+7*s, 1*s, 1*s, C.skin);
+  rect(x+2*s, y+3*s, 4*s, 1*s, C.royalPurple); 
+  rect(x+2*s, y+3*s, 1*s, 4*s, C.royalPurple); 
+  rect(x+2*s, y+0*s, 4*s, 3*s, C.skin);
+  rect(x+2*s, y-0.5*s, 4*s, 1*s, "#000"); rect(x+1.5*s, y+0*s, 1*s, 2*s, "#000"); 
+  rect(x+5*s, y+1*s, 1*s, 1*s, "rgba(0,0,0,0.3)");
+}
+
+function drawElephant(x, y, s, t=0){
+  shadowEllipse(x+8*s, y+10*s, 8*s, 4*s);
+  rect(x, y-5*s, 16*s, 14*s, "#666");
+  rect(x-2*s, y-4*s, 4*s, 8*s, "#888");
+  rect(x+14*s, y-4*s, 4*s, 8*s, "#888");
+  rect(x+4*s, y+6*s, 2*s, 6*s, C.white);
+  rect(x+10*s, y+6*s, 2*s, 6*s, C.white);
+  const sway = Math.round(Math.sin(t*4)*1) * s;
+  rect(x+7*s + sway, y+2*s, 2*s, 10*s, "#555");
+  rect(x+12*s, y+0*s, 1*s, 1*s, C.ink);
+  rect(x+5*s, y-2*s, 6*s, 2*s, "rgba(245,158,11,0.45)");
+}
+
+function drawShip25D(x, y, s, type, opts={}){
+  const t = opts.t || 0;
+  const rotation = opts.rotation || 0; 
+  
+  ctx.save();
+  const shipW = 44*s;
+  const shipH = 10*s;
+  ctx.translate(I(x + shipW/2), I(y + shipH/2));
+  ctx.rotate(rotation);
+  ctx.translate(I(-(x + shipW/2)), I(-(y + shipH/2)));
+
+  const colorMain = type === "roman" ? C.white : "#d1d5db";
+  const colorTrim = type === "roman" ? C.roman : C.carth;
+  const ramColor  = type === "roman" ? C.metal : C.woodDark;
+  
+  const oarPhase = Math.sin(t*8);
+  for(let i=0; i<8; i++){
+    const ox = x + (8 + i*5)*s;
+    const oy = y + 8*s;
+    const dip = (oarPhase > 0 ? 1 : 0)*2*s;
+    rect(ox, oy, 1*s, 6*s, "#4b5563");
+    rect(ox-1*s, oy+6*s-dip, 3*s, 2*s, "#9ca3af");
+  }
+
+  rect(x, y, 44*s, 10*s, colorMain);
+  rect(x, y+2*s, 44*s, 2*s, colorTrim);
+  rect(x+2*s, y-2*s, 40*s, 2*s, "#f3f4f6"); 
+
+  rect(x+42*s, y+5*s, 8*s, 3*s, ramColor);
+  rect(x+40*s, y+4*s, 4*s, 5*s, colorMain);
+  rect(x-2*s, y-4*s, 4*s, 6*s, colorMain);
+  rect(x+20*s, y-12*s, 2*s, 12*s, "#78350f");
+  
+  const sx = x+11*s; const sy = y-10*s;
+  ctx.fillStyle = "rgba(231,231,234,0.9)";
+  for(let k=0; k<14*s; k+=s){
+    let curve = Math.sin((k/(14*s))*Math.PI)*2*s; 
+    rect(sx - curve, sy+k, 20*s + curve*2, s, "rgba(231,231,234,0.9)");
+  }
+  rect(sx+8*s, sy+4*s, 4*s, 6*s, colorTrim);
+
+  for(let i=0; i<8; i++){
+    const ox = x + (10 + i*5)*s;
+    const oy = y + 10*s;
+    const dip = (oarPhase > 0 ? 0 : 1)*2*s; 
+    rect(ox, oy, 1*s, 6*s, "#d1d5db");
+    rect(ox-1*s, oy+6*s-dip, 3*s, 2*s, "#f3f4f6");
+  }
+  ctx.restore();
+}
+
+function drawVignette(){
+  const W=canvas.width, H=canvas.height;
+  const g = ctx.createRadialGradient(W/2, H/2, H*0.4, W/2, H/2, H*0.9);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(1, "rgba(0,0,0,0.85)");
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  for(let i=0; i<W*H/800; i++) ctx.fillRect(Math.random()*W, Math.random()*H, 1, 1);
+}
+
+function drawEmbers(t, cx, cy, scale){
+  ctx.fillStyle = "#fbbf24";
+  for(let i=0; i<8; i++){
+    const lt = (t*2 + i*900) % 3; 
+    if(lt > 2) continue; 
+    const y = cy - lt * 10 * scale;
+    const x = cx + Math.sin(lt*3 + i)*4*scale;
+    const sz = Math.max(0, (2 - lt)*scale/2);
+    ctx.fillRect(x, y, sz, sz);
+  }
+}
+
+function drawDebris(cx, cy, t){
+  const age = t; 
+  if(age < 0 || age > 0.8) return;
+  const count = 15;
+  ctx.fillStyle = C.woodLight;
+  for(let i=0; i<count; i++){
+    const r = (i * 132.1) % (Math.PI*2);
+    const speed = 20 + (i*17)%40;
+    const dx = Math.cos(r) * speed * age;
+    const dy = Math.sin(r) * speed * age + (age*age*80); 
+    ctx.fillRect(I(cx+dx), I(cy+dy), 2, 2);
+  }
+}
+
+/* ===== TEXT ===== */
+const TEXT = {
+  p1: "It is a dangerous moment for the western Mediterranean.\n\nCarthage dominates trade with ships and silver. But Rome has risen.\n\nVictory has changed everything.",
+  p2: "Rome broke Carthage’s fleets and seized the sea. Carthaginian ships burned.\n\nCarthage survived, but emerged weakened and burdened by debt.",
+  p3: "One commander refused to accept defeat.\n\nHamilcar Barca carried the war to Iberia, rebuilding strength far from Rome’s reach.",
+  p4: "Before an altar, Hamilcar bound his son to hatred.\n\nThe boy’s name was Hannibal. He swore never to be a friend to Rome.",
+  p5: "Years passed. Hannibal grew into command.\n\nIn Spain, an army gathered—veterans, cavalry, and elephants. Rome watched from afar.",
+  p6: "Hannibal chose a path no Roman expected.\n\nLeaving his ships, he led his army north—through rivers and the frozen Alps.",
+  p7: "Rome answered the threat.\n\nLegions were raised. Consuls promised a swift victory over an exhausted enemy.",
+  p8: "Both sides were certain the war would be decided quickly.\n\nThey were wrong."
+};
+
+/* ===== SCENES ===== */
+const scenes = [
+  {
+    name:"Prologue", paragraphs: TEXT.p1,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      fillGradient(0,0,W,H, "#020617", "#1e293b");
+      ctx.fillStyle="rgba(255,255,255,0.6)";
+      for(let i=0;i<80;i++){
+        const x=(Math.sin(i*12.3)*0.5+0.5)*W;
+        const y=(Math.sin(i*3.7+1.1)*0.5+0.5)*H;
+        if(Math.sin(t*2+i) > 0.8) ctx.fillRect(I(x),I(y),1,1);
+        else ctx.fillRect(I(x),I(y),1,1);
+      }
+    }
+  },
+  {
+    name:"Sea Battle 2.5D", paragraphs: TEXT.p2,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      const impactTime = 2.5;
+      const isHit = t > impactTime;
+      const shake = (isHit && t < impactTime+0.4) ? (Math.random()*4-2) : 0;
+
+      fillGradient(0,0,W,H*0.45, "#334155", "#94a3b8");
+      fillGradient(0,H*0.45,W,H*0.55, "#0f172a", "#1e3a8a");
+      const horizonY = H*0.45;
+      
+      // Background waves
+      ctx.fillStyle="rgba(255,255,255,0.15)";
+      for(let i=0; i<15; i++){
+        const yOff = Math.pow(i/14, 2) * (H*0.55);
+        const waveY = horizonY + yOff + shake;
+        const shift = (i%2===0) ? t*10 : -t*10;
+        for(let j=0; j<W; j+=40) rect(j + (shift%40), waveY, 20 + i, 1 + i*0.2, "rgba(255,255,255,0.05)");
+      }
+
+      // Sinking logic: Ship stays still horizontally, moves down Y behind a static wave
+      const sinkProgress = isHit ? Math.min(1, (t-impactTime)*0.8) : 0;
+      const carthX = W*0.5 + shake;
+      const carthY = H*0.50 + shake + (sinkProgress*30); // Move down physically
+      const rotation = sinkProgress * -0.2; 
+
+      // Draw Sinking Ship
+      // --- STATIC WAVE LINE ---
+const waveY = H*0.58;
+
+// draw the sinking ship, but CLIP it so only the part above waveY is visible
+ctx.save();
+ctx.beginPath();
+ctx.rect(0, 0, W, waveY);   // only show above wave line
+ctx.clip();
+drawShip25D(carthX, carthY, 1.4, "carth", {t:t+1, rotation});
+ctx.restore();
+
+// draw the wave on top (static)
+function drawWaveSurface(y, t){
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+
+  // main crest
+  for(let x=0; x<canvas.width; x+=12){
+    const wobble = Math.sin((x*0.08) + t*3) * 2;
+    ctx.fillRect(x, y + wobble, 8, 2);
+  }
+
+  // secondary foam
+  ctx.fillStyle = "rgba(255,255,255,0.15)";
+  for(let x=6; x<canvas.width; x+=18){
+    const wobble = Math.sin((x*0.06) + t*2.2 + 1.7) * 3;
+    ctx.fillRect(x, y + 3 + wobble, 6, 1);
+  }
+}
+
+      // Attacker
+      const approach = clamp(t/impactTime, 0, 1); 
+      const romX = lerp(-W*0.4, carthX - 40, easeOut(approach)) + shake;
+      const romY = H*0.65 + shake; // In front of the static wave
+      drawShip25D(romX, romY, 2.2, "roman", {t:t});
+
+      if(isHit){
+        const flash = clamp(1 - (t-impactTime)*3, 0, 1);
+        if(flash > 0){
+          ctx.fillStyle = `rgba(255,255,255,${flash*0.4})`;
+          ctx.fillRect(0,0,W,H);
+        }
+        drawDebris(romX + 90, romY + 10, t-impactTime);
+      }
+    }
+  },
+  {
+    name:"Iberia", paragraphs: TEXT.p3,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      fillGradient(0,0,W,H*0.62, "#3b0764", "#c026d3");
+      // Removed the Sun/Orange square
+      fillGradient(0,H*0.62,W,H*0.38, "#292524", "#0c0a09");
+      const s=2;
+      for(let i=0;i<12;i++){
+        if(i===6) continue; // Gap for commander
+        drawUnit(I(W*0.12)+i*18, I(H*0.62)+(i%2)*2, s, "carth");
+      }
+      // Draw Commander on Podium instead of square banner
+      drawCommander(I(W*0.12)+6*18, I(H*0.62), s);
+    }
+  },
+  {
+    name:"Oath", paragraphs: TEXT.p4,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      const s=3; 
+      const cx=I(W*0.52), cy=I(H*0.56);
+      rect(0,0,W,H,"#020617");
+      const glow = ctx.createRadialGradient(cx+26*s, cy-2*s, 5, cx+26*s, cy-2*s, 80);
+      glow.addColorStop(0, "rgba(245,158,11,0.3)");
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0,0,W,H);
+      rect(cx-80*s, cy+18*s, 160*s, 12*s, "#333");
+      rect(cx-14*s, cy+6*s, 28*s, 16*s, "#475569");
+      rect(cx-16*s, cy+4*s, 32*s, 4*s, "#1e293b");
+      rect(cx+26*s, cy+2*s, 2*s, 18*s, "#7c2d12");
+      const flick=(Math.sin(t*10)*0.5+0.5);
+      rect(cx+23*s, cy-2*s, 8*s, 10*s, `rgba(245,158,11,${0.8+0.2*flick})`);
+      drawEmbers(t, cx+27*s, cy, s);
+      rect(cx-56*s, cy+16*s, 3*s, 7*s, C.white); rect(cx-51*s, cy+16*s, 3*s, 7*s, C.white);
+      rect(cx-58*s, cy+7*s, 12*s, 10*s, "#d1d5db");
+      rect(cx-55*s, cy+2*s, 6*s, 5*s, "#d1d5db");
+      rect(cx-53*s, cy+4*s, 1*s, 1*s, C.ink); rect(cx-51*s, cy+4*s, 1*s, 1*s, C.ink);
+      rect(cx-46*s, cy+6*s, 2*s, 10*s, "#d1d5db"); rect(cx-47*s, cy+6*s, 4*s, 2*s, "#d1d5db");
+      drawBoyHannibal(cx-34*s, cy+9*s, s);
+      const pulse=(Math.sin(t*6)*0.5+0.5);
+      rect(cx-26*s, cy+14*s, 7*s, 2*s, `rgba(231,231,234,${0.75+0.2*pulse})`);
+    }
+  },
+  {
+    name:"Army Forms", paragraphs: TEXT.p5,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      fillGradient(0,0,W,H*0.65, "#38bdf8", "#bae6fd");
+      fillGradient(0,H*0.65,W,H*0.35, "#d97706", "#92400e");
+      ctx.fillStyle="rgba(255,255,255,0.1)";
+      for(let i=0;i<10;i++) rect(0, H*0.60 + i*5 + Math.sin(t*5+i)*2, W, 1, "rgba(255,200,100,0.2)");
+      const y = I(H*0.60);
+      const march = I(t*10);
+      const s=2;
+      const elephantXs = [I(W*0.08), I(W*0.34), I(W*0.62), I(W*0.86)];
+      for(let k=0;k<elephantXs.length;k++){
+        const x = elephantXs[k] - (march%40);
+        drawElephant(x, y-18 + (k%2)*2, s, t);
+      }
+      for(let i=0;i<16;i++){
+        const x = I(i*(W/16) - (march%I(W/7)));
+        drawUnit(x, y-6 + (i%3)*2, s, "carth");
+      }
+    }
+  },
+  {
+    name:"Alps", paragraphs: TEXT.p6,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      fillGradient(0,0,W,H, "#94a3b8", "#cbd5e1");
+      for(let k=0;k<3;k++){
+        const base=I(H*(0.56+k*0.12));
+        const step=12+k*7;
+        const speed = (k+1)*0.5;
+        const shift = t*5*speed;
+        ctx.fillStyle=(k===0?"#94a3b8":(k===1?"#475569":"#334155"));
+        for(let x=-20;x<W+20;x+=step){
+          const effectiveX = x + shift;
+          const peak=base-((effectiveX/step+k*2)%6)*(10+k*5);
+          ctx.fillRect(I(x),I(peak),I(step),I(H-peak));
+        }
+      }
+      ctx.fillStyle="rgba(255,255,255,0.5)";
+      for(let i=0;i<120;i++){
+        const xx=(Math.sin(i*12.3+t*0.5)*0.5+0.5)*W;
+        const yy=(t*60 + i*10)%H;
+        ctx.fillRect(I(xx),I(yy),2,2);
+      }
+      const pathY = (x)=> I(H*0.68 - Math.sin((x+t*1.6)*0.10)*10 - (x/W)*20);
+      for(let k=0;k<4;k++){
+        const x=10+I(t*14)+k*46;
+        const y=pathY(x)+(k%2)*2;
+        drawElephant(x, y-10, 2, t);
+        for(let m=0;m<3;m++) drawUnit(x-18+m*10, y+10+(m%2)*2, 2, "carth");
+      }
+    }
+  },
+  {
+    name:"Rome Marches", paragraphs: TEXT.p7,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      fillGradient(0,0,W,H*0.62, "#bfdbfe", "#60a5fa");
+      ctx.fillStyle="#166534";
+      const scrollRate = 8;
+      for(let i=0; i<25; i++) {
+        const hH = 30 + Math.sin(i*0.5)*15;
+        const hX = (i*40 - t*scrollRate*0.5) % (W+80);
+        ctx.fillRect(hX-40, H*0.62 - hH, 42, hH+5);
+      }
+      fillGradient(0,H*0.62,W,H*0.38, "#365314", "#142306");
+      const scroll=I(t*22);
+      const cols=7, rows=3, s=2;
+      const basePath = I(H*0.52);
+      for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+          const ox=c*26+((r%2)?12:0);
+          const x=I(W*0.18+ox-(scroll%(W+80)));
+          const bob = Math.abs(Math.sin(t*10 + c*1.5)) * 3; 
+          const hillY = Math.sin((x + scroll)*0.015) * 8; 
+          const y = basePath + r*18 + hillY - bob;
+          drawUnit(x,y,s,"roman");
+        }
+      }
+    }
+  },
+  {
+    name:"Title", paragraphs: TEXT.p8,
+    draw:(t)=>{
+      const W=canvas.width,H=canvas.height;
+      rect(0,0,W,H,"#000");
+      const fade=clamp((t-1.2)/1.2,0,1);
+      ctx.fillStyle=`rgba(245,158,11,${0.8*fade})`;
+      ctx.font="14px ui-monospace, Menlo, Consolas, monospace";
+      ctx.textAlign="center"; ctx.textBaseline="bottom";
+      ctx.fillText("___", I(W/2), I(H-30));
+    },
+    isFinal:true
+  }
+];
+
+let idx=0;
+let tScene=0;
+let last=performance.now();
+let textProgress = 0;
+let tapLockedUntil=0;
+
+uiCounter.textContent=`1/${scenes.length}`;
+
+function goNext(){ 
+  idx = clamp(idx+1, 0, scenes.length-1);
+  tScene = 0;
+  textProgress = 0;
+  uiCounter.textContent = `${idx+1}/${scenes.length}`;
+  uiText.innerHTML = "";
+  uiHint.classList.remove("show");
+}
+
+function updateText(){
+  const str = scenes[idx].paragraphs;
+  if(textProgress < str.length){
+    textProgress += CFG.TYPE_SPEED;
+    const currentStr = str.substring(0, Math.floor(textProgress));
+    const firstPeriod = currentStr.indexOf('.');
+    if(firstPeriod > -1){
+        const boldPart = currentStr.substring(0, firstPeriod+1);
+        const rest = currentStr.substring(firstPeriod+1);
+        uiText.innerHTML = `<strong>${boldPart}</strong>${rest}`;
+    } else {
+        uiText.innerHTML = `<strong>${currentStr}</strong>`;
+    }
+  } else {
+    if(!scenes[idx].isFinal && tScene > 1.5) uiHint.classList.add("show");
+  }
+}
+
+function frame(now){
+  const dt=(now-last)/1000; last=now; 
+  tScene+=dt;
+  const scene=scenes[idx];
+  scene.draw(tScene);
+  drawVignette();
+  updateText();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+document.body.addEventListener("pointerup", (e)=>{
+  const now = performance.now();
+  if(now < tapLockedUntil) return;
+  if(tScene < CFG.TAP_MIN_SCENE_AGE) return;
+  if(textProgress < scenes[idx].paragraphs.length){
+    textProgress = scenes[idx].paragraphs.length;
+    return;
+  }
+  tapLockedUntil = now + CFG.DEBOUNCE_MS;
+  /* (Goes to map) */
+if(scenes[idx].isFinal){ 
+  // Transition to the map file we renamed in Step 1
+  window.location.href = "map.html"; 
+  return; 
+}
+goNext();
+
+});
+
+</script>
+</body>
+</html>
+
