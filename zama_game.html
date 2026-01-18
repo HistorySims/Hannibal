@@ -11,7 +11,6 @@
     --sand:#d4a373; --sand-dark:#b08968;
   }
   *{box-sizing:border-box; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;}
-
   html,body{
     margin:0; padding:0; background:var(--bg); color:var(--text);
     font-family:system-ui,-apple-system,sans-serif;
@@ -19,17 +18,13 @@
     overflow:hidden;
     display:flex; align-items:center; justify-content:center;
   }
-
   #game-box{
     position:relative; width:100%; height:100%;
     max-width:800px; background:var(--sand);
     overflow:hidden;
     box-shadow:0 0 20px rgba(0,0,0,0.5);
-    touch-action:none;
   }
-
   canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
-
   .hud-top{
     position:absolute; top:10px; left:0; width:100%; height:40px; z-index:15;
     display:flex; justify-content:center; align-items:center;
@@ -41,7 +36,6 @@
   .team-han{color:var(--blue); text-shadow:0 1px 2px #000;}
 
   .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
-
   #stick-zone{
     position:absolute; bottom:20px; left:20px;
     width:140px; height:140px; pointer-events:auto;
@@ -57,13 +51,11 @@
     background:rgba(255,255,255,0.9); border-radius:50%;
     box-shadow:0 2px 5px rgba(0,0,0,0.5);
   }
-
   .btn-wrapper{
     position:absolute; bottom:30px; right:30px;
     display:flex; flex-direction:column; gap:20px;
     pointer-events:auto; align-items:center;
   }
-
   #btn-attack{
     width:80px; height:80px;
     background:var(--red);
@@ -90,16 +82,17 @@
     padding:20px; text-align:center;
   }
   h1{color:var(--gold); margin:0 0 10px 0; font-size:36px; letter-spacing:2px;}
-  p{color:#eee; margin-bottom:16px; font-size:15px; max-width:420px; line-height:1.4;}
+  p{color:#eee; margin-bottom:16px; font-size:15px; max-width:360px; line-height:1.4;}
   .highlight { color:var(--gold); font-weight:bold; }
   .btn-start{
     background:var(--blue); color:#fff; border:none; padding:16px 32px;
-    font-size:20px; font-weight:900; border-radius:8px; margin-top:10px;
+    font-size:18px; font-weight:900; border-radius:8px; margin-top:10px;
     box-shadow:0 4px 0 #1e3a8a;
   }
   .btn-start:active{transform:translateY(4px); box-shadow:none;}
-  .btn-muted{ background:#475569; box-shadow:0 4px 0 #334155; }
-  .btn-gold{ background:var(--gold); box-shadow:0 4px 0 #92400e; }
+  .btn-secondary{
+    background:#475569; box-shadow:0 4px 0 #334155;
+  }
 </style>
 </head>
 <body>
@@ -133,42 +126,25 @@
 
 <script>
 // ===================================================
-//  ROUTING / END FLOW
+//  ADJUST THESE
 // ===================================================
-const NEXT_PAGE = "map.html";
-function goToMap(){ window.location.href = NEXT_PAGE; }
+// adjust (MAP_URL) here
+const MAP_URL = "index.html"; // <- set this to your map/launcher page (e.g. "map.html" or "../index.html")
 
-const HISTORY_HTML = `
-  <h2 style="color:#f59e0b; margin:0 0 10px 0;">BATTLE OF ZAMA (202 BC)</h2>
-  <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:520px;">
-    <p><strong style="color:#fff">FORCES:</strong><br>
-      <span style="color:#ef4444">Rome:</span> ~35,000 (Scipio Africanus)<br>
-      <span style="color:#3b82f6">Carthage:</span> ~40,000 (Hannibal)
-    </p>
-    <p><strong style="color:#fff">CASUALTIES:</strong><br>
-      <span style="color:#ef4444">Rome:</span> ~2,500<br>
-      <span style="color:#3b82f6">Carthage:</span> ~20,000 killed, 20,000 captured
-    </p>
-    <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
-      Scipio opened lanes to let elephants pass and used superior Numidian cavalry to strike Hannibal’s rear.
-      The Second Punic War ended and Carthage ceased to be a major power.
-    </p>
-  </div>
-`;
-
-// =========================
+// ===================================================
 //  ASSETS & SPRITES
-// =========================
+// ===================================================
 const P = {
   metal:'#b7bcc5', black:'#111114',
   roman:'#c53030', you:'#1f9d55',
   mercenary:'#65a30d', libyan:'#2563eb', veteran:'#9333ea',
+  romVet:'#f59e0b', // Roman veteran cloak
   gold:'#fbbf24', white:'#e7e7ea', elephant: '#555',
   sand: '#d4a373', sandDark: '#b08968',
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
-const CTX = CANVAS.getContext('2d', {alpha:false});
+const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
 
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
@@ -178,7 +154,7 @@ function drawSprite(u, scale){
   const y = u.y * TILE - 8;
   let s = scale;
 
-  // NUMIDIAN CAVALRY
+  // NUMIDIAN CAVALRY (Compact)
   if(u.role === 'numidian'){
     s = scale * 0.75;
     const offset = 6;
@@ -189,17 +165,17 @@ function drawSprite(u, scale){
     CTX.fillStyle = 'rgba(0,0,0,0.3)';
     CTX.beginPath(); CTX.ellipse(hx+10*s, hy+12*s, 10*s, 4*s, 0,0,Math.PI*2); CTX.fill();
 
+    // Horse
     CTX.fillStyle = horseColor;
     CTX.fillRect(hx+2*s, hy+4*s, 14*s, 7*s);
     CTX.fillRect(hx, hy, 5*s, 6*s);
     CTX.fillStyle = '#451a03'; CTX.fillRect(hx+4*s, hy, 2*s, 6*s);
-
     CTX.fillStyle = horseColor;
     CTX.fillRect(hx+3*s, hy+11*s, 2*s, 4*s); CTX.fillRect(hx+6*s, hy+11*s, 2*s, 4*s);
     CTX.fillRect(hx+10*s, hy+11*s, 2*s, 4*s); CTX.fillRect(hx+13*s, hy+11*s, 2*s, 4*s);
-
     CTX.fillStyle = '#451a03'; CTX.fillRect(hx+16*s, hy+5*s, 3*s, 6*s);
 
+    // Rider
     CTX.fillStyle = '#fff'; CTX.fillRect(hx+7*s, hy-2*s, 5*s, 7*s);
     CTX.fillStyle = P.you; CTX.fillRect(hx+8*s, hy-1*s, 3*s, 5*s);
     CTX.fillStyle = '#f59e0b'; CTX.fillRect(hx+8*s, hy-4*s, 3*s, 3*s);
@@ -219,9 +195,12 @@ function drawSprite(u, scale){
     return;
   }
 
+  // Infantry palette
   let coat = P.black;
   let helm = P.metal;
+
   if(u.type==='roman') { coat=P.roman; helm=P.gold; }
+  else if(u.type==='roman_vet') { coat=P.romVet; helm=P.gold; }
   else if(u.type==='yours') { coat=P.you; helm=P.white; }
   else if(u.type==='mercenary') { coat=P.mercenary; helm='#a8a29e'; }
   else if(u.type==='libyan') { coat=P.libyan; helm=P.metal; }
@@ -234,9 +213,9 @@ function drawSprite(u, scale){
   px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
 }
 
-// =========================
+// ===================================================
 //  CONFIG (SLOWED DOWN)
-// =========================
+// ===================================================
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
@@ -245,16 +224,20 @@ let SCALE = 2;
 const PACE = {
   move: 25,
   elephantSpeed: 16,
-  panicSpeed: 16,
   cavSpeed: 10,
-  combatDelay: 80
+  combatDelay: 80,
+
+  // Roman veteran reinforcements
+  romVetSpeed: 14,      // faster than regular infantry so they can get out front
+  romVetCount: 8,       // small number
+  romVetSpawnRowsAhead: 6 // spawn this many rows in front of player (when possible)
 };
 
 const LANES = [10, 20, 30];
 
-// =========================
+// ===================================================
 //  STATE
-// =========================
+// ===================================================
 let gameActive = false;
 let cam = {x:0, y:0};
 let grid = [];
@@ -267,11 +250,11 @@ let battlePhase = 0;
 let phaseTimer = 0;
 let cavalryArrived = false;
 
+// Roman veteran reinforcement control
+let romVetsCalled = false;
+
 let input = {dx:0, dy:0};
 let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
-
-// Keyboard input (Chromebook/Desktop)
-const keys = {up:false,down:false,left:false,right:false};
 
 function startGame(){
   document.getElementById('overlay').style.display = 'none';
@@ -285,12 +268,12 @@ function startGame(){
 function setupMap(){
   units = []; grid = []; particles = []; floats = [];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
-  battlePhase = 0; phaseTimer = 0; cavalryArrived = false;
+  battlePhase = 0; phaseTimer = 0; cavalryArrived = false; romVetsCalled = false;
 
   player = spawnUnit(20, 48, 'yours');
   cam.x = player.x*TILE; cam.y = player.y*TILE;
 
-  // ROMAN ARMY
+  // ROMAN ARMY (Strong Density)
   for(let x=4; x<36; x++){
     let inLane = false;
     for(let l of LANES) if(x >= l-1 && x <= l+1) inLane = true;
@@ -302,7 +285,7 @@ function setupMap(){
     }
   }
 
-  // HANNIBAL
+  // --- HANNIBAL ---
   for(let l of LANES){
     spawnUnit(l, 35, 'elephant');
     if(Math.random()>0.5) spawnUnit(l-1, 32, 'elephant');
@@ -334,6 +317,7 @@ function spawnUnit(gx, gy, type){
   if(type==='elephant'){ hp=300; speed=PACE.elephantSpeed; }
   else if(type==='yours'){ hp=100; }
   else if(type==='roman'){ hp=12; }
+  else if(type==='roman_vet'){ hp=22; speed=PACE.romVetSpeed; }
   else if(type==='mercenary'){ hp=6; }
   else if(type==='libyan'){ hp=10; }
   else if(type==='veteran'){ hp=25; }
@@ -347,9 +331,9 @@ function spawnUnit(gx, gy, type){
   return u;
 }
 
-// =========================
-//  LOGIC
-// =========================
+// ===================================================
+//  MAIN LOOP
+// ===================================================
 function loop(){
   if(!gameActive) return;
   update();
@@ -360,15 +344,7 @@ function loop(){
 function update(){
   phaseTimer++;
 
-  // Keyboard -> input only when joystick not active
-  if(!stick.active){
-    input.dx = 0; input.dy = 0;
-    if(keys.left) input.dx = -1;
-    else if(keys.right) input.dx = 1;
-    if(keys.up) input.dy = -1;
-    else if(keys.down) input.dy = 1;
-  }
-
+  // PHASES (unchanged)
   if(battlePhase === 0){
     const elephantCrossed = units.some(u => u.type === 'elephant' && u.y > 45);
     if(elephantCrossed || phaseTimer > 800){
@@ -376,7 +352,6 @@ function update(){
       showMsg("MERCENARIES ATTACK!", P.mercenary);
     }
   }
-
   if(battlePhase === 1 && phaseTimer > 1500){
     battlePhase = 2;
     showMsg("SECOND LINE ENGAGE!", P.libyan);
@@ -384,8 +359,13 @@ function update(){
   if(battlePhase === 2 && phaseTimer > 2300){
     battlePhase = 3;
     showMsg("THE OLD GUARD!", P.veteran);
+
+    // === ROMAN VETERAN COUNTER-ARRIVAL ===
+    // Give you just enough bodies to survive the Old Guard until cavalry arrives.
+    callRomanVeterans();
   }
 
+  // Cavalry arrives (unchanged)
   if(phaseTimer > 3200 && !cavalryArrived){
     cavalryArrived = true;
     showMsg("NUMIDIAN CAVALRY!", P.gold);
@@ -395,10 +375,12 @@ function update(){
         cav.role = 'numidian';
         cav.moveSpeed = PACE.cavSpeed;
         cav.hp = 50;
+        cav.maxHp = 50;
       }
     }
   }
 
+  // Camera
   if(player && player.hp>0){
     let tx = player.x*TILE;
     let ty = player.y*TILE;
@@ -421,6 +403,8 @@ function update(){
           u.cooldown = PACE.move;
         }
       }
+    } else if(u.type === 'roman_vet'){
+      handleRomanVetAI(u);
     } else {
       handleAI(u);
     }
@@ -429,20 +413,109 @@ function update(){
   units = units.filter(u=>u.hp>0);
   updateFX();
 
-  if(player && player.hp<=0) gameOver("Fallen at Zama.", false);
+  // END CONDITIONS
+  if(!player || player.hp<=0){
+    endToMap("Fallen at Zama.", false);
+    return;
+  }
 
   const enemies = units.filter(u=>['mercenary','libyan','veteran','elephant'].includes(u.type)).length;
-  if(enemies === 0) gameOver("SCIPIO AFRICANUS!", true);
+  if(enemies === 0){
+    endToMap("SCIPIO AFRICANUS!<br>VICTORY!", true);
+    return;
+  }
 
-  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman'||u.type==='yours').length;
+  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman'||u.type==='roman_vet'||u.type==='yours').length;
   document.getElementById('ui-han').innerText  = enemies;
 }
 
+// ===================================================
+//  ROMAN VETERANS (the fix you asked for)
+// ===================================================
+function callRomanVeterans(){
+  if(romVetsCalled || !player) return;
+  romVetsCalled = true;
+
+  // Spawn ahead of player so they “get in front of you” immediately.
+  const spawnY = clamp(player.y - PACE.romVetSpawnRowsAhead, 2, GRID_H-3);
+
+  // Prefer the lanes, then a small spread around them
+  const preferredXs = [];
+  for(const l of LANES){
+    for(const dx of [-2,-1,0,1,2]) preferredXs.push(l+dx);
+  }
+  // Add a little extra near the center
+  for(const dx of [-6,-4,-2,0,2,4,6]) preferredXs.push(20+dx);
+
+  let made = 0;
+  let tries = 0;
+  while(made < PACE.romVetCount && tries < 500){
+    tries++;
+    const x = preferredXs[(Math.random()*preferredXs.length)|0];
+    const y = spawnY + randInt(-1, 1);
+
+    if(!inBounds(x,y)) continue;
+
+    // If occupied by a Roman, we can swap them back (so vets still appear)
+    const occ = grid[y][x];
+    if(occ && occ.type === 'roman'){
+      // try to shove that roman one tile down
+      const ny = clamp(y+1, 0, GRID_H-1);
+      if(!grid[ny][x]){
+        grid[ny][x] = occ;
+        occ.y = ny;
+        grid[y][x] = null;
+      } else continue;
+    } else if(occ) {
+      continue;
+    }
+
+    const v = spawnUnit(x, y, 'roman_vet');
+    if(v){
+      v.role = 'guard';
+      v.cooldown = 0;
+      made++;
+    }
+  }
+
+  showMsg("ROMAN VETERANS FORM UP!", P.gold);
+  spawnFloat("VETS!", player.x, player.y-2, P.gold);
+}
+
+function handleRomanVetAI(u){
+  if(u.cooldown>0){ u.cooldown--; return; }
+
+  // Bias: get and stay in front of the player (smaller y)
+  if(player && u.y > player.y - 5){
+    // move upward if possible (they’ll pass through Romans via swap)
+    tryMove(u, 0, -1);
+    u.cooldown = u.moveSpeed + Math.random()*10;
+    return;
+  }
+
+  // Otherwise, fight the nearest enemy
+  const t = findNearestEnemy(u);
+  if(t){
+    if(dist(u,t)<=1.5){ attack(u, t); u.cooldown = PACE.combatDelay; return; }
+    const md = getStep(u, t);
+    tryMove(u, md.x, md.y);
+  } else {
+    // drift upward slightly
+    tryMove(u, 0, -1);
+  }
+
+  u.cooldown = u.moveSpeed + Math.random()*10;
+}
+
+// ===================================================
+//  AI (ENEMY + ROMAN REGULARS)
+// ===================================================
 function handleAI(u){
   if(u.cooldown>0){ u.cooldown--; return; }
 
   let md = {x:0, y:0};
 
+  // ELEPHANT (UNSTOPPABLE)
   if(u.type === 'elephant'){
     md = {x:0, y:1};
     let tx = u.x; let ty = u.y+1;
@@ -457,6 +530,8 @@ function handleAI(u){
     }
     if(u.y >= GRID_H - 2) { u.hp = 0; spawnFloat("ESCAPED", u.x, u.y, "#aaa"); }
   }
+
+  // ROMAN (regular)
   else if(u.type === 'roman'){
     let inLane = false;
     for(let l of LANES) if(u.x >= l-1 && u.x <= l+1) inLane = true;
@@ -473,6 +548,8 @@ function handleAI(u){
       }
     }
   }
+
+  // HANNIBAL'S LINES
   else {
     let canMove = false;
     if(u.type==='mercenary' && battlePhase>=1) canMove = true;
@@ -512,12 +589,17 @@ function handleCavalryAI(u){
   }
 }
 
+// ===================================================
+//  MOVEMENT
+// ===================================================
 function tryMove(u, dx, dy){
   let tx=u.x+dx, ty=u.y+dy;
   if(tx<0||tx>=GRID_W||ty<0||ty>=GRID_H) return;
 
   let target = grid[ty][tx];
-  if(u.type === 'yours' && target && target.type === 'roman'){
+
+  // Allow NUMIDIAN cavalry to pass through Romans (swap)
+  if(u.type === 'yours' && u.role === 'numidian' && target && (target.type === 'roman' || target.type === 'roman_vet')){
     grid[u.y][u.x] = target;
     grid[ty][tx] = u;
     target.x = u.x; target.y = u.y;
@@ -525,13 +607,31 @@ function tryMove(u, dx, dy){
     return;
   }
 
+  // Allow Roman veterans to pass through Romans (and even slip past the player)
+  if(u.type === 'roman_vet' && target && (target.type === 'roman' || target.type === 'yours' || target.type === 'roman_vet')){
+    // Swap to get ahead and form a shield
+    grid[u.y][u.x] = target;
+    grid[ty][tx] = u;
+    target.x = u.x; target.y = u.y;
+    u.x = tx; u.y = ty;
+    return;
+  }
+
+  // Default: blocked by any unit
   if(target) return;
-  grid[u.y][u.x]=null; u.x=tx; u.y=ty; grid[ty][tx]=u;
+
+  grid[u.y][u.x]=null;
+  u.x=tx; u.y=ty;
+  grid[ty][tx]=u;
 }
 
+// ===================================================
+//  COMBAT
+// ===================================================
 function attack(atk, def){
   let dmg = 2;
   if(atk.type === 'veteran') dmg = 5;
+  if(atk.type === 'roman_vet') dmg = 4;
   if(atk.role === 'numidian') dmg = 15;
 
   if(def.type === 'elephant'){
@@ -549,15 +649,28 @@ function attack(atk, def){
   }
 }
 
-// =========================
-//  INPUT: JOYSTICK + BUTTON (existing)
-// =========================
+// ===================================================
+//  INPUT (JOYSTICK + ATTACK)
+// ===================================================
 const stickZone=document.getElementById('stick-zone');
 const stickEl=document.getElementById('stick');
-stickZone.addEventListener('touchstart',e=>{stick.active=true; stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY; stick.curX=stick.startX; stick.curY=stick.startY;}, {passive:false});
-stickZone.addEventListener('touchmove',e=>{if(!stick.active)return; e.preventDefault(); stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY; updateStick();}, {passive:false});
-const endStick=()=>{stick.active=false; stickEl.style.transform='translate(0,0)'; input.dx=0; input.dy=0;};
-stickZone.addEventListener('touchend', endStick); stickZone.addEventListener('touchcancel', endStick);
+
+stickZone.addEventListener('touchstart',e=>{
+  stick.active=true; stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
+  stick.curX=stick.startX; stick.curY=stick.startY;
+}, {passive:false});
+
+stickZone.addEventListener('touchmove',e=>{
+  if(!stick.active)return; e.preventDefault();
+  stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY; updateStick();
+}, {passive:false});
+
+const endStick=()=>{
+  stick.active=false; stickEl.style.transform='translate(0,0)'; input.dx=0; input.dy=0;
+};
+stickZone.addEventListener('touchend', endStick);
+stickZone.addEventListener('touchcancel', endStick);
+
 function updateStick(){
   let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY, d=Math.sqrt(dx*dx+dy*dy);
   if(d>40){dx=(dx/d)*40; dy=(dy/d)*40;}
@@ -570,7 +683,8 @@ function updateStick(){
 }
 
 window.handleAttack = function(e){
-  e.stopPropagation(); e.preventDefault(); if(!gameActive||!player||player.hp<=0)return;
+  e.stopPropagation(); e.preventDefault();
+  if(!gameActive||!player||player.hp<=0)return;
   const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
   let hit = false;
   for(let d of dirs){
@@ -585,82 +699,80 @@ window.handleAttack = function(e){
   else spawnFloat("SWING", player.x, player.y, "#aaa");
 };
 
-// Keyboard attack (space/enter)
-window.addEventListener('keydown', (e)=>{
-  const code = e.code;
-  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'].includes(code)){
-    e.preventDefault();
-  }
-  if(code==='ArrowUp' || code==='KeyW') keys.up=true;
-  if(code==='ArrowDown' || code==='KeyS') keys.down=true;
-  if(code==='ArrowLeft' || code==='KeyA') keys.left=true;
-  if(code==='ArrowRight' || code==='KeyD') keys.right=true;
-  if(code==='Space' || code==='Enter') handleAttack(e);
-},{passive:false});
-
-window.addEventListener('keyup', (e)=>{
-  const code = e.code;
-  if(code==='ArrowUp' || code==='KeyW') keys.up=false;
-  if(code==='ArrowDown' || code==='KeyS') keys.down=false;
-  if(code==='ArrowLeft' || code==='KeyA') keys.left=false;
-  if(code==='ArrowRight' || code==='KeyD') keys.right=false;
-},{passive:true});
-
-// =========================
-//  RENDER / FX / HELPERS
-// =========================
+// ===================================================
+//  DRAW
+// ===================================================
 function draw(){
-  // draw in CSS pixels (resize handles DPR)
   CTX.fillStyle=P.black;
-  CTX.fillRect(0,0,BOX.clientWidth,BOX.clientHeight);
-
+  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
   CTX.save();
-  let cx = BOX.clientWidth/2 - cam.x;
-  let cy = BOX.clientHeight/2 - cam.y;
+  let cx = CANVAS.width/2 - cam.x;
+  let cy = CANVAS.height/2 - cam.y;
   CTX.translate(Math.round(cx), Math.round(cy));
 
+  // Sand
   CTX.fillStyle=P.sand;
   CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
 
+  // Lanes
   CTX.fillStyle = 'rgba(0,0,0,0.05)';
   for(let l of LANES){ CTX.fillRect((l-1)*TILE, 0, 3*TILE, GRID_H*TILE); }
 
+  // Speckles
   CTX.fillStyle=P.sandDark;
   for(let i=0; i<80; i++) CTX.fillRect((i*47)% (GRID_W*TILE), (i*31)% (GRID_H*TILE), 3, 3);
 
-  for(let u of units) drawSprite(u, SCALE);
+  // Units (depth)
+  const all = [...units, player].filter(Boolean);
+  all.sort((a,b)=>a.y-b.y);
+  for(let u of all) drawSprite(u, SCALE);
 
   for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
-
   CTX.font="bold 12px monospace"; CTX.textAlign="center";
   for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
   CTX.globalAlpha=1;
-
   CTX.restore();
 }
 
+// ===================================================
+//  UTILS + FX
+// ===================================================
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function randInt(a,b){ return (Math.random()*(b-a+1) + a) | 0; }
+function inBounds(x,y){ return x>=0&&x<GRID_W&&y>=0&&y<GRID_H; }
 function dist(a,b){ return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); }
 function getStep(u,t){
   let dx=t.x-u.x, dy=t.y-u.y;
   if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
   return {x:0, y:Math.sign(dy)};
 }
+
 function findNearestEnemy(u){
   let target=null, minDist=99;
   for(let o of units){
+    if(o.hp<=0) continue;
     if(Math.abs(o.x-u.x)>12 || Math.abs(o.y-u.y)>12) continue;
+
     let isEnemy = false;
-    if(['roman','yours'].includes(u.type)){
+    if(['roman','roman_vet','yours'].includes(u.type)){
       if(['mercenary','libyan','veteran','elephant'].includes(o.type)) isEnemy = true;
     } else {
-      if(['roman','yours'].includes(o.type)) isEnemy = true;
+      if(['roman','roman_vet','yours'].includes(o.type)) isEnemy = true;
     }
-    if(isEnemy){ let d=dist(u,o); if(d<minDist){minDist=d; target=o;} }
+
+    if(isEnemy){
+      let d=dist(u,o);
+      if(d<minDist){minDist=d; target=o;}
+    }
   }
   return target;
 }
+
 function spawnBlood(gx, gy){
-  for(let i=0;i<3;i++) particles.push({x:gx*TILE+TILE/2, y:gy*TILE+TILE/2, vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3, life:1, color:'#900'});
+  for(let i=0;i<3;i++) particles.push({
+    x:gx*TILE+TILE/2, y:gy*TILE+TILE/2,
+    vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3, life:1, color:'#900'
+  });
 }
 function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
 function updateFX(){
@@ -673,41 +785,60 @@ function showMsg(txt, col){
   setTimeout(()=>el.style.opacity=0, 2500);
 }
 
-// =========================
-//  END SCREEN (history + map)
-// =========================
-function gameOver(t, win=false){
-  gameActive=false;
-  const overlay = document.getElementById('overlay');
-  overlay.style.display='flex';
+function resize(){ CANVAS.width=BOX.clientWidth; CANVAS.height=BOX.clientHeight; CTX.imageSmoothingEnabled=false; }
+window.addEventListener('resize', resize);
 
-  overlay.innerHTML = `
-    <h1 style="color:${win? 'var(--gold)' : 'var(--red)'}">${win ? 'VICTORY' : 'DEFEAT'}</h1>
-    <p><b>${t}</b></p>
-    ${HISTORY_HTML}
-    <button class="btn-start btn-gold" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
-    <button class="btn-start btn-muted" id="btn-replay" style="margin-top:10px;">REPLAY</button>
+// ===================================================
+//  END -> MAP (keeps history available on the end screen)
+// ===================================================
+function endToMap(msg, win){
+  gameActive=false;
+  const ov=document.getElementById('overlay');
+  ov.style.display='flex';
+
+  const title = win ? "VICTORY" : "DEFEAT";
+  const titleColor = win ? P.gold : P.roman;
+
+  ov.innerHTML = `
+    <h1 style="color:${titleColor}">${title}</h1>
+    <p>${msg}</p>
+    <button class="btn-start btn-secondary" id="btn-history">HISTORY</button>
+    <button class="btn-start" id="btn-map">BACK TO MAP</button>
+    <button class="btn-start btn-secondary" id="btn-retry">RETRY</button>
   `;
 
-  document.getElementById('btn-map').onclick = goToMap;
-  document.getElementById('btn-replay').onclick = ()=> location.reload();
-
-  // auto-return after a beat (adjust or remove)
-  setTimeout(goToMap, 2200);
+  document.getElementById('btn-map').onclick = () => { window.location.href = MAP_URL; };
+  document.getElementById('btn-retry').onclick = () => { location.reload(); };
+  document.getElementById('btn-history').onclick = () => { showHistoryScreen(); };
 }
 
-// DPR-safe resize (draw in CSS pixels)
-function resize(){
-  const w = BOX.clientWidth;
-  const h = BOX.clientHeight;
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
-  CANVAS.width = Math.floor(w * dpr);
-  CANVAS.height = Math.floor(h * dpr);
-  CTX.setTransform(dpr,0,0,dpr,0,0);
-  CTX.imageSmoothingEnabled=false;
+// ===================================================
+//  HISTORY MODULE (re-used, but now works on end screen too)
+// ===================================================
+function showHistoryScreen(){
+  const ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = `
+    <h1 style="color:#f59e0b">HISTORY</h1>
+    <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:520px;">
+      <p><strong style="color:#fff">BATTLE OF ZAMA (202 BC)</strong></p>
+      <p><strong style="color:#fff">FORCES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~35,000 (Scipio Africanus)<br>
+      <span style="color:#3b82f6">Carthage:</span> ~40,000 (Hannibal)</p>
+
+      <p><strong style="color:#fff">CASUALTIES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~2,500<br>
+      <span style="color:#3b82f6">Carthage:</span> ~20,000 killed, 20,000 captured</p>
+
+      <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
+      Scipio turned Hannibal’s tactics against him. He opened lanes to let elephants pass harmlessly and used Numidian cavalry (now allied to Rome) to strike the rear. Zama ended the Second Punic War and broke Carthage as a major power.</p>
+    </div>
+    <button class="btn-start" id="btn-map2">BACK TO MAP</button>
+    <button class="btn-start btn-secondary" id="btn-retry2">RETRY</button>
+  `;
+  document.getElementById('btn-map2').onclick = () => { window.location.href = MAP_URL; };
+  document.getElementById('btn-retry2').onclick = () => { location.reload(); };
 }
-window.addEventListener('resize', resize, {passive:true});
-resize();
 </script>
 
 </body>
