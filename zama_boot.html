@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Zama: The Way</title>
+<style>
+    body {
+        margin: 0; padding: 0; background: #000;
+        /* Changed to auto height to allow scrolling if screen is too short */
+        min-height: 100vh; 
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Courier New', Courier, monospace; 
+    }
+    #stage {
+        /* Changed to Flex Column layout */
+        display: flex;
+        flex-direction: column;
+        position: relative; width: 100%; max-width: 800px; 
+        /* Removed fixed aspect-ratio for the container */
+        background: #1a1a1c; 
+        border: 2px solid #555;
+        box-shadow: 0 0 30px rgba(0,0,0,0.9);
+    }
+    canvas { 
+        display: block; width: 100%; 
+        /* Enforce the 4:3 aspect ratio on the canvas element itself */
+        aspect-ratio: 4/3;
+        image-rendering: pixelated; 
+        flex-shrink: 0;
+    }
+    
+    /* DIALOGUE BOX - positioned below canvas */
+    #dialogue-box {
+        position: relative; /* No longer absolute */
+        width: 100%; background: #111; 
+        border-top: 4px solid #1f9d55;
+        padding: 20px; display: none; z-index: 30;
+        cursor: pointer; 
+        height: 150px; /* Fixed height for text area */
+        box-sizing: border-box;
+        flex-shrink: 0;
+    }
+    .speaker-name {
+        color: #1f9d55; font-weight: 900; font-size: 16px; text-transform: uppercase;
+        margin-bottom: 10px; letter-spacing: 2px;
+    }
+    .speech-text {
+        color: #e7e7ea; font-size: 18px; line-height: 1.4; white-space: pre-wrap;
+    }
+    .click-prompt {
+        position: absolute; bottom: 10px; right: 20px;
+        font-size: 12px; color: #fbbf24; animation: blink 1s infinite;
+    }
+
+    /* TITLE SCREEN - Covers entire stage (canvas + text box) */
+    #title-screen {
+        position: absolute; inset: 0; 
+        background: #d4a373; 
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 50; text-align: center;
+        opacity: 0; transition: opacity 2s;
+    }
+    h1 { 
+        font-size: 64px; color: #b91c1c; margin: 0; 
+        text-transform: uppercase; letter-spacing: 4px; 
+        text-shadow: 0 4px 0 #000;
+    }
+    h2 { font-size: 18px; color: #111; margin-bottom: 30px; letter-spacing: 2px; font-weight:800; }
+    
+    button {
+        background: #1e3a8a; color: #fff; border: 4px solid #fff;
+        padding: 15px 40px; font-size: 20px; font-weight: 900; cursor: pointer;
+        text-transform: uppercase; 
+        box-shadow: 0 6px 0 #000;
+    }
+    button:active { transform: translateY(4px); box-shadow: 0 2px 0 #000; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+    <canvas id="cv"></canvas>
+    
+    <div id="dialogue-box" onclick="nextLine()">
+        <div class="speaker-name">Scipio Africanus</div>
+        <div class="speech-text" id="speech"></div>
+        <div class="click-prompt">TAP TO CONTINUE ▼</div>
+    </div>
+
+    <div id="title-screen">
+        <h1>ZAMA</h1>
+        <h2>The Final Battle</h2>
+        <button onclick="window.location.href='zama_game.html'">Strike</button>
+    </div>
+</div>
+
+<script>
+const C = document.getElementById('cv');
+const CTX = C.getContext('2d');
+const BOX = document.getElementById('dialogue-box');
+const TXT = document.getElementById('speech');
+
+const W = 320;
+const H = 240;
+
+const P = {
+  metal:'#b7bcc5', black:'#111114',
+  roman:'#c53030', you:'#1f9d55', 
+  gold:'#fbbf24', white:'#e7e7ea', shadow:'rgba(0,0,0,0.35)',
+  sand: '#d4a373', sea: '#1e3a8a',
+  trasimene: '#0f172a', cannae: '#450a0a'
+};
+
+const SCRIPT = [
+    {
+        scene: 'face', mood: 'neutral',
+        text: "The elephant is a weapon of terror. Soldiers break ranks because they are afraid."
+    },
+    {
+        scene: 'face', mood: 'neutral',
+        text: "But Rome's problem has never been a lack of courage."
+    },
+    {
+        scene: 'flashback_trasimene', mood: 'dead',
+        text: "At Trasimene... we stood our ground in the freezing water. We did not run."
+    },
+    {
+        scene: 'flashback_cannae', mood: 'dead',
+        text: "At Cannae... we held the circle tight. We died shoulder to shoulder, facing the enemy."
+    },
+    {
+        scene: 'tactic_fail', mood: 'crush',
+        text: "It is brave to stand before a charging beast. But courage alone just gets you trampled."
+    },
+    {
+        scene: 'tactic_win', mood: 'lanes',
+        text: "To defeat the charge, you must not be a wall. You must be a path."
+    },
+    {
+        scene: 'tactic_win', mood: 'stab',
+        text: "You step aside. You let it go exactly where it wants to go. Then... you strike."
+    },
+    {
+        scene: 'boat', mood: 'sail',
+        text: "That is why we came here, to Africa. We did not chase Hannibal."
+    },
+    {
+        scene: 'battlefield', mood: 'ready',
+        text: "We gave him a path to where we wanted him to be. And now..."
+    },
+    {
+        scene: 'battlefield', mood: 'ready',
+        text: "We end him."
+    }
+];
+
+let lineIdx = 0;
+let charIdx = 0;
+let currentLine = "";
+let typeTimer = null;
+let frame = 0;
+
+// ANIMATION STATE
+let elephantY = -30;
+
+function init(){
+    C.width = W;
+    C.height = H;
+    startLine();
+    loop();
+}
+
+function startLine(){
+    if(lineIdx >= SCRIPT.length){
+        endSequence();
+        return;
+    }
+    
+    const line = SCRIPT[lineIdx];
+    BOX.style.display = 'block';
+    currentLine = line.text;
+    TXT.innerText = "";
+    charIdx = 0;
+    
+    // Reset animation vars per scene
+    if(line.scene.includes('tactic')) elephantY = -30;
+    
+    if(typeTimer) clearInterval(typeTimer);
+    typeTimer = setInterval(typeWriter, 25);
+}
+
+function typeWriter(){
+    if(charIdx < currentLine.length){
+        TXT.innerText += currentLine.charAt(charIdx);
+        charIdx++;
+    } else {
+        clearInterval(typeTimer);
+    }
+}
+
+function nextLine(){
+    if(charIdx < currentLine.length){
+        TXT.innerText = currentLine;
+        charIdx = currentLine.length;
+        clearInterval(typeTimer);
+    } else {
+        lineIdx++;
+        startLine();
+    }
+}
+
+function endSequence(){
+    BOX.style.display = 'none';
+    const ts = document.getElementById('title-screen');
+    ts.style.display = 'flex';
+    setTimeout(()=> ts.style.opacity = 1, 50);
+}
+
+function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+
+// ==============================
+// DRAWING UTILS
+// ==============================
+function drawSprite(kind, x, y, scale, rotation=0){
+    CTX.save();
+    
+    // Handle Rotation for "Dead" sprites
+    if(rotation !== 0){
+        CTX.translate(x + 12, y + 12);
+        CTX.rotate(rotation);
+        CTX.translate(-(x + 12), -(y + 12));
+    }
+  
+    const s = scale;
+    const coat = kind==='roman' ? P.roman : P.you;
+    const helm = kind==='roman' ? P.gold : P.white;
+  
+    CTX.fillStyle=P.shadow;
+    CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+    
+    px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
+    px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
+    for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+    px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
+    
+    CTX.restore();
+}
+
+function drawElephant(x,y,s){
+    CTX.fillStyle = 'rgba(0,0,0,0.3)';
+    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill(); 
+    CTX.fillStyle = '#777'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
+    CTX.fillStyle = '#b91c1c'; CTX.fillRect(x+4*s, y-5*s, 8*s, 4*s); 
+    CTX.fillStyle = '#999'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
+    CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 8*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 8*s);
+    CTX.fillStyle = '#666'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
+}
+
+// ==============================
+// SCENES
+// ==============================
+
+function drawFace(mood){
+    rect(0,0,W,H, '#1c1917'); 
+    const cx = W/2;
+    // Re-centered slightly lower since text box is gone
+    const cy = H/2 - 20; 
+
+    // Scipio
+    rect(cx-60, cy+50, 120, 50, P.you);
+    rect(cx-50, cy+50, 100, 50, 'rgba(0,0,0,0.2)');
+
+    // Head
+    rect(cx-35, cy-35, 70, 70, '#d4a373');
+    // Helmet
+    rect(cx-36, cy-60, 72, 30, '#fff'); 
+    rect(cx-30, cy-80, 60, 40, '#fff'); 
+    for(let i=0; i<3; i++) rect(cx-10 + (Math.sin(frame/10+i)*2), cy-110, 20, 20, P.you);
+
+    // Eyes
+    rect(cx-20, cy-12, 12, 4, '#000');
+    rect(cx+8, cy-12, 12, 4, '#000');
+    // Mouth
+    rect(cx-10, cy+25, 20, 2, '#854d0e');
+}
+
+function drawFlashback(battle){
+    let bg = (battle==='trasimene') ? P.trasimene : P.cannae;
+    rect(0,0,W,H, bg);
+    
+    if(battle === 'trasimene'){
+        rect(0, 100, W, H-100, '#1e3a8a'); // Water
+        for(let i=0; i<10; i++) rect((frame + i*50)%W, 50 + i*15, 40, 5, 'rgba(255,255,255,0.1)');
+        for(let i=0; i<6; i++){
+            drawSprite('roman', 50 + i*40, 120 + Math.sin(i)*20, 2, Math.PI/2);
+        }
+    } 
+    else if(battle === 'cannae'){
+        rect(0,0,W,H, '#450a0a');
+        const cx = W/2; const cy = H/2;
+        const radius = 60; const count = 10;
+        for(let i=0; i<count; i++){
+            let angle = (i / count) * Math.PI * 2;
+            let x = cx + Math.cos(angle) * radius;
+            let y = cy + Math.sin(angle) * radius;
+            drawSprite('roman', x-12, y-12, 2, angle + Math.PI/2);
+        }
+        rect(0,0,W,H, 'rgba(200,100,0,0.1)');
+    }
+}
+
+function drawTactics(mode){
+    rect(0,0,W,H, P.sand);
+
+    let gap = (mode === 'lanes' || mode === 'stab') ? 30 : 0;
+    
+    for(let r=0; r<4; r++){
+        drawSprite('roman', W/2 - 40 - gap, 100 + r*25, 2);
+        drawSprite('roman', W/2 + 20 + gap, 100 + r*25, 2);
+    }
+    
+    elephantY += 3;
+    if(elephantY > H) elephantY = -50;
+    
+    let ex = W/2 - 20;
+    if(mode === 'crush'){
+         if(elephantY > 100) elephantY = 100; 
+         if(frame%10 < 5) rect(0,0,W,H, 'rgba(255,0,0,0.1)'); 
+    }
+    
+    drawElephant(ex, elephantY, 2);
+    
+    if(mode === 'stab' && elephantY > 100 && elephantY < 200){
+        rect(ex-10, elephantY+10, 20, 4, '#fff'); 
+        rect(ex+30, elephantY+10, 20, 4, '#fff'); 
+        rect(ex+10, elephantY+10, 20, 20, 'rgba(255,0,0,0.5)'); 
+    }
+}
+
+function drawBoat(){
+    rect(0,0,W,H, P.sea);
+    for(let i=0; i<20; i++){
+        rect((frame*2 + i*40)%W, (i*15 + frame)%H, 20, 2, 'rgba(255,255,255,0.2)');
+    }
+    let bx = W/2 - 40;
+    let by = H/2 - 20 + Math.sin(frame/10)*5;
+    CTX.fillStyle = '#3e2723'; 
+    CTX.beginPath(); CTX.moveTo(bx, by); CTX.lineTo(bx+80, by); CTX.lineTo(bx+60, by+30); CTX.lineTo(bx+20, by+30); CTX.fill();
+    rect(bx+38, by-40, 4, 40, '#5d4037'); 
+    CTX.fillStyle = P.white; CTX.beginPath(); CTX.moveTo(bx+40, by-35); CTX.lineTo(bx+70, by-10); CTX.lineTo(bx+40, by-10); CTX.fill();
+    drawSprite('yours', bx+30, by-15, 2);
+}
+
+function drawBattlefield(){
+    rect(0,0,W,H, P.sand);
+    drawSprite('yours', W/2 - 12, H - 40, 2);
+    for(let x=20; x<W; x+=40){
+        drawSprite('roman', x, H - 40, 2);
+        drawSprite('roman', x, H - 70, 2);
+    }
+    for(let x=40; x<W; x+=50){
+        drawElephant(x, 40, 2);
+    }
+    for(let i=0; i<10; i++){
+        let dx = (frame*4 + i*50) % W;
+        let dy = (i*30) % H;
+        rect(dx, dy, 10, 2, 'rgba(255,255,255,0.1)');
+    }
+}
+
+function loop(){
+    frame++;
+    CTX.setTransform(1, 0, 0, 1, 0, 0); 
+
+    if(lineIdx < SCRIPT.length){
+        const current = SCRIPT[lineIdx];
+        const s = current.scene;
+        const m = current.mood;
+        
+        if(s === 'face') drawFace(m);
+        else if(s.includes('flashback')) drawFlashback(s.split('_')[1]);
+        else if(s.includes('tactic')) drawTactics(m);
+        else if(s === 'boat') drawBoat();
+        else if(s === 'battlefield') drawBattlefield();
+        
+    } else {
+        drawBattlefield();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+init();
+
+</script>
+</body>
+</html>
+
