@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Lake Trasimene: Two-Wide Column</title>
+<style>
+  :root{
+    --bg:#0e1114;
+    --red:#ef4444; --gold:#f59e0b; --blue:#3b82f6; --text:#e7e7ea;
+  }
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,sans-serif;
+    height:100dvh; width:100%;
+    overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none;
+  }
+  #game-box{
+    position:relative; width:100%; height:100%;
+    max-width:820px; background:#1a1f22;
+    overflow:hidden;
+    box-shadow:0 0 20px rgba(0,0,0,0.55);
+  }
+  canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
+
+  .hud-top{
+    position:absolute; top:10px; left:0; width:100%; height:44px; z-index:10;
+    display:flex; justify-content:center; align-items:center;
+    pointer-events:none; font-weight:900; font-size:14px;
+    text-shadow:0 1px 3px #000; gap:14px;
+    background:linear-gradient(to bottom, rgba(0,0,0,0.65), transparent);
+  }
+  .team-rom{color:var(--red);}
+  .team-han{color:#93c5fd;}
+  .team-you{color:#34d399;}
+
+  .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
+  #stick-zone{
+    position:absolute; bottom:20px; left:20px;
+    width:140px; height:140px; pointer-events:auto;
+    background:rgba(0,0,0,0.12); border-radius:50%;
+    touch-action:none;
+  }
+  .stick-bg{
+    width:100%; height:100%; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.18); position:relative;
+  }
+  .stick-nub{
+    position:absolute; top:50%; left:50%;
+    width:50px; height:50px; margin:-25px 0 0 -25px;
+    background:rgba(255,255,255,0.82); border-radius:50%;
+    box-shadow:0 2px 5px rgba(0,0,0,0.55);
+  }
+  .btn-wrapper{
+    position:absolute; bottom:30px; right:30px;
+    display:flex; flex-direction:column; gap:15px;
+    pointer-events:auto; align-items:center;
+  }
+  #btn-attack{
+    width:76px; height:76px;
+    background:rgba(245,158,11,0.95);
+    border:3px solid #fff; border-radius:50%;
+    display:grid; place-items:center;
+    box-shadow:0 4px 10px rgba(0,0,0,0.65);
+    touch-action:none;
+  }
+  #btn-attack:active{transform:scale(0.95); background:#d97706;}
+  .sword-icon{font-size:32px;}
+
+  #btn-zoom{
+    width:40px; height:40px;
+    background:rgba(255,255,255,0.18);
+    border:1px solid rgba(255,255,255,0.35); border-radius:50%;
+    display:grid; place-items:center; font-size:18px; color:#fff;
+    backdrop-filter:blur(4px);
+    touch-action:none;
+  }
+
+  #center-msg{
+    position:absolute; top:25%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; width:92%; pointer-events:none; z-index:30;
+  }
+  .big-text{
+    font-size:24px; font-weight:950; color:#fff;
+    text-shadow:0 2px 10px rgba(0,0,0,1);
+    opacity:0; transition:opacity 0.5s;
+  }
+
+  #overlay{
+    position:absolute; inset:0; background:rgba(0,0,0,0.92); z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:22px; text-align:center;
+  }
+  h1{color:var(--gold); margin:0 0 10px 0; font-size:30px; letter-spacing:1px;}
+  p{color:#cfcfcf; margin:0 0 14px 0; font-size:15px; max-width:390px; line-height:1.5;}
+  .btn-start{
+    margin-top:10px;
+    background:var(--red); color:#fff; border:none; padding:14px 30px;
+    font-size:18px; font-weight:950; border-radius:8px;
+    box-shadow:0 4px 0 #991b1b;
+  }
+  .btn-start:active{transform:translateY(4px); box-shadow:none;}
+
+  #kbd-hint{
+    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    z-index:25; font-size:12px; color:#cbd5e1;
+    opacity:0; pointer-events:none; text-shadow:0 1px 2px #000;
+    transition:opacity .25s;
+  }
+  @media (pointer:fine){
+    #kbd-hint{opacity:0.9;}
+  }
+</style>
+</head>
+<body>
+<div id="game-box">
+  <div id="overlay"></div>
+
+  <div class="hud-top">
+    <span class="team-you">YOU: <span id="ui-you">50</span></span>
+    <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
+    <span class="team-han">ENEMY: <span id="ui-han">0</span></span>
+  </div>
+
+  <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <div id="kbd-hint">Desktop: WASD / Arrows move · Space/Enter attack</div>
+
+  <canvas id="cv"></canvas>
+
+  <div class="controls-layer">
+    <div id="stick-zone"><div class="stick-bg"><div class="stick-nub" id="stick"></div></div></div>
+    <div class="btn-wrapper">
+      <div id="btn-zoom">🔍</div>
+      <div id="btn-attack"><div class="sword-icon">⚔️</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================
+//  ROUTING / END FLOW
+// ===================================================
+const NEXT_PAGE = "map.html"; // same folder
+function goToMap(){ window.location.href = NEXT_PAGE; }
+
+// ===================================================
+//  INTRO + HISTORY CONTENT
+// ===================================================
+const INTRO_HTML = `
+  <h1>LAKE TRASIMENE</h1>
+  <p>Two-wide march, lake at your elbow. You’re in the column.</p>
+  <p><b>Rules:</b> Lake = death. Woods = uphill (slow).</p>
+  <p>“Hannibal’s camp is ahead…”</p>
+  <button class="btn-start" id="btn-start">MARCH OUT</button>
+`;
+
+const HISTORY_HTML = `
+  <h2 style="color:#f59e0b; margin:0 0 10px 0;">LAKE TRASIMENE (217 BC)</h2>
+  <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:520px;">
+    <p><strong style="color:#fff">FORCES:</strong><br>
+    <span style="color:#ef4444">Rome:</span> ~30,000 (Gaius Flaminius)<br>
+    <span style="color:#3b82f6">Carthage:</span> ~55,000 (Hannibal)</p>
+
+    <p><strong style="color:#fff">CASUALTIES:</strong><br>
+    <span style="color:#ef4444">Rome:</span> ~15,000 killed, ~15,000 captured<br>
+    <span style="color:#3b82f6">Carthage:</span> ~2,500</p>
+
+    <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
+    Often described as the largest ambush in military history. Hannibal hid forces in the hills above the lake’s fog. The Romans were strung out in marching formation (like in this game) and were pushed into the water. Flaminius was killed.</p>
+  </div>
+`;
+
+function renderIntro(){
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = INTRO_HTML;
+
+  const histBtn = document.createElement('button');
+  histBtn.className = "btn-start";
+  histBtn.style.backgroundColor = "#475569";
+  histBtn.style.boxShadow = "0 4px 0 #334155";
+  histBtn.style.marginTop = "10px";
+  histBtn.textContent = "HISTORY";
+  histBtn.onclick = () => renderHistory('intro');
+  ov.appendChild(histBtn);
+
+  document.getElementById('btn-start').onclick = startGame;
+}
+
+function renderHistory(backTo){
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = `
+    ${HISTORY_HTML}
+    <button class="btn-start" id="btn-back" style="margin-top:20px; background:#475569; box-shadow:0 4px 0 #334155;">BACK</button>
+  `;
+  document.getElementById('btn-back').onclick = () => {
+    if(backTo === 'intro') renderIntro();
+  };
+}
+
+// ===================================================
+//  PIXEL SPRITES
+// ===================================================
+const P = {
+  metal:'#b7bcc5', black:'#111114',
+  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
+  gold:'#fbbf24', white:'#e7e7ea',
+  shadow:'rgba(0,0,0,0.35)'
+};
+const CANVAS = document.getElementById('cv');
+const CTX = CANVAS.getContext('2d', { alpha:false });
+const BOX = document.getElementById('game-box');
+
+let DPR = 1, VIEW_W = 0, VIEW_H = 0;
+
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+function drawSprite(kind, x, y, scale){
+  const s = scale;
+  const coat =
+    kind==='roman' ? P.roman :
+    kind==='yours' ? P.you :
+    kind==='invader' ? P.inv : P.inv;
+
+  CTX.fillStyle=P.shadow;
+  CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+
+  px(x+1*s, y+6*s, s, P.black);
+  px(x+6*s, y+6*s, s, P.black);
+  px(x+2*s, y+5*s, s, P.metal);
+  px(x+5*s, y+5*s, s, P.metal);
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+
+  if(kind==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
+  else if(kind==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
+  else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
+}
+
+// ===================================================
+//  CONFIG
+// ===================================================
+const TILE = 24;
+const GRID_W = 44;
+const GRID_H = 74;
+let SCALE = 2;
+
+const PACE = {
+  playerMove: 26,
+  romanMove: 34,
+  invaderMove: 34,
+  aiThinkJitter: 22,
+  combatDelay: 56
+};
+
+const PLAYER_ATTACK = { cooldownFrames: 18, maxHits: 2 };
+const TERRAIN = { PATH:0, WOODS:1, LAKE:2 };
+const MOVE_COST = {
+  path: 1.0,
+  woods: 2.4,
+  uphillExtra: 1.45,
+  romanPathBoost: 0.75,
+  invaderDownhillBoost: 0.62
+};
+const LAKE = { dmgPerTick: 2, splashDmgOnPush: 6 };
+const AMBUSH = {
+  triggerY: Math.floor(GRID_H * 0.50),
+  spawnBand: 10,
+  spawnCount: 32,
+  spawnWave2After: 420,
+  spawnWave2Count: 18
+};
+const SHOVE = {
+  baseChance: 0.52,
+  downhillBonus: 0.55,
+  backBonus: 0.20,
+  tryLakeFirst: true,
+  chainDepth: 4
+};
+const CAMP = {
+  revealY: 2,
+  retreatReinforceAfter: 180,
+  retreatWaveCount: 22
+};
+
+// ===================================================
+//  STATE
+// ===================================================
+let gameActive=false;
+let cam={x:0,y:0};
+let grid=[], terrain=[], elev=[];
+let units=[];
+let particles=[], floats=[];
+let player=null;
+let phaseTimer=0;
+let ambush=false;
+let ambushAt=0;
+let spawnedWave2=false;
+let atkCD=0;
+let campFound=false;
+let retreat=false;
+let campAt=0;
+let spawnedRetreatWave=false;
+
+// input
+let input={dx:0,dy:0};
+let stick={active:false,startX:0,startY:0,curX:0,curY:0};
+
+// keyboard (desktop)
+const keysDown = new Set();
+let lastKeyDir = {dx:0, dy:0};
+function computeKeyboardDir(){
+  const up = keysDown.has('ArrowUp') || keysDown.has('KeyW');
+  const down = keysDown.has('ArrowDown') || keysDown.has('KeyS');
+  const left = keysDown.has('ArrowLeft') || keysDown.has('KeyA');
+  const right = keysDown.has('ArrowRight') || keysDown.has('KeyD');
+
+  let dx=0, dy=0;
+  if(left && !right) dx=-1;
+  if(right && !left) dx=1;
+  if(up && !down) dy=-1;
+  if(down && !up) dy=1;
+
+  if(dx!==0 && dy!==0){
+    if(lastKeyDir.dx !== 0) dy=0;
+    else dx=0;
+  }
+  if(dx!==0 || dy!==0) lastKeyDir = {dx,dy};
+  return {dx,dy};
+}
+function setInputFromKeyboard(){
+  if(stick.active) return;
+  const k = computeKeyboardDir();
+  input.dx = k.dx;
+  input.dy = k.dy;
+}
+
+// ===================================================
+//  START / ZOOM
+// ===================================================
+function startGame(){
+  const ov=document.getElementById('overlay');
+  ov.style.display='none';
+  if(gameActive) return;
+
+  gameActive=true;
+  resize();
+  setupMap();
+  requestAnimationFrame(loop);
+}
+function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
+
+// ===================================================
+//  MAP
+// ===================================================
+function setupMap(){
+  phaseTimer=0; ambush=false; spawnedWave2=false; atkCD=0;
+  campFound=false; retreat=false; campAt=0; spawnedRetreatWave=false;
+  units=[]; particles=[]; floats=[];
+  grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
+  terrain = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(TERRAIN.WOODS));
+  elev = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
+
+  buildTerrainTwoWide();
+
+  const midY = GRID_H - 18;
+  const start = findPathCellNear(midY);
+  spawnRomanTwoWideColumnAround(start.y);
+
+  const pSpot = findEmptyPathNear(start.y);
+  player = spawnUnit(pSpot.x, pSpot.y, 'yours');
+
+  cam.x = player.x*TILE + TILE/2;
+  cam.y = player.y*TILE + TILE/2;
+
+  showMsg("TWO-WIDE. KEEP MOVING.", "#fff");
+}
+
+function buildTerrainTwoWide(){
+  const lakeStart = 31;
+  for(let y=0;y<GRID_H;y++){
+    for(let x=0;x<GRID_W;x++){
+      terrain[y][x] = (x>=lakeStart) ? TERRAIN.LAKE : TERRAIN.WOODS;
+      const hill = Math.max(0, (lakeStart-1 - x));
+      elev[y][x] = hill;
+    }
+  }
+  const pathRight = lakeStart - 1;
+  const pathLeft  = lakeStart - 2;
+  for(let y=0;y<GRID_H;y++){
+    terrain[y][pathRight] = TERRAIN.PATH;
+    terrain[y][pathLeft]  = TERRAIN.PATH;
+  }
+}
+
+function findPathCellNear(y){
+  y = clamp(y, 0, GRID_H-1);
+  for(let r=0;r<14;r++){
+    const yy = clamp(y-r,0,GRID_H-1);
+    const cols = pathColsAtRow(yy);
+    if(terrain[yy][cols.left]===TERRAIN.PATH) return {x:cols.left, y:yy};
+  }
+  return {x:28,y:GRID_H-10};
+}
+
+function findEmptyPathNear(y){
+  const yy0 = clamp(y-6, 2, GRID_H-3);
+  const yy1 = clamp(y+6, 2, GRID_H-3);
+  for(let yy=yy0; yy<=yy1; yy++){
+    const cols = pathColsAtRow(yy);
+    const options=[cols.left, cols.right];
+    for(const x of options){
+      if(terrain[yy][x]===TERRAIN.PATH && !grid[yy][x]) return {x,y:yy};
+    }
+  }
+  for(let yy=GRID_H-3; yy>=2; yy--){
+    const cols = pathColsAtRow(yy);
+    if(!grid[yy][cols.left]) return {x:cols.left, y:yy};
+    if(!grid[yy][cols.right]) return {x:cols.right, y:yy};
+  }
+  return {x:28,y:GRID_H-10};
+}
+
+function spawnRomanTwoWideColumnAround(centerY){
+  const cols = pathColsAtRow(centerY);
+  const L = cols.left, R = cols.right;
+  let made=0;
+
+  for(let y=centerY-2; y>=Math.max(2, centerY-30); y-=2){
+    if(Math.random()>0.08){
+      if(!grid[y][L]){ const u=spawnUnit(L,y,'roman'); if(u){u.role=(y<centerY-12)?'front':'reserve'; made++;}}
+      if(!grid[y][R]){ const u=spawnUnit(R,y,'roman'); if(u){u.role=(y<centerY-12)?'front':'reserve'; made++;}}
+    }
+    if(made>=52) break;
+  }
+  for(let y=centerY+2; y<=Math.min(GRID_H-3, centerY+22); y+=2){
+    if(Math.random()>0.18){
+      if(!grid[y][L]){ const u=spawnUnit(L,y,'roman'); if(u){u.role='reserve'; made++;}}
+      if(!grid[y][R]){ const u=spawnUnit(R,y,'roman'); if(u){u.role='reserve'; made++;}}
+    }
+    if(made>=70) break;
+  }
+}
+
+// ===================================================
+//  UNITS
+// ===================================================
+function spawnUnit(gx, gy, type){
+  if(!inBounds(gx,gy) || grid[gy][gx]) return null;
+  if(terrain[gy][gx]===TERRAIN.LAKE) return null;
+
+  let hp,maxHp,moveSpeed;
+  if(type==='yours'){ hp=50; maxHp=50; moveSpeed=PACE.playerMove; }
+  else if(type==='roman'){ hp=6; maxHp=6; moveSpeed=PACE.romanMove; }
+  else { hp=10; maxHp=10; moveSpeed=PACE.invaderMove; }
+
+  const u = {
+    id: Math.random(),
+    x: gx, y: gy,
+    type,
+    hp, maxHp,
+    cooldown: Math.random()*40,
+    moveSpeed,
+    role: null
+  };
+  units.push(u);
+  grid[gy][gx] = u;
+  return u;
+}
+
+// ===================================================
+//  LOOP
+// ===================================================
+function loop(){
+  if(!gameActive) return;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ===================================================
+//  UPDATE
+// ===================================================
+function update(){
+  phaseTimer++;
+  if(atkCD>0) atkCD--;
+
+  // keyboard continuous direction
+  setInputFromKeyboard();
+
+  if(!retreat && !ambush && player && player.y <= AMBUSH.triggerY){
+    ambush = true;
+    ambushAt = phaseTimer;
+    showMsg("AMBUSH! DOWNHILL FROM THE WOODS!", "#fca5a5");
+    spawnAmbushWave(AMBUSH.spawnCount);
+  }
+
+  if(!retreat && ambush && !spawnedWave2 && (phaseTimer-ambushAt) > AMBUSH.spawnWave2After){
+    spawnedWave2 = true;
+    showMsg("THEY POUR IN BEHIND YOU!", "#fde68a");
+    spawnAmbushWave(AMBUSH.spawnWave2Count, true);
+  }
+
+  if(!campFound && player && player.hp>0 && player.y <= CAMP.revealY){
+    campFound = true;
+    retreat = true;
+    campAt = phaseTimer;
+    showMsg("EMPTY TENTS. TURN BACK!", "#fde68a");
+    spawnFloat("EMPTY CAMP", player.x, player.y, "#fde68a");
+    spawnCampPressure();
+  }
+
+  if(retreat && !spawnedRetreatWave && (phaseTimer-campAt) > CAMP.retreatReinforceAfter){
+    spawnedRetreatWave = true;
+    showMsg("THEY CUT OFF THE REAR!", "#93c5fd");
+    spawnRetreatWave(CAMP.retreatWaveCount);
+  }
+
+  units.sort((a,b)=>a.y-b.y);
+
+  for(const u of units){
+    if(u.hp<=0) continue;
+
+    if(terrain[u.y][u.x]===TERRAIN.LAKE){
+      u.hp -= LAKE.dmgPerTick;
+      if(u.type==='yours') spawnFloat("WATER!", u.x, u.y, "#93c5fd");
+      continue;
+    }
+
+    if(u.type==='yours'){
+      if(u.cooldown>0) u.cooldown--;
+      if(u.cooldown<=0 && (input.dx||input.dy)){
+        const cost = tryMove(u, input.dx, input.dy);
+        u.cooldown = Math.max(2, Math.round(u.moveSpeed * cost));
+      }
+    } else {
+      handleAI(u);
+    }
+  }
+
+  units = units.filter(u=>u.hp>0);
+
+  if(player && player.hp>0){
+    const tx = player.x*TILE + TILE/2;
+    const ty = player.y*TILE + TILE/2;
+    cam.x += (tx-cam.x)*0.1;
+    cam.y += (ty-cam.y)*0.1;
+  }
+
+  updateFX();
+
+  const enemyCount = units.filter(u=>u.type==='invader').length;
+  document.getElementById('ui-you').innerText = player ? Math.max(0, player.hp) : 0;
+  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman' || u.type==='yours').length;
+  document.getElementById('ui-han').innerText = enemyCount;
+
+  // End conditions
+  if(!player || player.hp<=0){
+    finishRun("DEFEAT", "You went down at Trasimene.");
+    return;
+  }
+
+  // (If you ever “win”, still finish -> map)
+  if(campFound && enemyCount===0){
+    finishRun("SURVIVED", "Against the odds, you made it out of the kill zone.");
+    return;
+  }
+}
+
+// ===================================================
+//  CAMP EVENTS
+// ===================================================
+function spawnCampPressure(){
+  const y0 = 1, y1 = 14;
+  let made=0, tries=0;
+  while(made<18 && tries<900){
+    tries++;
+    const y = randInt(y0,y1);
+    const cols = pathColsAtRow(y);
+    const nearLeft = Math.min(cols.left, cols.right) - 1;
+    const x = randInt(Math.max(1, nearLeft-8), Math.max(2, nearLeft));
+    if(!inBounds(x,y)) continue;
+    if(terrain[y][x]!==TERRAIN.WOODS) continue;
+    if(grid[y][x]) continue;
+    const u = spawnUnit(x,y,'invader');
+    if(u){ u.role='press'; made++; }
+  }
+}
+function spawnRetreatWave(n){
+  if(!player) return;
+  const y0 = clamp(player.y + 6, 2, GRID_H-3);
+  const y1 = clamp(player.y + 18, 2, GRID_H-3);
+  let tries=0, made=0;
+  while(made<n && tries<n*40){
+    tries++;
+    const y = randInt(y0,y1);
+    const cols = pathColsAtRow(y);
+    const nearLeft = Math.min(cols.left, cols.right) - 1;
+    const x = randInt(Math.max(1, nearLeft-9), Math.max(2, nearLeft));
+    if(!inBounds(x,y)) continue;
+    if(terrain[y][x]!==TERRAIN.WOODS) continue;
+    if(grid[y][x]) continue;
+    const u = spawnUnit(x,y,'invader');
+    if(u){ u.role='press'; made++; }
+  }
+}
+
+// ===================================================
+//  AMBUSH SPAWN
+// ===================================================
+function spawnAmbushWave(n, tighter=false){
+  if(!player) return;
+  const y0 = clamp(player.y - AMBUSH.spawnBand, 2, GRID_H-3);
+  const y1 = clamp(player.y + AMBUSH.spawnBand, 2, GRID_H-3);
+  let tries=0, made=0;
+  while(made<n && tries<n*35){
+    tries++;
+    const y = randInt(y0,y1);
+    const cols = pathColsAtRow(y);
+    const nearLeft = Math.min(cols.left, cols.right) - 1;
+    const xMax = Math.max(2, nearLeft - (tighter?0:1));
+    const x = randInt(Math.max(1, xMax-8), xMax);
+    if(!inBounds(x,y)) continue;
+    if(terrain[y][x]!==TERRAIN.WOODS) continue;
+    if(grid[y][x]) continue;
+    const u = spawnUnit(x,y,'invader');
+    if(u){ u.role = tighter ? 'press' : 'skirm'; made++; }
+  }
+}
+
+function pathColsAtRow(y){
+  let xs=[];
+  for(let x=0;x<GRID_W;x++){
+    if(terrain[y][x]===TERRAIN.PATH) xs.push(x);
+  }
+  xs.sort((a,b)=>a-b);
+  return {left: xs[0] ?? 0, right: xs[1] ?? xs[0] ?? 0};
+}
+
+// ===================================================
+//  AI
+// ===================================================
+function handleAI(u){
+  if(u.cooldown>0){ u.cooldown--; return; }
+
+  let target=null, minDist=99;
+  for(const o of units){
+    if(o.hp<=0) continue;
+    if(Math.abs(o.x-u.x)>3 || Math.abs(o.y-u.y)>3) continue;
+    const isEnemy =
+      (u.type==='roman' && o.type==='invader') ||
+      (u.type==='invader' && (o.type==='roman' || o.type==='yours'));
+    if(isEnemy){
+      const d = dist(u,o);
+      if(d<minDist){ minDist=d; target=o; }
+    }
+  }
+
+  if(target && minDist<=1.5){
+    attack(u,target);
+    u.cooldown = PACE.combatDelay + Math.random()*18;
+    return;
+  }
+
+  let md={x:0,y:0};
+
+  if(u.type==='roman'){
+    const dir = retreat ? 1 : -1;
+    if(terrain[u.y][u.x]!==TERRAIN.PATH){
+      const cols = pathColsAtRow(u.y);
+      const nx = (Math.abs(cols.left-u.x) < Math.abs(cols.right-u.x)) ? cols.left : cols.right;
+      md = {x: Math.sign(nx-u.x), y:0};
+    } else {
+      if(target) md = getStep(u, target);
+      else md = {x:0,y:dir};
+    }
+  }
+
+  if(u.type==='invader'){
+    const t = (player && player.hp>0) ? player : target;
+    if(terrain[u.y][u.x]===TERRAIN.WOODS){
+      if(Math.random()<0.82) md = {x:1,y:0};
+      else if(t) md = {x:1, y: Math.sign(t.y-u.y)};
+      else md = {x:1,y:0};
+    } else {
+      if(t && Math.random()<0.60) md = getStep(u, t);
+      else md = (Math.random()<0.78) ? {x:1,y:0} : {x:0,y:1};
+    }
+  }
+
+  const cost = (md.x||md.y) ? tryMove(u, md.x, md.y) : 1.0;
+  u.cooldown = Math.max(2, Math.round(u.moveSpeed * cost + Math.random()*PACE.aiThinkJitter));
+}
+
+// ===================================================
+//  MOVEMENT + COSTS
+// ===================================================
+function tryMove(u, dx, dy){
+  const tx=u.x+dx, ty=u.y+dy;
+  if(!inBounds(tx,ty)) return 1.0;
+  if(grid[ty][tx]) return 1.0;
+
+  const t = terrain[ty][tx];
+  if(t===TERRAIN.LAKE) return 1.0;
+
+  let cost = (t===TERRAIN.WOODS) ? MOVE_COST.woods : MOVE_COST.path;
+  if(u.type==='roman' && t===TERRAIN.PATH) cost *= MOVE_COST.romanPathBoost;
+  if(u.type==='invader' && terrain[u.y][u.x]===TERRAIN.WOODS && dx===1 && dy===0){
+    cost *= MOVE_COST.invaderDownhillBoost;
+  }
+  const e0 = elev[u.y][u.x];
+  const e1 = elev[ty][tx];
+  if(e1 > e0) cost *= MOVE_COST.uphillExtra;
+
+  grid[u.y][u.x]=null;
+  u.x=tx; u.y=ty;
+  grid[ty][tx]=u;
+  return cost;
+}
+
+// ===================================================
+//  COMBAT + SHOVE (CHAIN)
+// ===================================================
+function attack(atk, def){
+  const dmg = 1;
+  def.hp -= dmg;
+  spawnBlood(def.x, def.y);
+  spawnFloat("-"+dmg, def.x, def.y, "#ef4444");
+
+  if(atk.type==='invader' && (def.type==='roman' || def.type==='yours') && def.hp>0){
+    let chance = SHOVE.baseChance;
+    const ea = elev[atk.y][atk.x];
+    const ed = elev[def.y][def.x];
+    if(ea > ed) chance += SHOVE.downhillBonus;
+    if(terrain[def.y][def.x]===TERRAIN.PATH) chance += SHOVE.backBonus;
+    if(Math.random()<chance){
+      if(shoveChain(def, atk)) spawnFloat("SHOVE!", def.x, def.y, "#fde68a");
+    }
+  }
+
+  if(def.hp<=0){
+    grid[def.y][def.x]=null;
+    spawnFloat("DOWN", def.x, def.y, P.gold);
+  }
+}
+
+function shoveChain(def, atk){
+  const opts=[
+    {x:1,y:0, w: 12},
+    {x:1,y:1, w: 10},
+    {x:0,y:1, w: 7},
+    {x:Math.sign(def.x-atk.x), y:Math.sign(def.y-atk.y), w:2}
+  ];
+  let best=null, bestW=-1;
+  for(const o of opts){
+    const tx=def.x+o.x, ty=def.y+o.y;
+    if(!inBounds(tx,ty)) continue;
+    let w=o.w;
+    if(terrain[ty][tx]===TERRAIN.LAKE) w+=10;
+    if(terrain[ty][tx]===TERRAIN.PATH) w+=2;
+    if(terrain[ty][tx]===TERRAIN.WOODS) w-=2;
+    if(w>bestW){ bestW=w; best={dx:o.x,dy:o.y,tx,ty}; }
+  }
+  if(!best) return false;
+  return tryChainPush(def, best.dx, best.dy, 0);
+}
+
+function tryChainPush(unit, dx, dy, depth){
+  if(depth>SHOVE.chainDepth) return false;
+  const tx = unit.x + dx;
+  const ty = unit.y + dy;
+  if(!inBounds(tx,ty)) return false;
+
+  if(terrain[ty][tx]===TERRAIN.LAKE){
+    if(grid[ty][tx]){
+      const ok = tryChainPush(grid[ty][tx], dx, dy, depth+1);
+      if(!ok) return false;
+    }
+    grid[unit.y][unit.x]=null;
+    unit.x=tx; unit.y=ty;
+    grid[ty][tx]=unit;
+    unit.hp -= LAKE.splashDmgOnPush;
+    spawnFloat("SPLASH", tx, ty, "#93c5fd");
+    return true;
+  }
+
+  if(grid[ty][tx]){
+    const ok = tryChainPush(grid[ty][tx], dx, dy, depth+1);
+    if(!ok) return false;
+  }
+  grid[unit.y][unit.x]=null;
+  unit.x=tx; unit.y=ty;
+  grid[ty][tx]=unit;
+  return true;
+}
+
+// ===================================================
+//  PLAYER ATTACK (limited)
+// ===================================================
+function doAttack(e){
+  if(e){ e.stopPropagation(); e.preventDefault(); }
+  if(!gameActive || !player || player.hp<=0) return;
+  if(atkCD>0) return;
+
+  atkCD = PLAYER_ATTACK.cooldownFrames;
+
+  const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let targets=[];
+  for(const d of dirs){
+    const tx=player.x+d[0], ty=player.y+d[1];
+    const u = (grid[ty] && grid[ty][tx]) ? grid[ty][tx] : null;
+    if(u && u.type==='invader') targets.push(u);
+  }
+  if(!targets.length) return;
+
+  targets.sort((a,b)=>dist(player,a)-dist(player,b));
+  for(const t of targets.slice(0, PLAYER_ATTACK.maxHits)) attack(player, t);
+  spawnFloat("CLASH", player.x, player.y, "#fff");
+}
+
+// ===================================================
+//  INPUT (POINTER joystick + desktop keys)
+// ===================================================
+const stickEl = document.getElementById('stick');
+const stickZone = document.getElementById('stick-zone');
+
+function endStick(){
+  stick.active=false;
+  stickEl.style.transform=`translate(0px,0px)`;
+  input.dx=0; input.dy=0;
+}
+
+function updateStick(){
+  const max=45;
+  let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY;
+  const d=Math.sqrt(dx*dx+dy*dy);
+  if(d>max){ dx=(dx/d)*max; dy=(dy/d)*max; }
+  stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
+  input.dx=0; input.dy=0;
+  if(d>10){
+    if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx);
+    else input.dy=Math.sign(dy);
+  }
+}
+
+stickZone.addEventListener('pointerdown', (e)=>{
+  stick.active=true;
+  stick.startX=e.clientX; stick.startY=e.clientY;
+  stick.curX=e.clientX; stick.curY=e.clientY;
+  stickZone.setPointerCapture(e.pointerId);
+  updateStick();
+}, {passive:false});
+
+stickZone.addEventListener('pointermove', (e)=>{
+  if(!stick.active) return;
+  e.preventDefault();
+  stick.curX=e.clientX; stick.curY=e.clientY;
+  updateStick();
+}, {passive:false});
+
+stickZone.addEventListener('pointerup', endStick, {passive:true});
+stickZone.addEventListener('pointercancel', endStick, {passive:true});
+stickZone.addEventListener('lostpointercapture', endStick, {passive:true});
+
+// Attack + Zoom buttons
+document.getElementById('btn-attack').addEventListener('pointerdown', doAttack, {passive:false});
+document.getElementById('btn-zoom').addEventListener('pointerdown', (e)=>{ e.preventDefault(); toggleZoom(); }, {passive:false});
+
+// Desktop keys
+window.addEventListener('keydown', (e)=>{
+  const relevant = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'];
+  if(relevant.includes(e.code)) e.preventDefault();
+
+  if(e.code === 'Space' || e.code === 'Enter'){
+    doAttack(e);
+    return;
+  }
+  keysDown.add(e.code);
+  setInputFromKeyboard();
+}, {passive:false});
+
+window.addEventListener('keyup', (e)=>{
+  keysDown.delete(e.code);
+  setInputFromKeyboard();
+}, {passive:true});
+
+// Prevent scrolling while playing
+document.addEventListener('touchmove', (e)=>{ if(gameActive) e.preventDefault(); }, {passive:false});
+
+// ===================================================
+//  FX + UI
+// ===================================================
+function spawnBlood(gx, gy){
+  for(let i=0;i<3;i++){
+    particles.push({
+      x:gx*TILE+TILE/2, y:gy*TILE+TILE/2,
+      vx:(Math.random()-.5)*2.2, vy:(Math.random()-.5)*2.2,
+      life:1, color:P.roman
+    });
+  }
+}
+function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
+function updateFX(){
+  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life-=0.05; });
+  particles = particles.filter(p=>p.life>0);
+  floats.forEach(f=>{ f.y-=0.25; f.life-=0.02; });
+  floats = floats.filter(f=>f.life>0);
+}
+function showMsg(txt, col){
+  const el=document.getElementById('battle-text');
+  el.innerText=txt; el.style.color=col; el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0, 2600);
+}
+
+// ===================================================
+//  FINISH (show history -> map)
+// ===================================================
+function finishRun(title, line){
+  gameActive = false;
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = `
+    <h1>${title}</h1>
+    <p><b>${line}</b></p>
+    <p style="margin-top:-6px;">This battle is designed to punish the column.</p>
+    ${HISTORY_HTML}
+    <button class="btn-start" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+  `;
+  document.getElementById('btn-map').onclick = goToMap;
+  // auto redirect after a beat (keeps the “ending” from stalling)
+  setTimeout(goToMap, 1800);
+}
+
+// ===================================================
+//  DRAW
+// ===================================================
+function draw(){
+  CTX.fillStyle='#1a1f22';
+  CTX.fillRect(0,0,VIEW_W,VIEW_H);
+
+  CTX.save();
+  const cx = VIEW_W/2 - cam.x;
+  const cy = VIEW_H/2 - cam.y;
+  CTX.translate(Math.round(cx), Math.round(cy));
+
+  for(let y=0;y<GRID_H;y++){
+    for(let x=0;x<GRID_W;x++){
+      const t = terrain[y][x];
+      if(t===TERRAIN.LAKE) CTX.fillStyle = '#0b2d52';
+      else if(t===TERRAIN.PATH) CTX.fillStyle = '#5b4a32';
+      else CTX.fillStyle = '#183a2a';
+      CTX.fillRect(x*TILE, y*TILE, TILE, TILE);
+
+      if(t===TERRAIN.WOODS){
+        const e = elev[y][x];
+        if(e>10){
+          CTX.fillStyle='rgba(0,0,0,0.14)';
+          CTX.fillRect(x*TILE, y*TILE, TILE, TILE);
+        }
+      }
+
+      if(t===TERRAIN.LAKE && ((x+y+((phaseTimer/8)|0))%19===0)){
+        CTX.fillStyle='rgba(147,197,253,0.25)';
+        CTX.fillRect(x*TILE+6, y*TILE+7, 3, 3);
+      }
+    }
+  }
+
+  for(const u of units){
+    drawSprite(u.type, u.x*TILE - 4, u.y*TILE - 8, SCALE);
+
+    if(u.type==='yours' || u.hp < u.maxHp){
+      const sx=u.x*TILE - 4, sy=u.y*TILE - 8;
+      CTX.fillStyle='#000'; CTX.fillRect(sx, sy-6, 24, 4);
+      CTX.fillStyle =
+        (u.type==='yours') ? '#1f9d55' :
+        (u.type==='invader') ? '#93c5fd' : '#ef4444';
+      CTX.fillRect(sx+1, sy-5, Math.max(0,(u.hp/u.maxHp)*22), 2);
+    }
+  }
+
+  for(const p of particles){
+    CTX.fillStyle=p.color;
+    CTX.fillRect(p.x, p.y, SCALE, SCALE);
+  }
+
+  CTX.font="bold 12px monospace";
+  CTX.textAlign="center";
+  for(const f of floats){
+    CTX.fillStyle=f.color;
+    CTX.globalAlpha=f.life;
+    CTX.fillText(f.text, f.x+TILE/2, f.y);
+  }
+  CTX.globalAlpha=1;
+
+  CTX.restore();
+}
+
+// ===================================================
+//  UTILS + RESIZE (RETINA)
+// ===================================================
+function inBounds(x,y){ return !(x<0||x>=GRID_W||y<0||y>=GRID_H); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function dist(a,b){ return Math.sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y)); }
+function getStep(u,t){
+  const dx=t.x-u.x, dy=t.y-u.y;
+  if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
+  return {x:0, y:Math.sign(dy)};
+}
+function randInt(a,b){ return (Math.random()*(b-a+1) + a) | 0; }
+
+function resize(){
+  const rect = BOX.getBoundingClientRect();
+  VIEW_W = Math.max(1, Math.floor(rect.width));
+  VIEW_H = Math.max(1, Math.floor(rect.height));
+
+  DPR = Math.min(3, window.devicePixelRatio || 1);
+  CANVAS.width = Math.floor(VIEW_W * DPR);
+  CANVAS.height = Math.floor(VIEW_H * DPR);
+
+  CTX.setTransform(DPR,0,0,DPR,0,0); // draw in CSS px coords
+  CTX.imageSmoothingEnabled=false;
+}
+
+window.addEventListener('resize', resize, {passive:true});
+window.addEventListener('orientationchange', resize, {passive:true});
+
+// Boot
+resize();
+renderIntro();
+</script>
+
+</body>
+</html>
