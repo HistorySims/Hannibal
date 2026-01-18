@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Lake Trasimene: The Pursuit</title>
+<style>
+    body {
+        margin: 0; padding: 0; background: #0e1114;
+        height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: 'Courier New', Courier, monospace; overflow: hidden;
+    }
+    #stage {
+        position: relative; width: 100%; max-width: 600px; 
+        /* CHANGED: Made taller (3:4 ratio) so text doesn't hide the art */
+        aspect-ratio: 3/4;
+        background: #1a1f22; overflow: hidden;
+        border: 1px solid #333;
+        box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+    
+    /* DIALOGUE BOX */
+    #dialogue-box {
+        position: absolute; bottom: 0; left: 0;
+        width: 100%; background: rgba(14, 17, 20, 0.95); 
+        border-top: 2px solid #555;
+        padding: 20px; display: none; z-index: 30;
+        cursor: pointer; height: 140px; 
+        box-sizing: border-box;
+    }
+    .speaker-name {
+        color: #ef4444; font-weight: 900; font-size: 16px; text-transform: uppercase;
+        margin-bottom: 10px; letter-spacing: 1px;
+    }
+    .speech-text {
+        color: #e7e7ea; font-size: 18px; line-height: 1.4; white-space: pre-wrap;
+    }
+    
+    .click-prompt {
+        position: absolute; bottom: 10px; right: 20px;
+        font-size: 12px; color: #f59e0b; animation: blink 1s infinite;
+    }
+
+    /* TITLE SCREEN */
+    #title-screen {
+        position: absolute; inset: 0; 
+        background: rgba(200, 210, 220, 0.8); /* Foggy */
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 50; text-align: center;
+        opacity: 0; transition: opacity 2s;
+    }
+    h1 { 
+        font-size: 56px; color: #b91c1c; margin: 0; 
+        text-transform: uppercase; letter-spacing: 4px; 
+        text-shadow: 0 2px 0 #000;
+    }
+    h2 { font-size: 18px; color: #111; margin-bottom: 30px; letter-spacing: 2px; font-weight:800; }
+    
+    button {
+        background: #b91c1c; color: #fff; border: 4px solid #fff;
+        padding: 15px 40px; font-size: 20px; font-weight: 900; cursor: pointer;
+        text-transform: uppercase; 
+        box-shadow: 0 4px 0 #7f1d1d;
+    }
+    button:active { transform: translateY(4px); box-shadow: none; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+    <canvas id="cv"></canvas>
+    
+    <div id="dialogue-box" onclick="nextLine()">
+        <div class="speaker-name">Gaius Flaminius</div>
+        <div class="speech-text" id="speech"></div>
+        <div class="click-prompt">TAP TO CONTINUE ▼</div>
+    </div>
+
+    <div id="title-screen">
+        <h1>TRASIMENE</h1>
+        <h2>Spring, 217 BC</h2>
+        <button onclick="window.location.href='trasimene_game.html'">Start March</button>
+    </div>
+</div>
+
+<script>
+const C = document.getElementById('cv');
+const CTX = C.getContext('2d');
+const BOX = document.getElementById('dialogue-box');
+const TXT = document.getElementById('speech');
+
+// CHANGED: Higher resolution Height to match new aspect ratio
+const W = 320;
+const H = 420; 
+const TILE = 24;
+
+// PALETTE
+const P = {
+  bg:'#0e1114', red:'#ef4444', gold:'#f59e0b', blue:'#3b82f6', text:'#e7e7ea',
+  roman:'#c53030', metal:'#b7bcc5', black:'#111114', shadow: 'rgba(0,0,0,0.35)',
+  lake: '#0b2d52', path: '#5b4a32', woods: '#183a2a',
+  skin: '#eebb99', white: '#e7e7ea'
+};
+
+const SCRIPT = [
+    {
+        scene: 'face', mood: 'smug',
+        text: "The Senate writes to me. \"Wait for the other Consul!\" \"Wait for the omens!\""
+    },
+    {
+        scene: 'face', mood: 'angry',
+        text: "Bah! Hannibal is right there! Hugging the lake shore like a frightened dog!"
+    },
+    {
+        scene: 'face', mood: 'smug',
+        text: "I do not need help to crush a retreating enemy."
+    },
+    {
+        scene: 'game', mood: 'march',
+        text: "Look at the mist... it masks our numbers perfectly."
+    },
+    {
+        scene: 'game', mood: 'march',
+        text: "Double time! We catch his rearguard before they leave the valley!"
+    },
+    {
+        scene: 'face', mood: 'yell',
+        text: "VICTORY IS OURS! MARCH!"
+    }
+];
+
+let lineIdx = 0;
+let charIdx = 0;
+let currentLine = "";
+let typeTimer = null;
+let frame = 0;
+let scrollY = 0; // For scrolling the map
+
+function init(){
+    C.width = W;
+    C.height = H;
+    startLine();
+    loop();
+}
+
+function startLine(){
+    if(lineIdx >= SCRIPT.length){
+        endSequence();
+        return;
+    }
+    BOX.style.display = 'block';
+    currentLine = SCRIPT[lineIdx].text;
+    TXT.innerText = "";
+    charIdx = 0;
+    if(typeTimer) clearInterval(typeTimer);
+    typeTimer = setInterval(typeWriter, 25);
+}
+
+function typeWriter(){
+    if(charIdx < currentLine.length){
+        TXT.innerText += currentLine.charAt(charIdx);
+        charIdx++;
+    } else {
+        clearInterval(typeTimer);
+    }
+}
+
+function nextLine(){
+    if(charIdx < currentLine.length){
+        TXT.innerText = currentLine;
+        charIdx = currentLine.length;
+        clearInterval(typeTimer);
+    } else {
+        lineIdx++;
+        startLine();
+    }
+}
+
+function endSequence(){
+    BOX.style.display = 'none';
+    const ts = document.getElementById('title-screen');
+    ts.style.display = 'flex';
+    setTimeout(()=> ts.style.opacity = 1, 50);
+}
+
+// GRAPHICS HELPERS
+function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+
+// SPRITE DRAWING
+function drawSprite(kind, x, y, scale){
+  const s = scale;
+  const coat = kind==='roman' ? P.roman : P.white;
+  
+  CTX.fillStyle=P.shadow;
+  CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+  px(x+1*s, y+6*s, s, P.black);
+  px(x+6*s, y+6*s, s, P.black);
+  px(x+2*s, y+5*s, s, P.metal);
+  px(x+5*s, y+5*s, s, P.metal);
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+  if(kind==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
+}
+
+// SCENE 1: PORTRAIT
+function drawFace(mood){
+    rect(0,0,W,H, '#1f2937'); // Slate BG
+    const cx = W/2;
+    // CHANGED: Shifted face UP (H * 0.4) so text box doesn't cover chin
+    const cy = H * 0.4; 
+
+    // Toga/Armor (extended down)
+    rect(cx-60, cy+50, 120, 150, P.roman);
+    rect(cx-50, cy+50, 100, 150, '#991b1b');
+    // Gold Chain
+    rect(cx-30, cy+55, 60, 4, P.gold);
+    rect(cx-30, cy+55, 4, 20, P.gold);
+    rect(cx+26, cy+55, 4, 20, P.gold);
+
+    // Head
+    rect(cx-18, cy+30, 36, 20, P.skin);
+    rect(cx-35, cy-35, 70, 70, P.skin);
+    
+    // Hair
+    rect(cx-36, cy-35, 72, 10, '#504035');
+    rect(cx-38, cy-25, 6, 20, '#504035'); 
+    rect(cx+32, cy-25, 6, 20, '#504035');
+
+    // Laurel Wreath
+    rect(cx-36, cy-40, 72, 6, P.gold);
+    rect(cx-38, cy-40, 6, 15, P.gold);
+
+    // Eyes
+    let eyeH = 4;
+    if(mood === 'smug') eyeH = 2; 
+    if(mood === 'angry' || mood === 'yell') eyeH = 5;
+
+    rect(cx-20, cy-12, 12, eyeH, '#000');
+    rect(cx+8, cy-12, 12, eyeH, '#000');
+
+    // Mouth
+    if(mood === 'smug'){
+        rect(cx-10, cy+25, 20, 2, '#713f12'); 
+        rect(cx+8, cy+23, 2, 2, '#713f12'); 
+    } else if(mood === 'angry' || mood === 'yell'){
+        rect(cx-12, cy+25, 24, 8, '#300'); 
+        rect(cx-12, cy+25, 24, 2, '#fff'); 
+        if(mood === 'yell' && frame%4===0) CTX.translate(1,1); // Shake
+    } else {
+        rect(cx-10, cy+25, 20, 2, '#713f12');
+    }
+}
+
+// SCENE 2: TOP DOWN GAME VIEW
+function drawGameScene(){
+    const scale = 1.5; 
+    scrollY += 1; 
+    
+    const lakeStart = 10; 
+    const pathR = lakeStart - 1;
+    const pathL = lakeStart - 2;
+    
+    // CHANGED: Increased loop to cover taller screen
+    for(let y=0; y<20; y++){
+        let wy = Math.floor(scrollY/TILE) + y;
+        let yPx = (y*TILE*scale) - (scrollY % TILE)*scale;
+        
+        for(let x=0; x<16; x++){
+            let xPx = x*TILE*scale;
+            let color = P.woods;
+            if(x >= lakeStart) color = P.lake;
+            else if(x === pathL || x === pathR) color = P.path;
+            
+            CTX.fillStyle = color;
+            CTX.fillRect(xPx, yPx, TILE*scale, TILE*scale);
+            
+            if(color === P.lake && (x+wy+frame)%10===0){
+                rect(xPx+5, yPx+5, 4, 4, 'rgba(255,255,255,0.2)');
+            }
+            if(color === P.woods && wy%2===0 && x%2===0){
+                 CTX.fillStyle = 'rgba(0,0,0,0.2)';
+                 CTX.fillRect(xPx, yPx, TILE*scale, TILE*scale);
+            }
+        }
+    }
+    
+    const colLX = pathL * TILE * scale;
+    const colRX = pathR * TILE * scale;
+    
+    for(let i=2; i<8; i++){
+        let yPos = i * TILE * scale * 1.5;
+        let bob = Math.sin(frame/5 + i)*2;
+        drawSprite('roman', colLX, yPos + bob, scale);
+        drawSprite('roman', colRX, yPos + bob, scale);
+    }
+    
+    // FOG OVERLAY
+    CTX.fillStyle = 'rgba(200, 210, 220, 0.3)'; 
+    for(let i=0; i<8; i++){
+         let fx = (frame + i*100) % (W + 200) - 100;
+         let fy = i*60;
+         CTX.fillRect(fx, fy, 150, 40);
+    }
+}
+
+function loop(){
+    frame++;
+    CTX.setTransform(1, 0, 0, 1, 0, 0); 
+
+    if(lineIdx < SCRIPT.length){
+        const current = SCRIPT[lineIdx];
+        if(current.scene === 'face') drawFace(current.mood);
+        else drawGameScene();
+    } else {
+        drawGameScene();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+init();
+
+</script>
+</body>
+</html>
