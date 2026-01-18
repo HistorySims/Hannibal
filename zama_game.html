@@ -365,8 +365,8 @@ function update(){
     callRomanVeterans();
   }
 
-  // Cavalry arrives (unchanged)
-  if(phaseTimer > 2900 && !cavalryArrived){
+  // Cavalry arrives 
+  if(phaseTimer > 2500 && !cavalryArrived){
     cavalryArrived = true;
     showMsg("NUMIDIAN CAVALRY!", P.gold);
     for(let x=2; x<38; x+=2){
