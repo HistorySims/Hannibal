@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Fabius: The Appointment</title>
+<style>
+    body {
+        margin: 0; padding: 0; background: #000;
+        height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: 'Courier New', Courier, monospace; overflow: hidden;
+    }
+    #stage {
+        position: relative; width: 100%; max-width: 600px; 
+        /* CHANGED: Taller aspect ratio for portrait feel + room for text */
+        aspect-ratio: 3/4; 
+        background: #111; overflow: hidden;
+        border: 2px solid #333;
+        box-shadow: 0 0 30px rgba(0,0,0,0.9);
+    }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+    
+    /* DIALOGUE BOX */
+    #dialogue-box {
+        position: absolute; bottom: 0; left: 0;
+        width: 100%; background: #1f1f1f; 
+        border-top: 4px solid #f59e0b; 
+        padding: 15px 20px; display: none; z-index: 30;
+        cursor: pointer; height: 130px; 
+        box-sizing: border-box;
+    }
+    .speaker-name {
+        color: #f59e0b; font-weight: 900; font-size: 16px; text-transform: uppercase;
+        margin-bottom: 8px; letter-spacing: 2px;
+    }
+    .speech-text {
+        color: #e7e7ea; font-size: 17px; line-height: 1.3; white-space: pre-wrap;
+    }
+    
+    .click-prompt {
+        position: absolute; bottom: 10px; right: 20px;
+        font-size: 12px; color: #777; animation: blink 1s infinite;
+    }
+
+    /* TITLE SCREEN */
+    #title-screen {
+        position: absolute; inset: 0; 
+        background: #4d7c0f; 
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 50; text-align: center;
+        opacity: 0; transition: opacity 2s;
+    }
+    h1 { 
+        font-size: 64px; color: #fff; margin: 0; 
+        text-transform: uppercase; letter-spacing: 4px; 
+        text-shadow: 0 4px 0 #14532d;
+    }
+    h2 { font-size: 18px; color: #ccfbf1; margin-bottom: 30px; letter-spacing: 2px; font-weight:800; }
+    
+    button {
+        background: #1e3a8a; color: #fff; border: 4px solid #fff;
+        padding: 15px 40px; font-size: 20px; font-weight: 900; cursor: pointer;
+        text-transform: uppercase; 
+        box-shadow: 0 6px 0 #0f172a;
+    }
+    button:active { transform: translateY(4px); box-shadow: 0 2px 0 #0f172a; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+    <canvas id="cv"></canvas>
+    
+    <div id="dialogue-box" onclick="nextLine()">
+        <div class="speaker-name" id="speaker">The Senate</div>
+        <div class="speech-text" id="speech"></div>
+        <div class="click-prompt">TAP TO CONTINUE ▼</div>
+    </div>
+
+    <div id="title-screen">
+        <h1>THE DELAYER</h1>
+        <h2>Summer, 217 BC</h2>
+        <button onclick="window.location.href='fabius_game.html'">Begin Campaign</button>
+    </div>
+</div>
+
+<script>
+const C = document.getElementById('cv');
+const CTX = C.getContext('2d');
+const BOX = document.getElementById('dialogue-box');
+const TXT = document.getElementById('speech');
+const NAME = document.getElementById('speaker');
+
+// CHANGED: Increased height to 420 (from 240) to match 3:4 ratio
+const W = 320;
+const H = 420;
+
+const P = {
+  marble: '#e5e5e5', shadow: '#a3a3a3', dark: '#111',
+  toga: '#f3f4f6', purple: '#7e22ce', 
+  fabius: '#f59e0b', skin: '#d4a373',
+  grass: '#4d7c0f', forest: '#14532d'
+};
+
+const SCRIPT = [
+    {
+        scene: 'senate', speaker: 'Senator',
+        text: "Flaminius is dead. Two Consuls lost. The Republic bleeds."
+    },
+    {
+        scene: 'senate', speaker: 'Senator',
+        text: "The people are in panic, Fabius. They demand action. They demand a Dictator."
+    },
+    {
+        scene: 'face', speaker: 'Fabius',
+        text: "I will accept the burden. But hear me: I will not give you the battle you seek."
+    },
+    {
+        scene: 'face', speaker: 'Fabius',
+        text: "Hannibal cannot be beaten on the field. I will burn the crops. I will starve him. I will wait."
+    },
+    {
+        scene: 'senate', speaker: 'Senator',
+        text: "Cowardice? You would have Rome hide behind walls while Italy burns?"
+    },
+    {
+        scene: 'face', speaker: 'Fabius',
+        text: "I would have Rome survive."
+    },
+    {
+        scene: 'senate', speaker: 'Senator',
+        text: "Very well. Take the legions..."
+    },
+    {
+        scene: 'game_preview', speaker: 'Senator',
+        text: "You have our confidence, Fabius... but it does not last forever."
+    }
+];
+
+let lineIdx = 0;
+let charIdx = 0;
+let currentLine = "";
+let typeTimer = null;
+let frame = 0;
+
+function init(){
+    C.width = W;
+    C.height = H;
+    startLine();
+    loop();
+}
+
+function startLine(){
+    if(lineIdx >= SCRIPT.length){
+        endSequence();
+        return;
+    }
+    
+    const line = SCRIPT[lineIdx];
+    BOX.style.display = 'block';
+    NAME.innerText = line.speaker;
+    
+    if(line.speaker === 'Fabius') NAME.style.color = '#f59e0b';
+    else NAME.style.color = '#a855f7'; 
+
+    currentLine = line.text;
+    TXT.innerText = "";
+    charIdx = 0;
+    
+    if(typeTimer) clearInterval(typeTimer);
+    typeTimer = setInterval(typeWriter, 30);
+}
+
+function typeWriter(){
+    if(charIdx < currentLine.length){
+        TXT.innerText += currentLine.charAt(charIdx);
+        charIdx++;
+    } else {
+        clearInterval(typeTimer);
+    }
+}
+
+function nextLine(){
+    if(charIdx < currentLine.length){
+        TXT.innerText = currentLine;
+        charIdx = currentLine.length;
+        clearInterval(typeTimer);
+    } else {
+        lineIdx++;
+        startLine();
+    }
+}
+
+function endSequence(){
+    BOX.style.display = 'none';
+    const ts = document.getElementById('title-screen');
+    ts.style.display = 'flex';
+    setTimeout(()=> ts.style.opacity = 1, 50);
+}
+
+function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+
+// ==============================
+// SCENE 1: THE SENATE FLOOR
+// ==============================
+function drawSenate(){
+    rect(0,0,W,H, P.dark);
+    
+    // SHIFTED EVERYTHING DOWN so it centers in the taller canvas
+    // Canvas is now 420px high. Center is 210.
+    const Y_OFFSET = 80; 
+
+    // Perspective Floor
+    for(let y=80; y<200; y+=5){ 
+        let drawY = y + Y_OFFSET;
+        let brightness = 1 - (y-80)/120; 
+        CTX.fillStyle = (Math.floor(y/10)%2===0) ? P.marble : P.shadow;
+        
+        let width = W * (y/240); // Adjusted persp calculation
+        let x = (W - width)/2;
+        rect(x, drawY, width, 5);
+    }
+
+    // Columns
+    for(let i=0; i<6; i++){
+        let x = i * 60 + 10;
+        let y = 20 + Y_OFFSET;
+        rect(x, y, 40, 180, P.shadow);
+        rect(x+5, y, 10, 180, P.marble);
+        rect(x+20, y, 10, 180, P.marble);
+    }
+
+    // The Crowd
+    for(let r=0; r<3; r++){
+        for(let c=0; c<10; c++){
+            let x = c * 30 + 20 + (r*15);
+            let y = 140 + r*20 + Y_OFFSET;
+            let bob = (Math.random() > 0.95) ? -1 : 0;
+            rect(x, y+bob, 14, 20, P.toga);
+            rect(x+4, y+bob, 4, 20, P.purple);
+            rect(x+2, y+bob-6, 10, 8, P.skin);
+        }
+    }
+
+    // Fabius (Back to camera)
+    let fx = W/2 - 10;
+    let fy = H - 140; // Raised from bottom
+    rect(fx, fy, 20, 30, P.fabius); 
+    rect(fx+5, fy-8, 10, 10, '#aaa'); 
+}
+
+// ==============================
+// SCENE 2: FABIUS PORTRAIT
+// ==============================
+function drawFace(){
+    rect(0,0,W,H, '#1c1917'); 
+    const cx = W/2;
+    // CHANGED: Shifted face UP (H * 0.4) so text box doesn't cover chin
+    const cy = H * 0.4; 
+
+    // Toga
+    rect(cx-60, cy+50, 120, 100, P.fabius); 
+    rect(cx-50, cy+50, 100, 100, '#b45309'); 
+
+    // Neck
+    rect(cx-20, cy+30, 40, 20, P.skin);
+
+    // Head
+    rect(cx-35, cy-35, 70, 70, P.skin);
+    
+    // Hair
+    rect(cx-36, cy-35, 72, 8, '#9ca3af');
+    rect(cx-38, cy-25, 6, 15, '#9ca3af'); 
+    rect(cx+32, cy-25, 6, 15, '#9ca3af');
+
+    // Wrinkles
+    CTX.fillStyle = 'rgba(0,0,0,0.2)';
+    rect(cx-20, cy-25, 40, 2); 
+    rect(cx-25, cy+10, 10, 2); 
+    rect(cx+15, cy+10, 10, 2); 
+
+    // Eyes
+    rect(cx-20, cy-10, 12, 4, '#000');
+    rect(cx+8, cy-10, 12, 4, '#000');
+    rect(cx-20, cy-5, 12, 2, '#d6c0b0'); 
+    rect(cx+8, cy-5, 12, 2, '#d6c0b0');
+
+    // Mouth
+    rect(cx-10, cy+30, 20, 2, '#854d0e');
+}
+
+// ==============================
+// SCENE 3: GAME PREVIEW
+// ==============================
+function drawGamePreview(){
+    rect(0,0,W,H, P.grass);
+    
+    // FILL SCREEN
+    for(let y=0; y<H; y+=24){
+        for(let x=0; x<W; x+=24){
+            let n = Math.sin(x/50) * Math.cos(y/50);
+            if(n < -0.3){
+                rect(x, y, 24, 24, P.forest);
+                rect(x+8, y+4, 8, 12, '#0f3d20');
+            }
+        }
+    }
+    
+    // Fabius Sprite (Centered)
+    let fx = W/2 - 4;
+    let fy = H/2 - 20; 
+    
+    const s = 2; 
+    CTX.fillStyle='rgba(0,0,0,0.3)'; 
+    CTX.beginPath(); CTX.ellipse(fx+8, fy+14, 8, 4, 0, 0, Math.PI*2); CTX.fill(); 
+
+    const coat = P.fabius;
+    const metal = '#94a3b8';
+    
+    function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+    
+    px(fx+2, fy+12, s, '#111'); px(fx+12, fy+12, s, '#111'); 
+    px(fx+4, fy+10, s, metal); px(fx+10, fy+10, s, metal); 
+    for(let dx=2; dx<=5; dx++) px(fx+dx*2, fy+6, s, coat); 
+    px(fx+6,fy,s,'#fff'); px(fx+8,fy,s,'#fff'); 
+}
+
+function loop(){
+    frame++;
+    CTX.setTransform(1, 0, 0, 1, 0, 0); 
+
+    if(lineIdx < SCRIPT.length){
+        const current = SCRIPT[lineIdx];
+        if(current.scene === 'senate') drawSenate();
+        else if(current.scene === 'face') drawFace();
+        else if(current.scene === 'game_preview') drawGamePreview();
+    } else {
+        drawGamePreview();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+init();
+
+</script>
+</body>
+</html>
