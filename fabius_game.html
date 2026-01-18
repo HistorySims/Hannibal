@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Fabius: Pathfinding</title>
+<style>
+  :root{
+    --bg:#1a1a1c;
+    --red:#ef4444; --gold:#f59e0b; --blue:#3b82f6; --text:#e7e7ea;
+    --grass:#4d7c0f; --forest:#14532d; --hill:#57534e;
+  }
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,sans-serif;
+    height:100dvh; width:100%;
+    overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none;
+  }
+
+  #game-box{
+    position:relative; width:100%; height:100%;
+    max-width:800px; background:var(--grass);
+    overflow:hidden;
+    box-shadow:0 0 20px rgba(0,0,0,0.5);
+  }
+  canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
+
+  /* HUD */
+  .hud-panel{
+    position:absolute; top:10px; width:100%; z-index:15;
+    display:flex; justify-content:space-between; padding:0 20px;
+    pointer-events:none;
+  }
+  .stat-box{
+    background:rgba(0,0,0,0.7); padding:8px 12px; border-radius:8px;
+    border:1px solid rgba(255,255,255,0.15);
+    display:flex; flex-direction:column; gap:2px; min-width:110px;
+  }
+  .stat-label{ font-size:9px; text-transform:uppercase; color:#aaa; font-weight:700; margin-bottom:2px; }
+  .stat-val{ font-size:14px; font-weight:900; color:#fff; display:flex; justify-content:space-between; }
+  .bar-bg{ width:100%; height:6px; background:#333; margin-bottom:6px; border-radius:3px; overflow:hidden; }
+  .bar-fill{ height:100%; transition: width 0.2s; }
+
+  /* CONTROLS */
+  .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
+
+  #stick-zone{
+    position:absolute; bottom:30px; left:30px;
+    width:140px; height:140px; pointer-events:auto;
+    background:rgba(0,0,0,0.1); border-radius:50%;
+    touch-action:none;
+  }
+  .stick-bg{
+    width:100%; height:100%; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.3); position:relative;
+  }
+  .stick-nub{
+    position:absolute; top:50%; left:50%;
+    width:50px; height:50px; margin:-25px 0 0 -25px;
+    background:rgba(255,255,255,0.9); border-radius:50%;
+    box-shadow:0 2px 5px rgba(0,0,0,0.5);
+  }
+
+  .btn-wrapper{
+    position:absolute; bottom:40px; right:30px;
+    pointer-events:auto;
+  }
+  #btn-attack{
+    width:80px; height:80px;
+    background:var(--red);
+    border:3px solid #fff; border-radius:50%;
+    display:grid; place-items:center;
+    box-shadow:0 4px 10px rgba(0,0,0,0.4);
+    touch-action:none;
+  }
+  #btn-attack:active{transform:scale(0.95); background:#b91c1c;}
+  .sword-icon{font-size:36px; color:#fff;}
+
+  #center-msg{
+    position:absolute; top:40%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; width:90%; pointer-events:none; z-index:30;
+  }
+  .big-text{
+    font-size:24px; font-weight:900; color:#fff;
+    text-shadow:0 2px 8px rgba(0,0,0,0.8);
+    opacity:0; transition:opacity 0.5s;
+  }
+
+  #overlay{
+    position:absolute; inset:0; background:rgba(0,0,0,0.92); z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:20px; text-align:center;
+  }
+  h1{color:var(--gold); margin:0 0 10px 0; font-size:32px; letter-spacing:2px;}
+  p{color:#eee; margin-bottom:16px; font-size:15px; max-width:420px; line-height:1.4;}
+  .highlight { color:var(--gold); font-weight:bold; }
+  .btn-start{
+    background:var(--blue); color:#fff; border:none; padding:14px 30px;
+    font-size:18px; font-weight:900; border-radius:8px; margin-top:10px;
+    box-shadow:0 4px 0 #1e3a8a;
+  }
+  .btn-start:active{transform:translateY(4px); box-shadow:none;}
+
+  #kbd-hint{
+    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    z-index:25; font-size:12px; color:#cbd5e1;
+    opacity:0; pointer-events:none; text-shadow:0 1px 2px #000;
+    transition:opacity .25s;
+  }
+  @media (pointer:fine){
+    #kbd-hint{opacity:0.9;}
+  }
+</style>
+</head>
+<body>
+
+<div id="game-box">
+  <div id="overlay"></div>
+
+  <div class="hud-panel">
+    <div class="stat-box" style="border-color:var(--gold)">
+      <div class="stat-label">Fabius HP</div>
+      <div class="stat-val"><span id="ui-hp">50</span></div>
+      <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width:100%; background:var(--red)"></div></div>
+
+      <div class="stat-label">Confidence</div>
+      <div class="stat-val"><span id="ui-conf">100</span></div>
+      <div class="bar-bg" style="margin-bottom:0"><div class="bar-fill" id="bar-conf" style="width:100%; background:var(--gold)"></div></div>
+    </div>
+
+    <div class="stat-box" style="border-color:#7f1d1d; align-items:flex-end;">
+      <div class="stat-label">Hannibal HP</div>
+      <div class="stat-val" style="color:#fca5a5" id="ui-han">1000</div>
+
+      <div class="stat-label" style="margin-top:6px">Food Supply</div>
+      <div class="stat-val" id="ui-food">100</div>
+      <div class="bar-bg" style="margin-bottom:0"><div class="bar-fill" id="bar-food" style="width:100%; background:#84cc16"></div></div>
+    </div>
+  </div>
+
+  <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <div id="kbd-hint">Desktop: WASD / Arrows move · Space/Enter attack</div>
+
+  <canvas id="cv"></canvas>
+
+  <div class="controls-layer">
+    <div id="stick-zone"><div class="stick-bg"><div class="stick-nub" id="stick"></div></div></div>
+    <div class="btn-wrapper">
+      <div id="btn-attack"><div class="sword-icon">⚔️</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================
+//  ROUTING / END FLOW
+// ===================================================
+const NEXT_PAGE = "map.html";
+function goToMap(){ window.location.href = NEXT_PAGE; }
+
+// ===================================================
+//  OVERLAY TEMPLATES
+// ===================================================
+const INTRO_HTML = `
+  <h1>THE DELAYER</h1>
+  <p><b>Updated:</b> Resources drain 2x faster.<br>Hannibal is smarter.</p>
+  <p>1. <b>Panic:</b> Your Confidence drops rapidly.</p>
+  <p>2. <b>Hunger:</b> Hannibal starves quickly. Defend the villages.</p>
+  <p>3. <b>Pathfinding:</b> Hannibal will find his way around rocks.</p>
+  <button class="btn-start" id="btn-start">BECOME FABIUS</button>
+`;
+
+const HISTORY_HTML = `
+  <h2 style="color:#f59e0b; margin:0 0 10px 0;">FABIUS MAXIMUS</h2>
+  <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:560px;">
+    <p><strong style="color:#fff">THE STRATEGY:</strong><br>
+    Fabius realized he could not beat Hannibal in battle. Instead, he targeted supply lines, burned crops (&ldquo;scorched earth&rdquo;), and shadowed Hannibal on high ground to deny him battle.</p>
+
+    <p><strong style="color:#fff">THE REMOVAL:</strong><br>
+    The Roman people hated this. They viewed it as cowardly and un-Roman. Watching their farms burn while the army did nothing destroyed morale (the &ldquo;Confidence&rdquo; bar in this game).</p>
+
+    <p><strong style="color:#fff">THE RESULT:</strong><br>
+    The Senate grew impatient. They gave his second-in-command (Minucius) equal power, and later elected aggressive consuls. That shift toward direct aggression led to catastrophe at Cannae.</p>
+  </div>
+`;
+
+function renderIntro(){
+  const ov = document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = INTRO_HTML;
+
+  const histBtn = document.createElement('button');
+  histBtn.className = "btn-start";
+  histBtn.textContent = "HISTORY";
+  histBtn.style.backgroundColor = "#475569";
+  histBtn.style.boxShadow = "0 4px 0 #334155";
+  histBtn.style.marginTop = "10px";
+  histBtn.onclick = ()=> renderHistory('intro');
+  ov.appendChild(histBtn);
+
+  document.getElementById('btn-start').onclick = startGame;
+}
+
+function renderHistory(backTo){
+  const ov = document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = `
+    ${HISTORY_HTML}
+    <button class="btn-start" id="btn-back" style="margin-top:18px; background:#475569; box-shadow:0 4px 0 #334155;">BACK</button>
+  `;
+  document.getElementById('btn-back').onclick = ()=> {
+    if(backTo === 'intro') renderIntro();
+  };
+}
+
+// ===================================================
+//  ASSETS
+// ===================================================
+const P = {
+  grass:'#4d7c0f', forest:'#14532d', hill:'#57534e',
+  fabius:'#f59e0b', hannibal:'#7f1d1d', village:'#e5e7eb',
+  roof:'#b91c1c', metal:'#94a3b8', shadow:'rgba(0,0,0,0.3)'
+};
+
+const CANVAS = document.getElementById('cv');
+const CTX = CANVAS.getContext('2d', { alpha:false });
+const BOX = document.getElementById('game-box');
+
+let DPR=1, VIEW_W=0, VIEW_H=0;
+
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+
+function drawSprite(u, scale){
+  const x = u.x * TILE - 4;
+  const y = u.y * TILE - 8;
+  const s = scale;
+
+  if(u.type === 'village'){
+    CTX.fillStyle = P.shadow; CTX.fillRect(x+2*s, y+8*s, 12*s, 4*s);
+    CTX.fillStyle = P.village; CTX.fillRect(x, y+4*s, 10*s, 8*s);
+    CTX.fillStyle = '#9ca3af'; CTX.fillRect(x+6*s, y+2*s, 8*s, 8*s);
+    CTX.fillStyle = P.roof;
+    CTX.beginPath(); CTX.moveTo(x-2*s, y+4*s); CTX.lineTo(x+5*s, y-2*s); CTX.lineTo(x+12*s, y+4*s); CTX.fill();
+    return;
+  }
+
+  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+
+  const coat = (u.type==='fabius') ? P.fabius : P.hannibal;
+  const helm = (u.type==='fabius') ? '#fff' : '#111';
+
+  px(x+1*s, y+6*s, s, '#111'); px(x+6*s, y+6*s, s, '#111');
+  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+  px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
+
+  if(u.type==='hannibal'){
+    CTX.fillStyle = '#000'; CTX.fillRect(x+2*s, y+2*s, 4*s, 6*s);
+  }
+}
+
+// ===================================================
+//  CONFIG (FAST DRAIN)
+// ===================================================
+const TILE = 24;
+const GRID_W = 40;
+const GRID_H = 60;
+let SCALE = 2;
+
+const STATS = {
+  hanHP: 1000,
+  hanFood: 100,
+  hanStepCost: 2,
+  hanRaidGain: 40,
+
+  fabHP: 50,
+  fabConf: 100,
+  fabStepCost: 2,
+  fabHitGain: 10,
+
+  moveSpeed: 10,
+  hanBaseSpeed: 12,
+  forestSpeed: 20,
+  combatCD: 30
+};
+
+// ===================================================
+//  STATE
+// ===================================================
+let gameActive = false;
+let cam = {x:0, y:0};
+let grid = [];
+let units = [];
+let particles = [];
+let floats = [];
+let fabius = null;
+let hannibal = null;
+
+let raidAlert = { active:false, x:0, y:0, timer:0 };
+
+let input = {dx:0, dy:0};
+let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
+
+// keyboard
+const keysDown = new Set();
+let lastKeyDir = {dx:0, dy:0};
+function computeKeyboardDir(){
+  const up = keysDown.has('ArrowUp') || keysDown.has('KeyW');
+  const down = keysDown.has('ArrowDown') || keysDown.has('KeyS');
+  const left = keysDown.has('ArrowLeft') || keysDown.has('KeyA');
+  const right = keysDown.has('ArrowRight') || keysDown.has('KeyD');
+
+  let dx=0, dy=0;
+  if(left && !right) dx=-1;
+  if(right && !left) dx=1;
+  if(up && !down) dy=-1;
+  if(down && !up) dy=1;
+
+  if(dx!==0 && dy!==0){
+    if(lastKeyDir.dx !== 0) dy=0;
+    else dx=0;
+  }
+  if(dx!==0 || dy!==0) lastKeyDir = {dx,dy};
+  return {dx,dy};
+}
+function setInputFromKeyboard(){
+  if(stick.active) return;
+  const k = computeKeyboardDir();
+  input.dx = k.dx;
+  input.dy = k.dy;
+}
+
+// ===================================================
+//  START / SETUP
+// ===================================================
+function startGame(){
+  document.getElementById('overlay').style.display = 'none';
+  if(gameActive) return;
+  gameActive = true;
+  resize();
+  setupMap();
+  requestAnimationFrame(loop);
+}
+
+function setupMap(){
+  units = []; particles = []; floats = [];
+  grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
+  raidAlert.active = false;
+
+  // Generate Terrain
+  for(let y=0; y<GRID_H; y++){
+    for(let x=0; x<GRID_W; x++){
+      let n = Math.sin(x/4) * Math.cos(y/4);
+      if(n > 0.6) grid[y][x] = 2;       // Hill (Block)
+      else if(n < -0.3) grid[y][x] = 1; // Forest (Slow)
+    }
+  }
+
+  // Spawn Villages
+  for(let i=0; i<12; i++){
+    let vx = Math.floor(Math.random()*(GRID_W-4))+2;
+    let vy = Math.floor(Math.random()*(GRID_H-4))+2;
+    if(grid[vy][vx] !== 2) spawnUnit(vx, vy, 'village');
+  }
+
+  // Spawn Fabius
+  fabius = spawnUnit(20, 50, 'fabius');
+  fabius.conf = STATS.fabConf;
+  fabius.steps = 0;
+  fabius.cooldown = 0;
+  cam.x = fabius.x*TILE; cam.y = fabius.y*TILE;
+
+  // Spawn Hannibal
+  hannibal = spawnUnit(20, 10, 'hannibal');
+  hannibal.food = STATS.hanFood;
+  hannibal.steps = 0;
+  hannibal.cooldown = 0;
+
+  // Clear Start Zone
+  for(let dy=-1; dy<=1; dy++){
+    for(let dx=-1; dx<=1; dx++){
+      grid[10+dy][20+dx] = 0;
+    }
+  }
+
+  showMsg("AVOID BATTLE. ATTACK LOGISTICS.", "#fff");
+  updateUI();
+}
+
+function spawnUnit(gx, gy, type){
+  let hp = (type==='hannibal') ? STATS.hanHP : (type==='fabius'?STATS.fabHP:20);
+  let u = {
+    id:Math.random(), x:gx, y:gy, type,
+    hp, maxHp:hp,
+    cooldown:0
+  };
+  units.push(u);
+  return u;
+}
+
+// ===================================================
+//  LOOP
+// ===================================================
+function loop(){
+  if(!gameActive) return;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ===================================================
+//  LOGIC
+// ===================================================
+function update(){
+  // keyboard direction
+  setInputFromKeyboard();
+
+  // Camera
+  let tx = fabius.x*TILE;
+  let ty = fabius.y*TILE;
+  cam.x += (tx - cam.x)*0.1;
+  cam.y += (ty - cam.y)*0.1;
+
+  if(raidAlert.active){
+    raidAlert.timer--;
+    if(raidAlert.timer <= 0) raidAlert.active = false;
+  }
+
+  // Fabius movement + confidence drain
+  if(fabius.cooldown > 0) fabius.cooldown--;
+  if(fabius.cooldown <= 0 && (input.dx || input.dy)){
+    if(tryMove(fabius, input.dx, input.dy)){
+      fabius.steps++;
+      if(fabius.steps % STATS.fabStepCost === 0){
+        fabius.conf--;
+        updateUI();
+        if(fabius.conf <= 0){
+          finishRun("DEFEAT", "The Senate recalled you. Rome fell.");
+          return;
+        }
+      }
+      let t = grid[fabius.y][fabius.x];
+      fabius.cooldown = (t===1) ? STATS.forestSpeed : STATS.moveSpeed;
+    }
+  }
+
+  handleHannibal();
+  updateFX();
+}
+
+// --- SMART AI (BFS PATHFINDING) ---
+function getSmartStep(unit, target){
+  if(dist(unit, target) <= 1.5) return {x:0, y:0};
+
+  let queue = [{x: unit.x, y: unit.y}];
+  let cameFrom = {};
+  let visited = new Set();
+  let startKey = unit.x + "," + unit.y;
+  visited.add(startKey);
+  cameFrom[startKey] = null;
+
+  let found = false;
+  let limit = 450;
+  let closest = {x: unit.x, y: unit.y, d: 999};
+
+  const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+
+  while(queue.length > 0 && limit-- > 0){
+    let curr = queue.shift();
+
+    if(curr.x === target.x && curr.y === target.y){
+      found = true;
+      break;
+    }
+
+    let d = Math.abs(curr.x - target.x) + Math.abs(curr.y - target.y);
+    if(d < closest.d){ closest.d = d; closest.x = curr.x; closest.y = curr.y; }
+
+    for(let dd of dirs){
+      let nx = curr.x + dd[0];
+      let ny = curr.y + dd[1];
+      let key = nx + "," + ny;
+
+      if(nx>=0 && nx<GRID_W && ny>=0 && ny<GRID_H && !visited.has(key)){
+        if(grid[ny][nx] !== 2){
+          visited.add(key);
+          cameFrom[key] = curr;
+          queue.push({x:nx, y:ny});
+        }
+      }
+    }
+  }
+
+  let curr = found ? {x: target.x, y: target.y} : {x: closest.x, y: closest.y};
+  let path = [];
+  while(curr){
+    path.push(curr);
+    let key = curr.x + "," + curr.y;
+    curr = cameFrom[key];
+  }
+
+  if(path.length >= 2){
+    let nextStep = path[path.length - 2];
+    return {x: nextStep.x - unit.x, y: nextStep.y - unit.y};
+  }
+  return {x:0, y:0};
+}
+
+function handleHannibal(){
+  // “Victory” is allowed, but still returns to map
+  if(hannibal.hp <= 0){
+    finishRun("SURVIVED", "Hannibal withdrew. Your delaying strategy worked.");
+    return;
+  }
+
+  if(hannibal.food <= 0){
+    if(Math.random()>0.9){
+      hannibal.hp -= 2;
+      spawnFloat("STARVING", hannibal.x, hannibal.y, "#aaa");
+      updateUI();
+    }
+  }
+
+  if(hannibal.cooldown > 0) { hannibal.cooldown--; return; }
+
+  let dPlayer = dist(hannibal, fabius);
+  let target = null;
+
+  if(dPlayer <= 6){
+    target = fabius;
+  } else {
+    let minD = 999;
+    let vils = units.filter(u => u.type === 'village');
+    for(let v of vils){
+      let d = dist(hannibal, v);
+      if(d < minD){ minD = d; target = v; }
+    }
+  }
+
+  let moveDir = {x:0, y:0};
+
+  if(target){
+    if(dist(hannibal, target) <= 1){
+      // ATTACK
+      if(target.type === 'fabius'){
+        target.hp -= 5;
+        spawnBlood(target.x, target.y);
+        spawnFloat("CRUSH!", target.x, target.y, "#f00");
+        updateUI();
+        if(target.hp<=0){
+          finishRun("DEFEAT", "Caught by Hannibal.");
+          return;
+        }
+      } else if(target.type === 'village'){
+        target.hp -= 5;
+
+        raidAlert.active = true;
+        raidAlert.x = target.x;
+        raidAlert.y = target.y;
+        raidAlert.timer = 90;
+        spawnFloat("HELP!", target.x, target.y, "#ef4444");
+
+        if(target.hp <= 0){
+          units = units.filter(u => u !== target);
+          hannibal.food = Math.min(100, hannibal.food + STATS.hanRaidGain);
+          spawnFloat("+FOOD", hannibal.x, hannibal.y, "#84cc16");
+          updateUI();
+          raidAlert.active = false;
+        }
+      }
+      hannibal.cooldown = STATS.combatCD;
+      return;
+    }
+
+    moveDir = getSmartStep(hannibal, target);
+  } else {
+    if(Math.random()>0.8) moveDir = {x: (Math.random()>.5?1:-1), y: (Math.random()>.5?1:-1)};
+  }
+
+  if(moveDir.x !== 0 || moveDir.y !== 0){
+    if(tryMove(hannibal, moveDir.x, moveDir.y)){
+      hannibal.steps++;
+      if(hannibal.steps % STATS.hanStepCost === 0 && hannibal.food > 0){
+        hannibal.food--;
+        updateUI();
+      }
+      let t = grid[hannibal.y][hannibal.x];
+      let baseSpeed = (hannibal.food <= 0) ? 30 : STATS.hanBaseSpeed;
+      hannibal.cooldown = (t===1) ? baseSpeed + 10 : baseSpeed;
+    }
+  }
+}
+
+function tryMove(u, dx, dy){
+  let tx = u.x + dx;
+  let ty = u.y + dy;
+  if(tx<0||tx>=GRID_W||ty<0||ty>=GRID_H) return false;
+  if(grid[ty][tx] === 2) return false;
+  u.x = tx; u.y = ty;
+  return true;
+}
+
+// Attack (button + keyboard)
+function doAttack(e){
+  if(e){ e.stopPropagation(); e.preventDefault(); }
+  if(!gameActive) return;
+
+  let d = dist(fabius, hannibal);
+  if(d <= 2){
+    hannibal.hp -= 5;
+    spawnBlood(hannibal.x, hannibal.y);
+    spawnFloat("POKE", hannibal.x, hannibal.y, "#fff");
+    fabius.conf = Math.min(100, fabius.conf + STATS.fabHitGain);
+    spawnFloat("+CONF", fabius.x, fabius.y, "#f59e0b");
+    updateUI();
+  } else {
+    spawnFloat("MISS", fabius.x, fabius.y, "#aaa");
+  }
+}
+
+function updateUI(){
+  document.getElementById('ui-conf').innerText = Math.floor(fabius.conf);
+  document.getElementById('bar-conf').style.width = fabius.conf + "%";
+
+  document.getElementById('ui-hp').innerText = Math.floor(fabius.hp);
+  document.getElementById('bar-hp').style.width = (fabius.hp / STATS.fabHP) * 100 + "%";
+
+  document.getElementById('ui-han').innerText = Math.floor(hannibal.hp);
+  document.getElementById('ui-food').innerText = Math.floor(hannibal.food);
+  document.getElementById('bar-food').style.width = hannibal.food + "%";
+}
+
+// ===================================================
+//  END SCREEN -> HISTORY -> MAP
+// ===================================================
+function finishRun(title, line){
+  gameActive=false;
+  const ov = document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = `
+    <h1>${title}</h1>
+    <p><b>${line}</b></p>
+    ${HISTORY_HTML}
+    <button class="btn-start" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+    <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
+  `;
+  document.getElementById('btn-map').onclick = goToMap;
+  document.getElementById('btn-replay').onclick = ()=> { gameActive=false; renderIntro(); };
+
+  // Auto return after a beat (keeps pacing)
+  setTimeout(goToMap, 2000);
+}
+
+// ===================================================
+//  VISUALS
+// ===================================================
+function draw(){
+  CTX.fillStyle='#111';
+  CTX.fillRect(0,0,VIEW_W,VIEW_H);
+
+  CTX.save();
+  let cx = VIEW_W/2 - cam.x;
+  let cy = VIEW_H/2 - cam.y;
+  CTX.translate(Math.round(cx), Math.round(cy));
+
+  // Map
+  for(let y=0; y<GRID_H; y++){
+    for(let x=0; x<GRID_W; x++){
+      let t = grid[y][x];
+      CTX.fillStyle = (t===0) ? P.grass : (t===1 ? P.forest : P.hill);
+      CTX.fillRect(x*TILE, y*TILE, TILE, TILE);
+      if(t===1){ CTX.fillStyle='#0f3d20'; CTX.fillRect(x*TILE+8, y*TILE+4, 8, 12); }
+      if(t===2){ CTX.fillStyle='#44403c'; CTX.fillRect(x*TILE+4, y*TILE+10, 16, 6); }
+    }
+  }
+
+  let all = [...units, fabius, hannibal].filter(Boolean);
+  all.sort((a,b)=>a.y - b.y);
+  for(let u of all) drawSprite(u, SCALE);
+
+  for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+  CTX.font="bold 12px monospace"; CTX.textAlign="center";
+  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
+  CTX.globalAlpha=1;
+  CTX.restore();
+
+  // RAID ARROW (screen space)
+  if(raidAlert.active){
+    let rx = raidAlert.x * TILE + TILE/2;
+    let ry = raidAlert.y * TILE + TILE/2;
+    let dx = rx - cam.x;
+    let dy = ry - cam.y;
+
+    if(Math.abs(dx) > VIEW_W/2 || Math.abs(dy) > VIEW_H/2){
+      let angle = Math.atan2(dy, dx);
+      let distPx = 140;
+      let arrowX = VIEW_W/2 + Math.cos(angle)*distPx;
+      let arrowY = VIEW_H/2 + Math.sin(angle)*distPx;
+
+      CTX.save();
+      CTX.translate(arrowX, arrowY);
+      CTX.rotate(angle);
+      CTX.fillStyle = `rgba(239, 68, 68, ${ (Math.sin(Date.now()/100)+1)/2 + 0.5 })`;
+      CTX.beginPath();
+      CTX.moveTo(10, 0); CTX.lineTo(-10, 10); CTX.lineTo(-10, -10);
+      CTX.fill();
+      CTX.restore();
+
+      CTX.font="bold 16px sans-serif";
+      CTX.fillStyle="white";
+      CTX.textAlign="center";
+      CTX.fillText("HELP!", arrowX, arrowY + 30);
+    }
+  }
+}
+
+// ===================================================
+//  UTILS / FX
+// ===================================================
+function dist(a,b){ return Math.sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y)); }
+function spawnBlood(gx, gy){
+  for(let i=0;i<3;i++) particles.push({x:gx*TILE+TILE/2, y:gy*TILE+TILE/2, vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3, life:1, color:'#900'});
+}
+function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
+function updateFX(){
+  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.life-=0.05}); particles=particles.filter(p=>p.life>0);
+  floats.forEach(f=>{f.y-=0.3; f.life-=0.02}); floats=floats.filter(f=>f.life>0);
+}
+function showMsg(txt, col){
+  const el=document.getElementById('battle-text');
+  el.innerText=txt; el.style.color=col; el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0, 2500);
+}
+
+// ===================================================
+//  INPUT (Pointer joystick + keyboard)
+// ===================================================
+const stickZone=document.getElementById('stick-zone');
+const stickEl=document.getElementById('stick');
+
+function endStick(){
+  stick.active=false;
+  stickEl.style.transform='translate(0,0)';
+  input.dx=0; input.dy=0;
+}
+function updateStick(){
+  let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY;
+  let d=Math.sqrt(dx*dx+dy*dy);
+  const max=40;
+  if(d>max){ dx=(dx/d)*max; dy=(dy/d)*max; }
+  stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
+  input.dx=0; input.dy=0;
+  if(d>10){
+    if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx);
+    else input.dy=Math.sign(dy);
+  }
+}
+
+stickZone.addEventListener('pointerdown', (e)=>{
+  stick.active=true;
+  stick.startX=e.clientX; stick.startY=e.clientY;
+  stick.curX=e.clientX; stick.curY=e.clientY;
+  stickZone.setPointerCapture(e.pointerId);
+  updateStick();
+}, {passive:false});
+stickZone.addEventListener('pointermove', (e)=>{
+  if(!stick.active) return;
+  e.preventDefault();
+  stick.curX=e.clientX; stick.curY=e.clientY;
+  updateStick();
+}, {passive:false});
+stickZone.addEventListener('pointerup', endStick, {passive:true});
+stickZone.addEventListener('pointercancel', endStick, {passive:true});
+stickZone.addEventListener('lostpointercapture', endStick, {passive:true});
+
+document.getElementById('btn-attack').addEventListener('pointerdown', doAttack, {passive:false});
+
+// Desktop keys
+window.addEventListener('keydown', (e)=>{
+  const relevant = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'];
+  if(relevant.includes(e.code)) e.preventDefault();
+
+  if(e.code === 'Space' || e.code === 'Enter'){ doAttack(e); return; }
+  keysDown.add(e.code);
+  setInputFromKeyboard();
+}, {passive:false});
+window.addEventListener('keyup', (e)=>{
+  keysDown.delete(e.code);
+  setInputFromKeyboard();
+}, {passive:true});
+
+// Prevent scrolling while playing
+document.addEventListener('touchmove', (e)=>{ if(gameActive) e.preventDefault(); }, {passive:false});
+
+// ===================================================
+//  RESIZE (RETINA)
+// ===================================================
+function resize(){
+  const rect = BOX.getBoundingClientRect();
+  VIEW_W = Math.max(1, Math.floor(rect.width));
+  VIEW_H = Math.max(1, Math.floor(rect.height));
+  DPR = Math.min(3, window.devicePixelRatio || 1);
+
+  CANVAS.width = Math.floor(VIEW_W * DPR);
+  CANVAS.height = Math.floor(VIEW_H * DPR);
+  CTX.setTransform(DPR,0,0,DPR,0,0); // draw in CSS pixels
+  CTX.imageSmoothingEnabled=false;
+}
+window.addEventListener('resize', resize, {passive:true});
+window.addEventListener('orientationchange', resize, {passive:true});
+
+// BOOT
+resize();
+renderIntro();
+</script>
+
+</body>
+</html>
