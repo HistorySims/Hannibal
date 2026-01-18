@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Victory: The Aftermath</title>
+<style>
+    body {
+        margin: 0; padding: 0; background: #000;
+        min-height: 100vh; 
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Courier New', Courier, monospace; 
+    }
+    #stage {
+        display: flex; flex-direction: column;
+        position: relative; width: 100%; max-width: 800px; 
+        background: #1a1a1c; 
+        border: 2px solid #555;
+        box-shadow: 0 0 30px rgba(0,0,0,0.9);
+    }
+    canvas { 
+        display: block; width: 100%; 
+        aspect-ratio: 4/3;
+        image-rendering: pixelated; 
+        flex-shrink: 0;
+    }
+    
+    /* DIALOGUE BOX */
+    #dialogue-box {
+        position: relative;
+        width: 100%; background: #111; 
+        border-top: 4px solid #f59e0b; 
+        padding: 20px; z-index: 30;
+        cursor: pointer; 
+        height: 150px; 
+        box-sizing: border-box;
+        flex-shrink: 0;
+    }
+    .speaker-name {
+        color: #f59e0b; font-weight: 900; font-size: 16px; text-transform: uppercase;
+        margin-bottom: 10px; letter-spacing: 2px;
+    }
+    .speech-text {
+        color: #e7e7ea; font-size: 18px; line-height: 1.4; white-space: pre-wrap;
+    }
+    .click-prompt {
+        position: absolute; bottom: 10px; right: 20px;
+        font-size: 12px; color: #fbbf24; animation: blink 1s infinite;
+    }
+
+    /* END SCREEN */
+    #title-screen {
+        position: absolute; inset: 0; 
+        background: #e5e5e5; 
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 50; text-align: center;
+        opacity: 0; transition: opacity 3s;
+    }
+    h1 { 
+        font-size: 64px; color: #b91c1c; margin: 0; 
+        text-transform: uppercase; letter-spacing: 10px; 
+        text-shadow: 0 4px 0 #bbb;
+    }
+    h2 { font-size: 14px; color: #555; margin-top: 20px; letter-spacing: 4px; font-weight:800; }
+    
+    .restart-btn {
+        margin-top: 40px;
+        background: transparent; color: #333; border: 2px solid #333;
+        padding: 10px 20px; font-size: 16px; font-weight: 900; cursor: pointer;
+        text-transform: uppercase; 
+        transition: all 0.3s;
+    }
+    .restart-btn:hover { background: #333; color: #fff; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+    <canvas id="cv"></canvas>
+    
+    <div id="dialogue-box" onclick="nextLine()">
+        <div class="speaker-name" id="speaker">Narrator</div>
+        <div class="speech-text" id="speech"></div>
+        <div class="click-prompt">TAP TO CONTINUE ▼</div>
+    </div>
+
+    <div id="title-screen">
+        <h1>ROMA<br>VICTRIX</h1>
+        <h2>The World is Yours</h2>
+        <button class="restart-btn" onclick="hardReset()">Replay History</button>
+    </div>
+</div>
+
+<script>
+const C = document.getElementById('cv');
+const CTX = C.getContext('2d');
+const BOX = document.getElementById('dialogue-box');
+const TXT = document.getElementById('speech');
+const NAME = document.getElementById('speaker');
+
+const W = 320;
+const H = 240;
+
+const P = {
+  metal:'#b7bcc5', black:'#111114',
+  roman:'#c53030', you:'#1f9d55', 
+  gold:'#fbbf24', white:'#e7e7ea', shadow:'rgba(0,0,0,0.35)',
+  sand: '#d4a373', sky: '#38bdf8', marble: '#e5e5e5', sea: '#1e3a8a'
+};
+
+const SCRIPT = [
+    {
+        scene: 'aftermath', speaker: 'Narrator',
+        text: "The dust settles over Zama. The roar of the elephants is silenced forever."
+    },
+    {
+        scene: 'aftermath', speaker: 'Scipio',
+        text: "It is done. Hannibal is broken."
+    },
+    {
+        scene: 'carthage', speaker: 'Hannibal',
+        text: "I have not lost a battle... I have lost the war."
+    },
+    {
+        scene: 'carthage', speaker: 'Hannibal',
+        text: "We must surrender. We must pay their price, or Carthage will burn."
+    },
+    {
+        scene: 'triumph', speaker: 'Narrator',
+        text: "Scipio returns to Rome. The city erupts in celebration."
+    },
+    {
+        scene: 'triumph', speaker: 'Crowd',
+        text: "SCIPIO! SCIPIO AFRICANUS! CONQUEROR OF AFRICA!"
+    },
+    {
+        scene: 'port', speaker: 'Narrator',
+        text: "Carthage is stripped of its fleet. Its empire is gone."
+    },
+    {
+        scene: 'port', speaker: 'Narrator',
+        text: "The Mediterranean is no longer a sea of war. It is a Roman lake."
+    },
+    {
+        scene: 'statue', speaker: 'Narrator',
+        text: "The Republic is safe. But the taste of Empire... has only just begun."
+    }
+];
+
+let lineIdx = 0;
+let charIdx = 0;
+let currentLine = "";
+let typeTimer = null;
+let frame = 0;
+let confetti = [];
+
+function init(){
+    C.width = W;
+    C.height = H;
+    
+    // Init confetti safely
+    for(let i=0; i<60; i++){
+        confetti.push({
+            x: Math.random()*W, 
+            y: Math.random()*H, 
+            c: Math.random()>0.5 ? P.gold : P.roman
+        });
+    }
+    
+    startLine();
+    loop();
+}
+
+function startLine(){
+    if(lineIdx >= SCRIPT.length){
+        endSequence();
+        return;
+    }
+    
+    const line = SCRIPT[lineIdx];
+    BOX.style.display = 'block';
+    NAME.innerText = line.speaker;
+    
+    if(line.speaker === 'Scipio') NAME.style.color = P.you;
+    else if(line.speaker === 'Hannibal') NAME.style.color = '#3b82f6';
+    else if(line.speaker === 'Crowd') NAME.style.color = P.gold;
+    else NAME.style.color = '#ccc';
+
+    currentLine = line.text;
+    TXT.innerText = "";
+    charIdx = 0;
+    
+    if(typeTimer) clearInterval(typeTimer);
+    typeTimer = setInterval(typeWriter, 25);
+}
+
+function typeWriter(){
+    if(currentLine && charIdx < currentLine.length){
+        TXT.innerText += currentLine.charAt(charIdx);
+        charIdx++;
+    } else {
+        clearInterval(typeTimer);
+    }
+}
+
+function nextLine(){
+    if(currentLine && charIdx < currentLine.length){
+        TXT.innerText = currentLine;
+        charIdx = currentLine.length;
+        clearInterval(typeTimer);
+    } else {
+        lineIdx++;
+        startLine();
+    }
+}
+
+function endSequence(){
+    BOX.style.display = 'none';
+    const ts = document.getElementById('title-screen');
+    ts.style.display = 'flex';
+    setTimeout(()=> ts.style.opacity = 1, 50);
+}
+
+function hardReset(){
+    localStorage.removeItem("spw_campaign_progress_v1");
+    window.location.href = "index.html";
+}
+
+// Drawing Helpers
+function rect(x,y,w,h,c){ 
+    CTX.fillStyle=c; 
+    CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); 
+}
+function px(x,y,s,c){
+    CTX.fillStyle=c; 
+    CTX.fillRect(x,y,s,s);
+}
+
+function drawSprite(kind, x, y, scale, rot){
+    CTX.save();
+    if(rot){
+        CTX.translate(x+12, y+12);
+        CTX.rotate(rot);
+        CTX.translate(-(x+12), -(y+12));
+    }
+
+    const s = scale;
+    const coat = (kind==='roman') ? P.roman : P.you;
+    const helm = (kind==='roman') ? P.gold : P.white;
+    
+    CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+    px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
+    px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
+    for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+    px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
+    CTX.restore();
+}
+
+function drawShip(x, y, s){
+    CTX.fillStyle = '#3e2723'; 
+    CTX.beginPath(); 
+    CTX.moveTo(x, y); 
+    CTX.lineTo(x+40*s, y); 
+    CTX.lineTo(x+35*s, y+10*s); 
+    CTX.lineTo(x+10*s, y+10*s); 
+    CTX.fill();
+    
+    CTX.fillStyle = '#5d4037';
+    let rowAngle = Math.sin(frame/5) * 5;
+    for(let i=0; i<4; i++){
+        CTX.save();
+        CTX.translate(x + (15+i*5)*s, y+5*s);
+        CTX.rotate(rowAngle * Math.PI/180);
+        CTX.fillRect(0, 0, 1*s, 10*s);
+        CTX.restore();
+    }
+    
+    rect(x+20*s, y-20*s, 2*s, 20*s, '#5d4037');
+    CTX.fillStyle = P.white;
+    rect(x+10*s, y-18*s, 22*s, 14*s);
+    rect(x+18*s, y-13*s, 6*s, 4*s, P.roman);
+}
+
+// ==============================
+// SCENES
+// ==============================
+
+function drawAftermath(){
+    rect(0,0,W,H, P.sand);
+    for(let i=0; i<8; i++){
+        let x = (i*45)%W; let y = (i*37)%H;
+        rect(x, y, 10, 2, '#444'); 
+        if(i%2===0) drawSprite('roman', x+20, y+10, 2, 1.57);
+    }
+    drawSprite('yours', W/2 - 12, H/2, 2);
+    for(let i=0; i<5; i++) rect((frame*2 + i*50)%W, 50 + i*30, 20, 1, 'rgba(255,255,255,0.2)');
+}
+
+function drawCarthage(){
+    rect(0,0,W,H, '#0f172a');
+    CTX.fillStyle = '#fff'; CTX.beginPath(); CTX.arc(W-50, 50, 20, 0, Math.PI*2); CTX.fill();
+    rect(40, 100, 20, 140, '#334155'); rect(260, 100, 20, 140, '#334155');
+    let hx = W/2 - 10; let hy = H - 60;
+    rect(hx, hy, 20, 40, '#1e293b'); rect(hx+6, hy-5, 8, 8, '#e2e8f0'); 
+    rect(hx+10, hy+5, 20 + Math.sin(frame/10)*5, 30, '#1e3a8a');
+}
+
+function drawTriumph(){
+    rect(0,0,W,H, P.sky);
+    rect(0, 150, 60, 90, P.marble); rect(260, 150, 60, 90, P.marble); rect(60, 180, 200, 60, '#d1d5db');
+    for(let i=0; i<15; i++){
+        let x = i*22; let y = 200 + Math.sin(frame/2 + i)*3;
+        drawSprite('roman', x, y, 1.5);
+    }
+    let cx = W/2 - 30; let cy = 170;
+    rect(cx-20, cy+10, 30, 15, '#5c4033'); rect(cx+50, cy+10, 30, 15, '#5c4033');
+    rect(cx, cy, 60, 30, P.gold); drawSprite('yours', cx+20, cy-15, 2);
+    for(let p of confetti){
+        rect(p.x, p.y, 3, 3, p.c);
+        p.y += 2; p.x += Math.sin(frame/10);
+        if(p.y > H) p.y = -10;
+    }
+}
+
+function drawPort(){
+    rect(0,0,W,H, P.sea);
+    
+    // Sky
+    rect(0, 0, W, 80, '#38bdf8');
+    rect(0, 80, W, 2, '#fff'); // Horizon
+
+    // Infinite Scrolling Ships (Left to Right)
+    const gap1 = 120; const speed1 = 0.5;
+    for(let i=0; i<6; i++){
+        let x = ((frame * speed1) + i * gap1) % (W + 100) - 50;
+        drawShip(x, 90, 1);
+    }
+
+    const gap2 = 180; const speed2 = 1.0;
+    for(let i=0; i<5; i++){
+        let x = ((frame * speed2) + i * gap2) % (W + 150) - 80;
+        drawShip(x, 130, 1.5);
+    }
+
+    const gap3 = 260; const speed3 = 1.5;
+    for(let i=0; i<4; i++){
+        let x = ((frame * speed3) + i * gap3) % (W + 200) - 100;
+        drawShip(x, 180, 2);
+    }
+
+    rect(0, H-40, W, 40, '#666'); 
+    rect(0, H-40, W, 4, '#888'); 
+    for(let i=0; i<20; i++){
+        drawSprite('roman', 10 + i*18, H-30, 1.5);
+    }
+    
+    // Text Overlay
+    if(frame > 50){
+        let alpha = Math.min(1, (frame-50)/100);
+        CTX.fillStyle = `rgba(255,255,255,${alpha})`;
+        CTX.font = 'bold 28px Courier New';
+        CTX.textAlign = 'center';
+        CTX.shadowColor = '#000';
+        CTX.shadowBlur = 4;
+        CTX.fillText("MARE NOSTRUM", W/2, 60);
+        CTX.shadowBlur = 0;
+    }
+}
+
+function drawStatue(){
+    rect(0,0,W,H, '#000');
+    CTX.fillStyle = 'rgba(255,255,255,0.1)';
+    CTX.beginPath(); CTX.moveTo(W/2-40, H); CTX.lineTo(W/2+40, H); CTX.lineTo(W/2, 50); CTX.fill();
+    let sx = W/2 - 12; let sy = H/2 + 20;
+    rect(sx-20, sy+40, 64, 20, '#555');
+    const s = 2;
+    px(sx+2, sy+12, s, '#ddd'); px(sx+12, sy+12, s, '#ddd'); 
+    px(sx+4, sy+10, s, '#ddd'); px(sx+10, sy+10, s, '#ddd'); 
+    for(let dx=2; dx<=5; dx++) px(sx+dx*s, sy+6, s, '#eee'); 
+    px(sx+3*s,sy,s,'#fff'); px(sx+4*s,sy,s,'#fff'); 
+    rect(sx+3*s-2, sy-2, 12, 4, P.gold);
+}
+
+function loop(){
+    frame++;
+    CTX.setTransform(1, 0, 0, 1, 0, 0); 
+
+    if(lineIdx < SCRIPT.length){
+        const current = SCRIPT[lineIdx];
+        const s = current.scene;
+        
+        if(s === 'aftermath') drawAftermath();
+        else if(s === 'carthage') drawCarthage();
+        else if(s === 'triumph') drawTriumph();
+        else if(s === 'port') drawPort();
+        else if(s === 'statue') drawStatue();
+        else drawStatue();
+        
+    } else {
+        drawStatue();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+init();
+
+</script>
+</body>
+</html>
