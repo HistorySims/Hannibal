@@ -437,7 +437,7 @@ function callRomanVeterans(){
   romVetsCalled = true;
 
   // Spawn ahead of player so they “get in front of you” immediately.
-  const spawnY = clamp(player.y - PACE.romVetSpawnRowsAhead, 2, GRID_H-3);
+  const spawnY = clamp(player.y - PACE.romVetSpawnRowsAhead, 20, GRID_H-3);
 
   // Prefer the lanes, then a small spread around them
   const preferredXs = [];
