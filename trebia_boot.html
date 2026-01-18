@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Trebia: The Cold Crossing</title>
+<style>
+    body {
+        margin: 0; padding: 0; background: #000;
+        height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: 'Courier New', Courier, monospace; overflow: hidden;
+    }
+    #stage {
+        position: relative; width: 100%; max-width: 800px; aspect-ratio: 4/3;
+        background: #111; overflow: hidden;
+        border: 2px solid #333;
+        box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+    canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+    
+    /* DIALOGUE BOX */
+    #dialogue-box {
+        position: absolute; bottom: 0; left: 0;
+        width: 100%; background: rgba(0,0,0,0.9); border-top: 4px solid #fff;
+        padding: 20px; display: none; z-index: 20;
+        cursor: pointer; height: 120px; 
+        box-sizing: border-box;
+    }
+    .speaker-name {
+        color: #ef4444; font-weight: 900; font-size: 16px; text-transform: uppercase;
+        margin-bottom: 8px; letter-spacing: 1px;
+    }
+    .speech-text {
+        color: #fff; font-size: 18px; line-height: 1.4; white-space: pre-wrap;
+    }
+    
+    /* CLICK PROMPT */
+    .click-prompt {
+        position: absolute; bottom: 10px; right: 20px;
+        font-size: 12px; color: #fbbf24; animation: blink 1s infinite;
+    }
+
+    /* TITLE SCREEN */
+    #title-screen {
+        position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 50; text-align: center;
+    }
+    h1 { font-size: 64px; color: #ef4444; margin: 0; text-transform: uppercase; letter-spacing: 5px; text-shadow: 4px 4px 0 #000; }
+    h2 { font-size: 18px; color: #fbbf24; margin-bottom: 30px; letter-spacing: 2px; }
+    button {
+        background: #ef4444; color: #fff; border: 4px solid #fff;
+        padding: 15px 40px; font-size: 20px; font-weight: bold; cursor: pointer;
+        text-transform: uppercase; box-shadow: 0 6px 0 #7f1d1d;
+    }
+    button:active { transform: translateY(4px); box-shadow: 0 2px 0 #7f1d1d; }
+
+    @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+    <canvas id="cv"></canvas>
+    
+    <div id="dialogue-box" onclick="nextLine()">
+        <div class="speaker-name">Sempronius Longus</div>
+        <div class="speech-text" id="speech"></div>
+        <div class="click-prompt">CLICK TO CONTINUE ▼</div>
+    </div>
+
+    <div id="title-screen">
+        <h1>TREBIA</h1>
+        <h2>Winter, 218 BC</h2>
+        <button onclick="window.location.href='trebia_game.html'">Start Battle</button>
+    </div>
+</div>
+
+<script>
+const C = document.getElementById('cv');
+const CTX = C.getContext('2d');
+const BOX = document.getElementById('dialogue-box');
+const TXT = document.getElementById('speech');
+
+// Resolution
+const W = 320;
+const H = 240;
+
+// ASSETS
+const P = {
+  metal:'#b7bcc5', black:'#111114',
+  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
+  gold:'#fbbf24', white:'#e7e7ea', skin:'#d4a373',
+  ice: '#a5f3fc', deep: '#172554', reeds: '#22d3ee'
+};
+
+// SCRIPT
+const SCRIPT = [
+    {
+        scene: 'face', mood: 'neutral',
+        text: "Scipio lies wounded in his tent. He begs me to wait."
+    },
+    {
+        scene: 'face', mood: 'angry',
+        text: "\"Wait for reinforcements!\" he says. \"Wait for spring!\""
+    },
+    {
+        scene: 'face', mood: 'angry',
+        text: "But my Consulship ends in a month! I will not leave this glory for the next man."
+    },
+    {
+        scene: 'face', mood: 'neutral',
+        text: "Hannibal is right there. Just across that river."
+    },
+    {
+        scene: 'river', mood: 'action',
+        text: "They say the water is freezing... they say we should wait for a clear day..."
+    },
+    {
+        scene: 'face', mood: 'yell',
+        text: "But we are ROMANS! We never wait for glory!"
+    },
+    {
+        scene: 'river', mood: 'action',
+        text: "Legions! Forward! We cross the Trebia today!"
+    }
+];
+
+// STATE
+let lineIdx = 0;
+let charIdx = 0;
+let currentLine = "";
+let typeTimer = null;
+let frame = 0;
+let snow = [];
+
+function init(){
+    C.width = W;
+    C.height = H;
+    
+    // Init Snow
+    for(let i=0; i<150; i++){
+        snow.push({
+            x: Math.random()*W, 
+            y: Math.random()*H, 
+            s: Math.random()*1.5 + 0.5
+        });
+    }
+
+    startLine();
+    loop();
+}
+
+function startLine(){
+    if(lineIdx >= SCRIPT.length){
+        endSequence();
+        return;
+    }
+    
+    BOX.style.display = 'block';
+    currentLine = SCRIPT[lineIdx].text;
+    TXT.innerText = "";
+    charIdx = 0;
+    
+    if(typeTimer) clearInterval(typeTimer);
+    typeTimer = setInterval(typeWriter, 30);
+}
+
+function typeWriter(){
+    if(charIdx < currentLine.length){
+        TXT.innerText += currentLine.charAt(charIdx);
+        charIdx++;
+    } else {
+        clearInterval(typeTimer);
+    }
+}
+
+function nextLine(){
+    if(charIdx < currentLine.length){
+        TXT.innerText = currentLine;
+        charIdx = currentLine.length;
+        clearInterval(typeTimer);
+    } else {
+        lineIdx++;
+        startLine();
+    }
+}
+
+function endSequence(){
+    BOX.style.display = 'none';
+    document.getElementById('title-screen').style.display = 'flex';
+}
+
+// DRAWING HELPERS
+function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
+
+function drawFace(mood){
+    rect(0,0,W,H, '#111');
+    const cx = W/2;
+    const cy = H/2 - 20; // Shifted up
+    
+    // Shoulders
+    rect(cx-60, cy+40, 120, 60, P.roman); 
+    rect(cx-50, cy+40, 100, 60, '#991b1b'); 
+    rect(cx+30, cy+50, 10, 10, P.gold); 
+
+    // Head
+    rect(cx-20, cy+20, 40, 30, P.skin);
+    rect(cx-35, cy-40, 70, 70, P.skin);
+    
+    // Helmet
+    rect(cx-38, cy-60, 76, 30, P.gold); 
+    rect(cx-30, cy-80, 60, 40, P.gold); 
+    rect(cx-5, cy-90, 10, 20, P.gold); 
+    rect(cx-38, cy-30, 10, 40, P.gold);
+    rect(cx+28, cy-30, 10, 40, P.gold);
+    
+    // Plume
+    for(let i=0; i<3; i++){
+        let sway = Math.sin(frame/10 + i)*2;
+        rect(cx-10 + sway, cy-110, 20, 20, P.roman);
+    }
+
+    // Features
+    const eyeH = mood === 'yell' ? 6 : 4;
+    rect(cx-20, cy-15, 10, eyeH, '#000'); 
+    rect(cx+10, cy-15, 10, eyeH, '#000'); 
+    
+    rect(cx-22, cy-20, 14, 4, '#5c4033'); 
+    rect(cx+8, cy-20, 14, 4, '#5c4033'); 
+    rect(cx-10, cy-18, 2, 2, '#5c4033'); 
+    rect(cx+8, cy-18, 2, 2, '#5c4033');
+
+    rect(cx-5, cy-10, 10, 20, '#c29568');
+
+    if(mood === 'neutral'){
+        rect(cx-10, cy+25, 20, 2, '#5c4033');
+    } else if (mood === 'angry'){
+        rect(cx-10, cy+25, 20, 4, '#5c4033');
+        rect(cx-10, cy+26, 20, 2, '#fff'); 
+    } else if (mood === 'yell'){
+        rect(cx-12, cy+25, 24, 12, '#330000'); 
+        rect(cx-10, cy+25, 20, 4, '#fff'); 
+        rect(cx-10, cy+33, 20, 4, '#fff'); 
+        
+        if(frame%4===0) CTX.translate(1, 1);
+        if(frame%4===2) CTX.translate(-1, -1);
+    }
+}
+
+function drawRiverScene(){
+    rect(0,0,W,H, '#2e2e30'); // Ground
+    
+    const riverY = 70; // Water line
+    rect(0, riverY, W, H-riverY, P.deep); // Water fills bottom
+    
+    // Water Flow
+    for(let i=0; i<15; i++){
+        let flowX = (frame + i*40) % W;
+        rect(flowX, riverY+10 + (i%5)*10, 10, 2, 'rgba(255,255,255,0.2)');
+    }
+
+    // MARCHING LEGION
+    const rows = 8; // More rows for density
+    const cols = 8;
+    const startX = W/2 - (cols*18)/2;
+    
+    const spacing = 30; // Vertical space between rows
+    const speed = 0.5;  // Marching speed
+    
+    for(let r=0; r<rows; r++){
+        // Continuous march logic:
+        // Position based on frame time so they don't bounce back
+        // Modulo by a large height so they wrap around seamlessly
+        let marchY = (frame * speed + r * spacing) % (H + 50) - 30;
+        
+        for(let c=0; c<cols; c++){
+            let x = startX + c*20;
+            let y = marchY;
+
+            // Don't draw if too far off screen
+            if(y < -30 || y > H) continue;
+            
+            // Random bobbing per unit
+            let bob = Math.sin(frame/5 + c + r)*1;
+            
+            // Default color (Red/Roman)
+            let coat = P.roman;
+            
+            // FREEZING LOGIC: If feet (y+12) cross river line (riverY)
+            if(y + 12 > riverY){
+                 coat = '#06b6d4'; // Turn Blue/Cyan
+            }
+
+            // Draw Unit
+            rect(x, y+bob, 12, 12, coat); // Body
+            rect(x+2, y+bob-4, 8, 8, P.black); // Head base
+            rect(x+3, y+bob-5, 6, 2, P.gold); // Helm rim
+            rect(x+10, y+bob-8, 2, 10, P.metal); // Spear
+
+            // Splash effect if strictly "in" the water
+            if(y > riverY && Math.random()>0.95){
+                rect(x-2, y+10, 2, 2, '#fff');
+            }
+        }
+    }
+}
+
+function drawSnow(){
+    CTX.fillStyle = P.white;
+    for(let s of snow){
+        CTX.fillRect(s.x, s.y, s.s, s.s);
+        s.y += s.s; 
+        s.x += Math.sin(frame/20 + s.s);
+        if(s.y > H) { s.y = 0; s.x = Math.random()*W; }
+    }
+}
+
+function loop(){
+    frame++;
+    CTX.setTransform(1, 0, 0, 1, 0, 0);
+
+    if(lineIdx < SCRIPT.length){
+        const current = SCRIPT[lineIdx];
+        if(current.scene === 'face') drawFace(current.mood);
+        else if(current.scene === 'river') drawRiverScene();
+        drawSnow();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+init();
+
+</script>
+</body>
+</html>
+
