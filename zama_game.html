@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Zama: Definitive</title>
+<style>
+  :root{
+    --bg:#1a1a1c;
+    --red:#ef4444; --gold:#f59e0b; --blue:#3b82f6; --text:#e7e7ea;
+    --sand:#d4a373; --sand-dark:#b08968;
+  }
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;}
+
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,sans-serif;
+    height:100dvh; width:100%;
+    overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  #game-box{
+    position:relative; width:100%; height:100%;
+    max-width:800px; background:var(--sand);
+    overflow:hidden;
+    box-shadow:0 0 20px rgba(0,0,0,0.5);
+    touch-action:none;
+  }
+
+  canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
+
+  .hud-top{
+    position:absolute; top:10px; left:0; width:100%; height:40px; z-index:15;
+    display:flex; justify-content:center; align-items:center;
+    pointer-events:none; font-weight:900; font-size:15px;
+    text-shadow:0 1px 3px rgba(0,0,0,0.3); gap:15px;
+    color: #fff;
+  }
+  .team-rom{color:var(--red); text-shadow:0 1px 2px #000;}
+  .team-han{color:var(--blue); text-shadow:0 1px 2px #000;}
+
+  .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
+
+  #stick-zone{
+    position:absolute; bottom:20px; left:20px;
+    width:140px; height:140px; pointer-events:auto;
+    background:rgba(0,0,0,0.1); border-radius:50%;
+  }
+  .stick-bg{
+    width:100%; height:100%; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.4); position:relative;
+  }
+  .stick-nub{
+    position:absolute; top:50%; left:50%;
+    width:50px; height:50px; margin:-25px 0 0 -25px;
+    background:rgba(255,255,255,0.9); border-radius:50%;
+    box-shadow:0 2px 5px rgba(0,0,0,0.5);
+  }
+
+  .btn-wrapper{
+    position:absolute; bottom:30px; right:30px;
+    display:flex; flex-direction:column; gap:20px;
+    pointer-events:auto; align-items:center;
+  }
+
+  #btn-attack{
+    width:80px; height:80px;
+    background:var(--red);
+    border:3px solid #fff; border-radius:50%;
+    display:grid; place-items:center;
+    box-shadow:0 4px 10px rgba(0,0,0,0.4);
+  }
+  #btn-attack:active{transform:scale(0.95); background:#b91c1c;}
+  .sword-icon{font-size:36px; color:#fff;}
+
+  #center-msg{
+    position:absolute; top:30%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; width:90%; pointer-events:none; z-index:30;
+  }
+  .big-text{
+    font-size:24px; font-weight:900; color:#fff;
+    text-shadow:0 2px 8px rgba(0,0,0,0.8);
+    opacity:0; transition:opacity 0.5s;
+  }
+
+  #overlay{
+    position:absolute; inset:0; background:rgba(0,0,0,0.92); z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:20px; text-align:center;
+  }
+  h1{color:var(--gold); margin:0 0 10px 0; font-size:36px; letter-spacing:2px;}
+  p{color:#eee; margin-bottom:16px; font-size:15px; max-width:420px; line-height:1.4;}
+  .highlight { color:var(--gold); font-weight:bold; }
+  .btn-start{
+    background:var(--blue); color:#fff; border:none; padding:16px 32px;
+    font-size:20px; font-weight:900; border-radius:8px; margin-top:10px;
+    box-shadow:0 4px 0 #1e3a8a;
+  }
+  .btn-start:active{transform:translateY(4px); box-shadow:none;}
+  .btn-muted{ background:#475569; box-shadow:0 4px 0 #334155; }
+  .btn-gold{ background:var(--gold); box-shadow:0 4px 0 #92400e; }
+</style>
+</head>
+<body>
+
+<div id="game-box">
+  <div id="overlay">
+    <h1>ZAMA</h1>
+    <p><b>Phase 1:</b> Elephants charge. <span class="highlight">Stand aside</span> and hit them from the back.</p>
+    <p><b>Phase 2:</b> Advance and hold against the Infantry lines.</p>
+    <p><b>Phase 3:</b> The Numidian Cavalry arrives to sweep the field.</p>
+    <button class="btn-start" onclick="startGame()">TO BATTLE</button>
+  </div>
+
+  <div class="hud-top">
+    <span class="team-rom">SCIPIO: <span id="ui-rome">0</span></span>
+    <span class="team-han">HANNIBAL: <span id="ui-han">0</span></span>
+  </div>
+
+  <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <canvas id="cv"></canvas>
+
+  <div class="controls-layer">
+    <div id="stick-zone"><div class="stick-bg"><div class="stick-nub" id="stick"></div></div></div>
+    <div class="btn-wrapper">
+      <div id="btn-attack" ontouchstart="handleAttack(event)" onmousedown="handleAttack(event)">
+        <div class="sword-icon">⚔️</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================================================
+//  ROUTING / END FLOW
+// ===================================================
+const NEXT_PAGE = "map.html";
+function goToMap(){ window.location.href = NEXT_PAGE; }
+
+const HISTORY_HTML = `
+  <h2 style="color:#f59e0b; margin:0 0 10px 0;">BATTLE OF ZAMA (202 BC)</h2>
+  <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:520px;">
+    <p><strong style="color:#fff">FORCES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~35,000 (Scipio Africanus)<br>
+      <span style="color:#3b82f6">Carthage:</span> ~40,000 (Hannibal)
+    </p>
+    <p><strong style="color:#fff">CASUALTIES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~2,500<br>
+      <span style="color:#3b82f6">Carthage:</span> ~20,000 killed, 20,000 captured
+    </p>
+    <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
+      Scipio opened lanes to let elephants pass and used superior Numidian cavalry to strike Hannibal’s rear.
+      The Second Punic War ended and Carthage ceased to be a major power.
+    </p>
+  </div>
+`;
+
+// =========================
+//  ASSETS & SPRITES
+// =========================
+const P = {
+  metal:'#b7bcc5', black:'#111114',
+  roman:'#c53030', you:'#1f9d55',
+  mercenary:'#65a30d', libyan:'#2563eb', veteran:'#9333ea',
+  gold:'#fbbf24', white:'#e7e7ea', elephant: '#555',
+  sand: '#d4a373', sandDark: '#b08968',
+  shadow:'rgba(0,0,0,0.35)'
+};
+const CANVAS = document.getElementById('cv');
+const CTX = CANVAS.getContext('2d', {alpha:false});
+const BOX = document.getElementById('game-box');
+
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+
+function drawSprite(u, scale){
+  const x = u.x * TILE - (u.type==='elephant'?0:4);
+  const y = u.y * TILE - 8;
+  let s = scale;
+
+  // NUMIDIAN CAVALRY
+  if(u.role === 'numidian'){
+    s = scale * 0.75;
+    const offset = 6;
+    const hx = x + offset;
+    const hy = y + offset;
+
+    const horseColor = '#78350f';
+    CTX.fillStyle = 'rgba(0,0,0,0.3)';
+    CTX.beginPath(); CTX.ellipse(hx+10*s, hy+12*s, 10*s, 4*s, 0,0,Math.PI*2); CTX.fill();
+
+    CTX.fillStyle = horseColor;
+    CTX.fillRect(hx+2*s, hy+4*s, 14*s, 7*s);
+    CTX.fillRect(hx, hy, 5*s, 6*s);
+    CTX.fillStyle = '#451a03'; CTX.fillRect(hx+4*s, hy, 2*s, 6*s);
+
+    CTX.fillStyle = horseColor;
+    CTX.fillRect(hx+3*s, hy+11*s, 2*s, 4*s); CTX.fillRect(hx+6*s, hy+11*s, 2*s, 4*s);
+    CTX.fillRect(hx+10*s, hy+11*s, 2*s, 4*s); CTX.fillRect(hx+13*s, hy+11*s, 2*s, 4*s);
+
+    CTX.fillStyle = '#451a03'; CTX.fillRect(hx+16*s, hy+5*s, 3*s, 6*s);
+
+    CTX.fillStyle = '#fff'; CTX.fillRect(hx+7*s, hy-2*s, 5*s, 7*s);
+    CTX.fillStyle = P.you; CTX.fillRect(hx+8*s, hy-1*s, 3*s, 5*s);
+    CTX.fillStyle = '#f59e0b'; CTX.fillRect(hx+8*s, hy-4*s, 3*s, 3*s);
+    CTX.fillStyle = P.metal; CTX.fillRect(hx+11*s, hy-5*s, 1*s, 10*s);
+    return;
+  }
+
+  // ELEPHANT
+  if(u.type === 'elephant'){
+    CTX.fillStyle = 'rgba(0,0,0,0.3)';
+    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill();
+    CTX.fillStyle = '#777'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
+    CTX.fillStyle = '#b91c1c'; CTX.fillRect(x+4*s, y-5*s, 8*s, 4*s);
+    CTX.fillStyle = '#999'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
+    CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 8*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 8*s);
+    CTX.fillStyle = '#666'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
+    return;
+  }
+
+  let coat = P.black;
+  let helm = P.metal;
+  if(u.type==='roman') { coat=P.roman; helm=P.gold; }
+  else if(u.type==='yours') { coat=P.you; helm=P.white; }
+  else if(u.type==='mercenary') { coat=P.mercenary; helm='#a8a29e'; }
+  else if(u.type==='libyan') { coat=P.libyan; helm=P.metal; }
+  else if(u.type==='veteran') { coat=P.veteran; helm=P.gold; }
+
+  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+  px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
+  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+  px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
+}
+
+// =========================
+//  CONFIG (SLOWED DOWN)
+// =========================
+const TILE = 24;
+const GRID_W = 40;
+const GRID_H = 60;
+let SCALE = 2;
+
+const PACE = {
+  move: 25,
+  elephantSpeed: 16,
+  panicSpeed: 16,
+  cavSpeed: 10,
+  combatDelay: 80
+};
+
+const LANES = [10, 20, 30];
+
+// =========================
+//  STATE
+// =========================
+let gameActive = false;
+let cam = {x:0, y:0};
+let grid = [];
+let units = [];
+let particles = [];
+let floats = [];
+let player = null;
+
+let battlePhase = 0;
+let phaseTimer = 0;
+let cavalryArrived = false;
+
+let input = {dx:0, dy:0};
+let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
+
+// Keyboard input (Chromebook/Desktop)
+const keys = {up:false,down:false,left:false,right:false};
+
+function startGame(){
+  document.getElementById('overlay').style.display = 'none';
+  if(gameActive) return;
+  gameActive = true;
+  resize();
+  setupMap();
+  requestAnimationFrame(loop);
+}
+
+function setupMap(){
+  units = []; grid = []; particles = []; floats = [];
+  grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
+  battlePhase = 0; phaseTimer = 0; cavalryArrived = false;
+
+  player = spawnUnit(20, 48, 'yours');
+  cam.x = player.x*TILE; cam.y = player.y*TILE;
+
+  // ROMAN ARMY
+  for(let x=4; x<36; x++){
+    let inLane = false;
+    for(let l of LANES) if(x >= l-1 && x <= l+1) inLane = true;
+
+    if(!inLane){
+      for(let y=50; y<56; y++){
+        if(Math.random() > 0.25) spawnUnit(x,y,'roman');
+      }
+    }
+  }
+
+  // HANNIBAL
+  for(let l of LANES){
+    spawnUnit(l, 35, 'elephant');
+    if(Math.random()>0.5) spawnUnit(l-1, 32, 'elephant');
+  }
+  for(let x=5; x<35; x+=2){
+    for(let y=28; y<31; y++){
+      if(Math.random()>0.5) spawnUnit(x, y, 'mercenary');
+    }
+  }
+  for(let x=5; x<35; x++){
+    for(let y=18; y<22; y++){
+      if(Math.random()>0.45) spawnUnit(x, y, 'libyan');
+    }
+  }
+  for(let x=8; x<32; x++){
+    for(let y=5; y<10; y++){
+      if(Math.random()>0.2) spawnUnit(x, y, 'veteran');
+    }
+  }
+
+  showMsg("ELEPHANTS CHARGE!", "#fff");
+}
+
+function spawnUnit(gx, gy, type){
+  if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H||grid[gy][gx]) return null;
+
+  let hp = 10, speed = PACE.move;
+
+  if(type==='elephant'){ hp=300; speed=PACE.elephantSpeed; }
+  else if(type==='yours'){ hp=100; }
+  else if(type==='roman'){ hp=12; }
+  else if(type==='mercenary'){ hp=6; }
+  else if(type==='libyan'){ hp=10; }
+  else if(type==='veteran'){ hp=25; }
+
+  let u = {
+    id:Math.random(), x:gx, y:gy, type, hp, maxHp:hp,
+    cooldown:Math.random()*40, moveSpeed: speed, role: 'infantry'
+  };
+  units.push(u);
+  grid[gy][gx] = u;
+  return u;
+}
+
+// =========================
+//  LOGIC
+// =========================
+function loop(){
+  if(!gameActive) return;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function update(){
+  phaseTimer++;
+
+  // Keyboard -> input only when joystick not active
+  if(!stick.active){
+    input.dx = 0; input.dy = 0;
+    if(keys.left) input.dx = -1;
+    else if(keys.right) input.dx = 1;
+    if(keys.up) input.dy = -1;
+    else if(keys.down) input.dy = 1;
+  }
+
+  if(battlePhase === 0){
+    const elephantCrossed = units.some(u => u.type === 'elephant' && u.y > 45);
+    if(elephantCrossed || phaseTimer > 800){
+      battlePhase = 1;
+      showMsg("MERCENARIES ATTACK!", P.mercenary);
+    }
+  }
+
+  if(battlePhase === 1 && phaseTimer > 1500){
+    battlePhase = 2;
+    showMsg("SECOND LINE ENGAGE!", P.libyan);
+  }
+  if(battlePhase === 2 && phaseTimer > 2300){
+    battlePhase = 3;
+    showMsg("THE OLD GUARD!", P.veteran);
+  }
+
+  if(phaseTimer > 3200 && !cavalryArrived){
+    cavalryArrived = true;
+    showMsg("NUMIDIAN CAVALRY!", P.gold);
+    for(let x=2; x<38; x+=2){
+      let cav = spawnUnit(x, 0, 'yours');
+      if(cav){
+        cav.role = 'numidian';
+        cav.moveSpeed = PACE.cavSpeed;
+        cav.hp = 50;
+      }
+    }
+  }
+
+  if(player && player.hp>0){
+    let tx = player.x*TILE;
+    let ty = player.y*TILE;
+    cam.x += (tx - cam.x)*0.1;
+    cam.y += (ty - cam.y)*0.1;
+  }
+
+  units.sort((a,b)=>a.y-b.y);
+
+  for(let u of units){
+    if(u.hp<=0) continue;
+
+    if(u.type==='yours'){
+      if(u.role === 'numidian'){
+        handleCavalryAI(u);
+      } else {
+        if(u.cooldown>0) u.cooldown--;
+        if(u.cooldown<=0 && (input.dx||input.dy)){
+          tryMove(u, input.dx, input.dy);
+          u.cooldown = PACE.move;
+        }
+      }
+    } else {
+      handleAI(u);
+    }
+  }
+
+  units = units.filter(u=>u.hp>0);
+  updateFX();
+
+  if(player && player.hp<=0) gameOver("Fallen at Zama.", false);
+
+  const enemies = units.filter(u=>['mercenary','libyan','veteran','elephant'].includes(u.type)).length;
+  if(enemies === 0) gameOver("SCIPIO AFRICANUS!", true);
+
+  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman'||u.type==='yours').length;
+  document.getElementById('ui-han').innerText  = enemies;
+}
+
+function handleAI(u){
+  if(u.cooldown>0){ u.cooldown--; return; }
+
+  let md = {x:0, y:0};
+
+  if(u.type === 'elephant'){
+    md = {x:0, y:1};
+    let tx = u.x; let ty = u.y+1;
+    if(grid[ty] && grid[ty][tx]){
+      let vic = grid[ty][tx];
+      if(!['mercenary','libyan','veteran','elephant'].includes(vic.type)){
+        vic.hp = -10;
+        spawnBlood(vic.x, vic.y);
+        spawnFloat("TRAMPLE", vic.x, vic.y, "#f00");
+        grid[ty][tx] = null;
+      }
+    }
+    if(u.y >= GRID_H - 2) { u.hp = 0; spawnFloat("ESCAPED", u.x, u.y, "#aaa"); }
+  }
+  else if(u.type === 'roman'){
+    let inLane = false;
+    for(let l of LANES) if(u.x >= l-1 && u.x <= l+1) inLane = true;
+
+    if(battlePhase === 0 && inLane){
+      md = {x: (u.x < 20 ? -1 : 1), y: 0};
+    } else {
+      let t = findNearestEnemy(u);
+      if(t){
+        if(dist(u,t)<=1.5){ attack(u, t); u.cooldown = PACE.combatDelay; return; }
+        md = getStep(u, t);
+      } else if (battlePhase > 0){
+        md = {x:0, y:-1};
+      }
+    }
+  }
+  else {
+    let canMove = false;
+    if(u.type==='mercenary' && battlePhase>=1) canMove = true;
+    if(u.type==='libyan' && battlePhase>=2) canMove = true;
+    if(u.type==='veteran' && battlePhase>=3) canMove = true;
+
+    if(canMove){
+      let t = findNearestEnemy(u);
+      if(t){
+        if(dist(u,t)<=1.5){ attack(u, t); u.cooldown = PACE.combatDelay; return; }
+        md = getStep(u, t);
+      } else {
+        md = {x:0, y:1};
+      }
+    }
+  }
+
+  if(md.x||md.y) tryMove(u, md.x, md.y);
+  u.cooldown = u.moveSpeed + Math.random()*10;
+}
+
+function handleCavalryAI(u){
+  if(u.cooldown>0){ u.cooldown--; return; }
+  let target = null;
+  let minD = 999;
+  for(let o of units){
+    if(['mercenary','libyan','veteran','elephant'].includes(o.type)){
+      let d = dist(u,o);
+      if(d < minD){ minD = d; target = o; }
+    }
+  }
+  if(target){
+    if(minD <= 1.5){ attack(u, target); u.cooldown = 15; }
+    else { let md = getStep(u, target); tryMove(u, md.x, md.y); u.cooldown = u.moveSpeed; }
+  } else {
+    tryMove(u, (u.x<20?1:-1), 1); u.cooldown = u.moveSpeed;
+  }
+}
+
+function tryMove(u, dx, dy){
+  let tx=u.x+dx, ty=u.y+dy;
+  if(tx<0||tx>=GRID_W||ty<0||ty>=GRID_H) return;
+
+  let target = grid[ty][tx];
+  if(u.type === 'yours' && target && target.type === 'roman'){
+    grid[u.y][u.x] = target;
+    grid[ty][tx] = u;
+    target.x = u.x; target.y = u.y;
+    u.x = tx; u.y = ty;
+    return;
+  }
+
+  if(target) return;
+  grid[u.y][u.x]=null; u.x=tx; u.y=ty; grid[ty][tx]=u;
+}
+
+function attack(atk, def){
+  let dmg = 2;
+  if(atk.type === 'veteran') dmg = 5;
+  if(atk.role === 'numidian') dmg = 15;
+
+  if(def.type === 'elephant'){
+    if(atk.y > def.y){ dmg = 0; spawnFloat("BLOCKED", def.x, def.y, "#ccc"); }
+    else { dmg = 50; spawnFloat("STAB!", def.x, def.y, P.gold); }
+  }
+
+  def.hp -= dmg;
+  spawnBlood(def.x, def.y);
+  if(dmg > 0 && dmg < 100) spawnFloat("-"+dmg, def.x, def.y, "#ef4444");
+
+  if(def.hp<=0){
+    grid[def.y][def.x]=null;
+    if(def.type !== 'elephant') spawnFloat("KILL", def.x, def.y, P.gold);
+  }
+}
+
+// =========================
+//  INPUT: JOYSTICK + BUTTON (existing)
+// =========================
+const stickZone=document.getElementById('stick-zone');
+const stickEl=document.getElementById('stick');
+stickZone.addEventListener('touchstart',e=>{stick.active=true; stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY; stick.curX=stick.startX; stick.curY=stick.startY;}, {passive:false});
+stickZone.addEventListener('touchmove',e=>{if(!stick.active)return; e.preventDefault(); stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY; updateStick();}, {passive:false});
+const endStick=()=>{stick.active=false; stickEl.style.transform='translate(0,0)'; input.dx=0; input.dy=0;};
+stickZone.addEventListener('touchend', endStick); stickZone.addEventListener('touchcancel', endStick);
+function updateStick(){
+  let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY, d=Math.sqrt(dx*dx+dy*dy);
+  if(d>40){dx=(dx/d)*40; dy=(dy/d)*40;}
+  stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
+  input.dx=0; input.dy=0;
+  if(d>10){
+    if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx);
+    else input.dy=Math.sign(dy);
+  }
+}
+
+window.handleAttack = function(e){
+  e.stopPropagation(); e.preventDefault(); if(!gameActive||!player||player.hp<=0)return;
+  const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let hit = false;
+  for(let d of dirs){
+    let tx=player.x+d[0], ty=player.y+d[1];
+    let target = grid[ty] && grid[ty][tx];
+    if(target && ['mercenary','libyan','veteran','elephant','invader'].includes(target.type)){
+      attack(player, target);
+      hit = true;
+    }
+  }
+  if(hit) spawnFloat("HIT", player.x, player.y, "#fff");
+  else spawnFloat("SWING", player.x, player.y, "#aaa");
+};
+
+// Keyboard attack (space/enter)
+window.addEventListener('keydown', (e)=>{
+  const code = e.code;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'].includes(code)){
+    e.preventDefault();
+  }
+  if(code==='ArrowUp' || code==='KeyW') keys.up=true;
+  if(code==='ArrowDown' || code==='KeyS') keys.down=true;
+  if(code==='ArrowLeft' || code==='KeyA') keys.left=true;
+  if(code==='ArrowRight' || code==='KeyD') keys.right=true;
+  if(code==='Space' || code==='Enter') handleAttack(e);
+},{passive:false});
+
+window.addEventListener('keyup', (e)=>{
+  const code = e.code;
+  if(code==='ArrowUp' || code==='KeyW') keys.up=false;
+  if(code==='ArrowDown' || code==='KeyS') keys.down=false;
+  if(code==='ArrowLeft' || code==='KeyA') keys.left=false;
+  if(code==='ArrowRight' || code==='KeyD') keys.right=false;
+},{passive:true});
+
+// =========================
+//  RENDER / FX / HELPERS
+// =========================
+function draw(){
+  // draw in CSS pixels (resize handles DPR)
+  CTX.fillStyle=P.black;
+  CTX.fillRect(0,0,BOX.clientWidth,BOX.clientHeight);
+
+  CTX.save();
+  let cx = BOX.clientWidth/2 - cam.x;
+  let cy = BOX.clientHeight/2 - cam.y;
+  CTX.translate(Math.round(cx), Math.round(cy));
+
+  CTX.fillStyle=P.sand;
+  CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
+
+  CTX.fillStyle = 'rgba(0,0,0,0.05)';
+  for(let l of LANES){ CTX.fillRect((l-1)*TILE, 0, 3*TILE, GRID_H*TILE); }
+
+  CTX.fillStyle=P.sandDark;
+  for(let i=0; i<80; i++) CTX.fillRect((i*47)% (GRID_W*TILE), (i*31)% (GRID_H*TILE), 3, 3);
+
+  for(let u of units) drawSprite(u, SCALE);
+
+  for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+
+  CTX.font="bold 12px monospace"; CTX.textAlign="center";
+  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
+  CTX.globalAlpha=1;
+
+  CTX.restore();
+}
+
+function dist(a,b){ return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); }
+function getStep(u,t){
+  let dx=t.x-u.x, dy=t.y-u.y;
+  if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
+  return {x:0, y:Math.sign(dy)};
+}
+function findNearestEnemy(u){
+  let target=null, minDist=99;
+  for(let o of units){
+    if(Math.abs(o.x-u.x)>12 || Math.abs(o.y-u.y)>12) continue;
+    let isEnemy = false;
+    if(['roman','yours'].includes(u.type)){
+      if(['mercenary','libyan','veteran','elephant'].includes(o.type)) isEnemy = true;
+    } else {
+      if(['roman','yours'].includes(o.type)) isEnemy = true;
+    }
+    if(isEnemy){ let d=dist(u,o); if(d<minDist){minDist=d; target=o;} }
+  }
+  return target;
+}
+function spawnBlood(gx, gy){
+  for(let i=0;i<3;i++) particles.push({x:gx*TILE+TILE/2, y:gy*TILE+TILE/2, vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3, life:1, color:'#900'});
+}
+function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
+function updateFX(){
+  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.life-=0.05}); particles=particles.filter(p=>p.life>0);
+  floats.forEach(f=>{f.y-=0.3; f.life-=0.02}); floats=floats.filter(f=>f.life>0);
+}
+function showMsg(txt, col){
+  const el=document.getElementById('battle-text');
+  el.innerText=txt; el.style.color=col; el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0, 2500);
+}
+
+// =========================
+//  END SCREEN (history + map)
+// =========================
+function gameOver(t, win=false){
+  gameActive=false;
+  const overlay = document.getElementById('overlay');
+  overlay.style.display='flex';
+
+  overlay.innerHTML = `
+    <h1 style="color:${win? 'var(--gold)' : 'var(--red)'}">${win ? 'VICTORY' : 'DEFEAT'}</h1>
+    <p><b>${t}</b></p>
+    ${HISTORY_HTML}
+    <button class="btn-start btn-gold" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+    <button class="btn-start btn-muted" id="btn-replay" style="margin-top:10px;">REPLAY</button>
+  `;
+
+  document.getElementById('btn-map').onclick = goToMap;
+  document.getElementById('btn-replay').onclick = ()=> location.reload();
+
+  // auto-return after a beat (adjust or remove)
+  setTimeout(goToMap, 2200);
+}
+
+// DPR-safe resize (draw in CSS pixels)
+function resize(){
+  const w = BOX.clientWidth;
+  const h = BOX.clientHeight;
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  CANVAS.width = Math.floor(w * dpr);
+  CANVAS.height = Math.floor(h * dpr);
+  CTX.setTransform(dpr,0,0,dpr,0,0);
+  CTX.imageSmoothingEnabled=false;
+}
+window.addEventListener('resize', resize, {passive:true});
+resize();
+</script>
+
+</body>
+</html>
