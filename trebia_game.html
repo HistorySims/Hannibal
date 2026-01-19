@@ -17,13 +17,15 @@
     height:100dvh; width:100%;
     overflow:hidden;
     display:flex; align-items:center; justify-content:center;
+    overscroll-behavior:none;
   }
 
   #game-box{
     position:relative; width:100%; height:100%;
-    max-width:800px; background:#2e2e30; 
+    max-width:800px; background:#2e2e30;
     overflow:hidden;
     box-shadow:0 0 20px rgba(0,0,0,0.5);
+    touch-action:none; /* helps keep mobile from scrolling/zooming */
   }
 
   canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
@@ -66,7 +68,7 @@
 
   .btn-wrapper{
     position:absolute; bottom:30px; right:30px;
-    display:flex; flex-direction:column; gap:15px;
+    display:flex; flex-direction:column; gap:10px;
     pointer-events:auto; align-items:center;
   }
   #btn-attack{
@@ -78,6 +80,15 @@
   }
   #btn-attack:active{transform:scale(0.95); background:#d97706;}
   .sword-icon{font-size:32px;}
+  .btn-label{
+    font-size:11px;
+    font-weight:900;
+    letter-spacing:1px;
+    color:rgba(255,255,255,0.9);
+    text-shadow:0 1px 3px rgba(0,0,0,0.9);
+    margin-top:-2px;
+    pointer-events:none;
+  }
 
   #center-msg{
     position:absolute; top:30%; left:50%; transform:translate(-50%,-50%);
@@ -95,11 +106,24 @@
     padding:20px; text-align:center;
   }
   h1{color:#93c5fd; margin:0 0 10px 0; font-size:32px; letter-spacing:2px;}
-  p{color:#ccc; margin-bottom:20px; font-size:15px; max-width:360px; line-height:1.5;}
+  p{color:#ccc; margin-bottom:16px; font-size:15px; max-width:360px; line-height:1.5;}
+  .btn-row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
   .btn-start{
-    background:var(--red); color:#fff; border:none; padding:14px 30px;
-    font-size:18px; font-weight:900; border-radius:8px;
+    background:var(--red); color:#fff; border:none; padding:14px 22px;
+    font-size:16px; font-weight:900; border-radius:8px;
     box-shadow:0 4px 0 #991b1b;
+  }
+  .btn-muted{
+    background:#475569; color:#fff; border:none; padding:14px 22px;
+    font-size:16px; font-weight:900; border-radius:8px;
+    box-shadow:0 4px 0 #334155;
+  }
+
+  /* On desktop, make the mobile controls a bit smaller so they don’t dominate */
+  @media (hover:hover) and (pointer:fine){
+    #stick-zone{ width:120px; height:120px; bottom:18px; left:18px; opacity:0.9; }
+    #btn-attack{ width:68px; height:68px; }
+    .btn-label{ font-size:10px; }
   }
 </style>
 </head>
@@ -107,14 +131,8 @@
 
 <div id="game-box">
   <div id="fog-layer"></div>
-  
-  <div id="overlay">
-    <h1>TREBIA</h1>
-    <p><b>Winter, 218 BC.</b></p>
-    <p>Cross the freezing river to ambush Hannibal.</p>
-    <p><b>Warning:</b> The river is freezing. If you get wet, you will be slow for the entire battle.</p>
-    <button class="btn-start" onclick="startGame()">CROSS THE RIVER</button>
-  </div>
+
+  <div id="overlay"></div>
 
   <div class="hud-top">
     <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
@@ -127,9 +145,10 @@
   <div class="controls-layer">
     <div id="stick-zone"><div class="stick-bg"><div class="stick-nub" id="stick"></div></div></div>
     <div class="btn-wrapper">
-      <div id="btn-attack" ontouchstart="handleAttack(event)" onmousedown="handleAttack(event)">
+      <div id="btn-attack" aria-label="Attack" ontouchstart="handleAttack(event)" onmousedown="handleAttack(event)">
         <div class="sword-icon">⚔️</div>
       </div>
+      <div class="btn-label">SPACEBAR</div>
     </div>
   </div>
 </div>
@@ -142,7 +161,7 @@ const P = {
   metal:'#b7bcc5', black:'#111114',
   roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
   gold:'#fbbf24', white:'#e7e7ea', elephant: '#555',
-  ice: '#a5f3fc', deep: '#172554', reeds: '#22d3ee', // Lighter Reeds
+  ice: '#a5f3fc', deep: '#172554', reeds: '#22d3ee',
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
@@ -150,6 +169,7 @@ const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
 const NEXT_PAGE = "map.html";
 
+// One history block only (no duplicate module)
 const HISTORY_HTML = `
   <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF THE TREBIA (218 BC)</h2>
   <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
@@ -164,27 +184,21 @@ const HISTORY_HTML = `
     <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
     Hannibal’s first major victory. The Romans were baited into crossing the freezing river before breakfast, leaving them cold, hungry, and exhausted. Mago’s hidden force struck their rear.</p>
   </div>
-
-  <button class="btn-start" id="btn-map" style="margin-top:20px;">
-    RETURN TO MAP
-  </button>
 `;
+
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
 
 function drawSprite(u, scale){
-  const x = u.x * TILE - (u.type==='elephant'?0:4); 
+  const x = u.x * TILE - (u.type==='elephant'?0:4);
   const y = u.y * TILE - 8;
   const s = scale;
   let coat = u.type==='roman'?P.roman:(u.type==='yours'?P.you:P.inv);
-  
-  // FROZEN EFFECT (Turn Cyan)
-  if(u.frozen > 0) coat = '#06b6d4'; 
 
-  // ELEPHANT
+  if(u.frozen > 0) coat = '#06b6d4';
+
   if(u.type === 'elephant'){
-    const es = s * 2; 
     CTX.fillStyle = 'rgba(0,0,0,0.4)';
-    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill(); 
+    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill();
     CTX.fillStyle = '#666'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
     CTX.fillStyle = '#888'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
     CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 6*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 6*s);
@@ -192,7 +206,6 @@ function drawSprite(u, scale){
     return;
   }
 
-  // STANDARD UNIT
   CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
   px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
   px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
@@ -205,17 +218,16 @@ function drawSprite(u, scale){
 function drawRiverTile(x, y, type){
   const s = TILE;
   const X = x*s; const Y = y*s;
-  
-  if(type === 1){ // DEEP
+
+  if(type === 1){
     CTX.fillStyle = P.deep;
     CTX.fillRect(X,Y,s,s);
     if((Math.floor(Date.now()/600) + x)%4 === 0){
       CTX.fillStyle = 'rgba(0,0,0,0.3)'; CTX.fillRect(X, Y+s/2, s, 2);
     }
-  } else { // REEDS (Safe)
+  } else {
     CTX.fillStyle = P.reeds;
     CTX.fillRect(X,Y,s,s);
-    CTX.fillStyle = '#155e75';
     px(X+4, Y+4, 2, '#155e75'); px(X+12, Y+10, 2, '#155e75'); px(X+18, Y+2, 2, '#155e75');
   }
 }
@@ -240,8 +252,8 @@ const PACE = {
 // =========================
 let gameActive = false;
 let cam = {x:0, y:0};
-let grid = []; 
-let terrain = []; // 0=ground, 1=deep, 2=reeds
+let grid = [];
+let terrain = [];
 let units = [];
 let particles = [];
 let snow = [];
@@ -252,7 +264,64 @@ let battlePhase = 0; // 0=Cross, 1=Reveal, 2=Rout
 let phaseTimer = 0;
 
 let input = {dx:0, dy:0};
+
+// Keyboard state (desktop)
+const keyState = {up:false, down:false, left:false, right:false};
+function recomputeKeyInput(){
+  // Resolve axis with simple priority: if both pressed, cancel that axis.
+  const x = (keyState.left? -1:0) + (keyState.right? 1:0);
+  const y = (keyState.up? -1:0) + (keyState.down? 1:0);
+
+  // If stick is active, it already sets input. Only apply keyboard when stick inactive.
+  if(stick.active) return;
+
+  input.dx = (x===0 ? 0 : (x>0 ? 1 : -1));
+  input.dy = (y===0 ? 0 : (y>0 ? 1 : -1));
+
+  // Optional: avoid diagonal movement (keep your original “one axis” feel)
+  if(input.dx && input.dy){
+    // pick the most recently pressed axis by favoring horizontal when both
+    // (simple, consistent)
+    input.dy = 0;
+  }
+}
+
+// Virtual stick
 let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
+
+function buildIntro(){
+  const overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <h1>TREBIA</h1>
+    <p><b>Winter, 218 BC.</b></p>
+    <p>Cross the freezing river to ambush Hannibal.</p>
+    <p><b>Warning:</b> The river is freezing. If you get wet, you will be slow for the entire battle.</p>
+    <p style="margin-top:6px; color:#bbb; font-size:13px;">
+      <b>Desktop:</b> Arrow keys / WASD to move, <b>Space</b> to slash.
+    </p>
+    <div class="btn-row">
+      <button class="btn-start" id="btn-start">CROSS THE RIVER</button>
+      <button class="btn-muted" id="btn-history">HISTORY</button>
+    </div>
+  `;
+  document.getElementById('btn-start').onclick = startGame;
+  document.getElementById('btn-history').onclick = () => showHistoryOverlay();
+}
+function showHistoryOverlay(){
+  const overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <h1>HISTORY</h1>
+    ${HISTORY_HTML}
+    <div class="btn-row" style="margin-top:18px;">
+      <button class="btn-muted" id="btn-back">BACK</button>
+    </div>
+  `;
+  document.getElementById('btn-back').onclick = buildIntro;
+}
+
+buildIntro();
 
 function startGame(){
   document.getElementById('overlay').style.display = 'none';
@@ -267,46 +336,42 @@ function setupMap(){
   units = []; grid = []; particles = []; floats = []; snow = [];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
   terrain = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
-  
+
   battlePhase = 0; phaseTimer = 0;
 
   const CX = Math.floor(GRID_W/2);
-  const CY = Math.floor(GRID_H/2);
 
-  // --- RIVER GENERATION ---
-  // 4 Tiles Wide Total (y=30 to y=33)
+  // River: 4 tiles wide (y=30..33)
   for(let y=30; y<34; y++){
     for(let x=0; x<GRID_W; x++){
       let band = Math.floor(x / 3);
-      if(band % 2 === 0) terrain[y][x] = 2; // Reeds
-      else terrain[y][x] = 1; // Deep
+      terrain[y][x] = (band % 2 === 0) ? 2 : 1; // Reeds vs Deep
     }
   }
 
-  // Player
   player = spawnUnit(CX, 50, 'yours');
+  player.attackCd = 0;
+
   cam.x = player.x*TILE; cam.y = player.y*TILE;
 
-  // Roman Army
   for(let x=0; x<GRID_W; x++){
     for(let y=48; y<55; y++){
-      // Spawn mostly
       if(Math.random()>0.2) spawnUnit(x,y,'roman');
     }
   }
 
-  // Snow
   for(let i=0; i<50; i++) snow.push({x:Math.random()*GRID_W*TILE, y:Math.random()*GRID_H*TILE, s:Math.random()*2+1});
 
   showMsg("FOLLOW THE REEDS!", "#fff");
+  document.getElementById('fog-layer').style.opacity = 1;
 }
 
 function spawnUnit(gx, gy, type){
   if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H||grid[gy][gx]) return null;
   let hp = type==='elephant' ? 80 : (type==='yours'?50:6);
-  let u = { 
-    id:Math.random(), x:gx, y:gy, type, hp, maxHp:hp, 
-    cooldown:Math.random()*20, frozen:0, state:'normal' 
+  let u = {
+    id:Math.random(), x:gx, y:gy, type, hp, maxHp:hp,
+    cooldown:Math.random()*20, frozen:0, state:'normal'
   };
   units.push(u);
   grid[gy][gx] = u;
@@ -326,30 +391,28 @@ function loop(){
 function update(){
   phaseTimer++;
 
-  // Ambush Trigger
+  if(player && player.attackCd > 0) player.attackCd--;
+
+  // Ambush trigger
   if(battlePhase === 0 && player.y < 28){
     battlePhase = 1;
     document.getElementById('fog-layer').style.opacity = 0;
     showMsg("THE FOG LIFTS...", "#fff");
-    
-    // SPAWN TRAP
+
     setTimeout(()=>{
       showMsg("IT'S MAGO! BEHIND US!", "#ef4444");
-      battlePhase = 2; // ROUT START
-      
-      // Elephants
+      battlePhase = 2;
+
       spawnUnit(15, 12, 'elephant');
       spawnUnit(20, 10, 'elephant');
       spawnUnit(25, 12, 'elephant');
-      
-      // Main Infantry
+
       for(let x=0; x<40; x+=3){
         for(let y=5; y<15; y+=3){
           if(Math.random()>0.5) spawnUnit(x, y, 'invader');
         }
       }
 
-      // MAGO'S AMBUSH (Behind the river)
       for(let x=0; x<40; x+=4){
         spawnUnit(x, 50, 'invader');
         spawnUnit(x+1, 51, 'invader');
@@ -369,18 +432,17 @@ function update(){
   for(let u of units){
     if(u.hp<=0) continue;
 
-    // TERRAIN
+    // Terrain effects
     let t = terrain[u.y][u.x];
-    if(t === 1){ // Deep Water
+    if(t === 1){
       if(frameStep(30)){
         u.hp -= 3;
         spawnFloat("Drowning", u.x, u.y, "#3b82f6");
       }
-      u.frozen = 1350; // MASSIVE FREEZE (Effectively permanent)
-    } else if (t === 2){ // Reeds
-      if(u.frozen <= 0) u.frozen = 1350; 
+      u.frozen = 1350;
+    } else if (t === 2){
+      if(u.frozen <= 0) u.frozen = 1350;
     }
-
     if(u.frozen > 0) u.frozen--;
 
     if(u.type==='yours'){
@@ -393,10 +455,10 @@ function update(){
       handleAI(u);
     }
   }
-  
+
   units = units.filter(u=>u.hp>0);
   updateFX();
-  
+
   if(player.hp<=0) gameOver("Died in the Trebia.");
   document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman').length;
   document.getElementById('ui-han').innerText  = units.filter(u=>u.type==='invader'||u.type==='elephant').length;
@@ -413,11 +475,10 @@ function handleAI(u){
     let target = findNearestEnemy(u);
     if(target){
       md = getStep(u, target);
-      // TRAMPLE
       let tx = u.x + md.x; let ty = u.y + md.y;
       if(grid[ty] && grid[ty][tx] && grid[ty][tx].type !== 'invader' && grid[ty][tx].type !== 'elephant'){
         let victim = grid[ty][tx];
-        victim.hp -= 20; 
+        victim.hp -= 20;
         spawnBlood(victim.x, victim.y);
         spawnFloat("CRUSH", victim.x, victim.y, "#f00");
         let pushY = victim.y + 1;
@@ -426,19 +487,16 @@ function handleAI(u){
         }
       }
     }
-  } 
+  }
   else if(u.type === 'roman'){
     if(battlePhase === 2){
-      // PANIC MODE
       speed = PACE.panicSpeed;
-      if(Math.random() > 0.2) md = {x: (Math.random()>0.5?1:-1), y: 1}; 
+      if(Math.random() > 0.2) md = {x: (Math.random()>0.5?1:-1), y: 1};
       else md = {x: (Math.random()-0.5)*2 > 0 ? 1 : -1, y: (Math.random()-0.5)*2 > 0 ? 1 : -1};
       spawnFloat("!", u.x, u.y, "#fff");
     } else {
-      // SMART ADVANCE: Stick to Reeds (2)
       let nextY = u.y - 1;
       let nextX = u.x;
-      
       if(isSafe(nextX, nextY)){
         md = {x:0, y:-1};
       } else if(isSafe(nextX-1, nextY) || isSafe(nextX-1, u.y)){
@@ -446,7 +504,7 @@ function handleAI(u){
       } else if(isSafe(nextX+1, nextY) || isSafe(nextX+1, u.y)){
         md = {x:1, y:0};
       } else {
-        md = {x:0, y:-1}; // Forced to swim
+        md = {x:0, y:-1};
       }
     }
   }
@@ -469,7 +527,7 @@ function handleAI(u){
 
 function isSafe(x, y){
   if(x<0 || x>=GRID_W || y<0 || y>=GRID_H) return false;
-  return terrain[y][x] !== 1; // 1 is Deep Water
+  return terrain[y][x] !== 1;
 }
 
 function tryMove(u, dx, dy){
@@ -481,13 +539,11 @@ function tryMove(u, dx, dy){
 function attack(atk, def){
   let dmg = 1;
   if(def.type === 'elephant'){
-    // FIX: Backstab is when ATTACKER Y < ELEPHANT Y (North of Elephant)
-    // because Elephant faces South.
     if(atk.y < def.y){
-       dmg = 80; 
+       dmg = 80;
        spawnFloat("BACKSTAB!", def.x, def.y, P.gold);
     } else {
-       dmg = 0; 
+       dmg = 0;
        spawnFloat("TINK", def.x, def.y, "#ccc");
     }
   }
@@ -515,7 +571,7 @@ function draw(){
 
   CTX.fillStyle='#2e2e30';
   CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
-  
+
   CTX.fillStyle='#555';
   for(let i=0; i<100; i++) CTX.fillRect((i*47)% (GRID_W*TILE), (i*31)% (GRID_H*TILE), 2, 2);
 
@@ -527,7 +583,7 @@ function draw(){
 
   for(let u of units) drawSprite(u, SCALE);
   for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
-  
+
   CTX.font="bold 12px monospace"; CTX.textAlign="center";
   for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
   CTX.globalAlpha=1;
@@ -545,7 +601,7 @@ function draw(){
 //  UTILS & INPUT
 // =========================
 let frameC=0; function frameStep(n){ return (frameC++%n)===0; }
-function dist(a,b){ return Math.sqrt(Math.pow(a.x-b.x,2)+Math.pow(a.y-b.y,2)); }
+function dist(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
 function getStep(u,t){
   let dx=t.x-u.x, dy=t.y-u.y;
   if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
@@ -555,8 +611,13 @@ function findNearestEnemy(u){
   let target=null, minDist=99;
   for(let o of units){
     if(Math.abs(o.x-u.x)>10 || Math.abs(o.y-u.y)>10) continue;
-    let isEnemy = (u.type==='invader'||u.type==='elephant') ? (o.type==='roman'||o.type==='yours') : (o.type==='invader'||o.type==='elephant');
-    if(isEnemy){ let d=dist(u,o); if(d<minDist){minDist=d; target=o;} }
+    let isEnemy = (u.type==='invader'||u.type==='elephant')
+      ? (o.type==='roman'||o.type==='yours')
+      : (o.type==='invader'||o.type==='elephant');
+    if(isEnemy){
+      let d=dist(u,o);
+      if(d<minDist){minDist=d; target=o;}
+    }
   }
   return target;
 }
@@ -565,96 +626,136 @@ function spawnBlood(gx, gy){
 }
 function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
 function updateFX(){
-  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.life-=0.05}); particles=particles.filter(p=>p.life>0);
-  floats.forEach(f=>{f.y-=0.3; f.life-=0.02}); floats=floats.filter(f=>f.life>0);
+  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.life-=0.05});
+  particles=particles.filter(p=>p.life>0);
+  floats.forEach(f=>{f.y-=0.3; f.life-=0.02});
+  floats=floats.filter(f=>f.life>0);
 }
 function showMsg(txt, col){
-  const el=document.getElementById('battle-text'); el.innerText=txt; el.style.color=col; el.style.opacity=1; setTimeout(()=>el.style.opacity=0, 2500);
+  const el=document.getElementById('battle-text');
+  el.innerText=txt; el.style.color=col; el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0, 2500);
 }
 function gameOver(reason){
   gameActive = false;
 
   const overlay = document.getElementById('overlay');
   overlay.style.display = 'flex';
-
   overlay.innerHTML = `
     <h1>DEFEAT</h1>
     <p><b>${reason}</b></p>
     <p style="margin-bottom:10px;">The battle is over.</p>
     ${HISTORY_HTML}
+    <div class="btn-row" style="margin-top:18px;">
+      <button class="btn-start" id="btn-map">RETURN TO MAP</button>
+      <button class="btn-muted" id="btn-restart">RESTART</button>
+    </div>
   `;
 
-  document.getElementById('btn-map').onclick = () => {
-    window.location.href = NEXT_PAGE;
-  };
+  document.getElementById('btn-map').onclick = () => { window.location.href = NEXT_PAGE; };
+  document.getElementById('btn-restart').onclick = () => { location.reload(); };
 }
 
+// ----- Virtual stick input (mobile) -----
 const stickZone=document.getElementById('stick-zone');
 const stickEl=document.getElementById('stick');
-stickZone.addEventListener('touchstart',e=>{stick.active=true; stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY; stick.curX=stick.startX; stick.curY=stick.startY;}, {passive:false});
-stickZone.addEventListener('touchmove',e=>{if(!stick.active)return; e.preventDefault(); stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY; updateStick();}, {passive:false});
-const endStick=()=>{stick.active=false; stickEl.style.transform='translate(0,0)'; input.dx=0; input.dy=0;};
-stickZone.addEventListener('touchend', endStick); stickZone.addEventListener('touchcancel', endStick);
+
+stickZone.addEventListener('touchstart',e=>{
+  stick.active=true;
+  stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
+  stick.curX=stick.startX; stick.curY=stick.startY;
+}, {passive:false});
+
+stickZone.addEventListener('touchmove',e=>{
+  if(!stick.active) return;
+  e.preventDefault();
+  stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY;
+  updateStick();
+}, {passive:false});
+
+const endStick=()=>{
+  stick.active=false;
+  stickEl.style.transform='translate(0,0)';
+  input.dx=0; input.dy=0;
+  // if keyboard is held, restore it
+  recomputeKeyInput();
+};
+stickZone.addEventListener('touchend', endStick);
+stickZone.addEventListener('touchcancel', endStick);
+
 function updateStick(){
-  let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY, d=Math.sqrt(dx*dx+dy*dy);
-  if(d>40){dx=(dx/d)*40; dy=(dy/d)*40;}
+  let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY;
+  let d=Math.sqrt(dx*dx+dy*dy);
+  if(d>40){ dx=(dx/d)*40; dy=(dy/d)*40; }
   stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
-  input.dx=0; input.dy=0; if(d>10){ if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx); else input.dy=Math.sign(dy); }
+
+  input.dx=0; input.dy=0;
+  if(d>10){
+    if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx);
+    else input.dy=Math.sign(dy);
+  }
 }
+
+// ----- Attack (button + spacebar) -----
 window.handleAttack = function(e){
-  e.stopPropagation(); e.preventDefault(); if(!gameActive||!player||player.hp<=0)return;
+  if(e){ e.stopPropagation(); e.preventDefault(); }
+  if(!gameActive||!player||player.hp<=0) return;
+  if(player.attackCd && player.attackCd>0) return;
+
   const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
   for(let d of dirs){
     let tx=player.x+d[0], ty=player.y+d[1];
     if(grid[ty]&&grid[ty][tx]) attack(player, grid[ty][tx]);
   }
   spawnFloat("SWING", player.x, player.y, "#fff");
+  player.attackCd = 18; // small throttle so holding space doesn’t melt everything
 };
-function resize(){ CANVAS.width=BOX.clientWidth; CANVAS.height=BOX.clientHeight; CTX.imageSmoothingEnabled=false; }
-window.addEventListener('resize', resize);
-</script>
-<script>
-// --- HISTORICAL CONTEXT MODULE ---
-(function addHistoryModule(){
-    // 1. Data
-    const historyData = `
-        <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF THE TREBIA (218 BC)</h2>
-        <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
-            <p><strong style="color:#fff">FORCES:</strong><br>
-            <span style="color:#ef4444">Rome:</span> ~42,000 (Sempronius Longus)<br>
-            <span style="color:#93c5fd">Carthage:</span> ~30,000 (Hannibal)</p>
-            
-            <p><strong style="color:#fff">CASUALTIES:</strong><br>
-            <span style="color:#ef4444">Rome:</span> ~26,000-32,000 killed/captured<br>
-            <span style="color:#93c5fd">Carthage:</span> ~5,000 (mostly Celtic allies)</p>
-            
-            <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
-            Hannibal's first major victory. He baited the Romans into crossing the freezing river before breakfast, leaving them tired and hungry. His brother Mago hid 2,000 elite troops in a ravine (the "fog" in this game) to attack the Roman rear.</p>
-        </div>
-        <button class="btn-start" onclick="location.reload()" style="margin-top:20px;">BACK TO GAME</button>
-    `;
 
-    // 2. Add Button to Intro
-    const introBox = document.querySelector('.intro-box') || document.querySelector('#overlay');
-    const btn = document.createElement('button');
-    btn.innerText = "HISTORY";
-    btn.className = "btn-start";
-    btn.style.backgroundColor = "#475569";
-    btn.style.marginTop = "10px";
-    btn.style.boxShadow = "0 4px 0 #334155";
-    btn.onclick = () => {
-        introBox.innerHTML = historyData;
-    };
-    
-    // Check if we are inserting into the intro box (Desktop) or overlay (Mobile)
-    if(document.querySelector('.intro-box')) {
-        document.querySelector('.intro-box').appendChild(btn);
-    } else {
-        introBox.appendChild(btn);
-    }
-})();
+// ----- Keyboard controls (desktop) -----
+function keyToDirDown(k){
+  if(k === 'ArrowUp' || k === 'w' || k === 'W') keyState.up = true;
+  if(k === 'ArrowDown' || k === 's' || k === 'S') keyState.down = true;
+  if(k === 'ArrowLeft' || k === 'a' || k === 'A') keyState.left = true;
+  if(k === 'ArrowRight' || k === 'd' || k === 'D') keyState.right = true;
+}
+function keyToDirUp(k){
+  if(k === 'ArrowUp' || k === 'w' || k === 'W') keyState.up = false;
+  if(k === 'ArrowDown' || k === 's' || k === 'S') keyState.down = false;
+  if(k === 'ArrowLeft' || k === 'a' || k === 'A') keyState.left = false;
+  if(k === 'ArrowRight' || k === 'd' || k === 'D') keyState.right = false;
+}
+
+window.addEventListener('keydown', (e)=>{
+  // prevent scrolling + button click activation
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+
+  if(e.key === ' ' || e.code === 'Space'){
+    handleAttack(e);
+    return;
+  }
+
+  keyToDirDown(e.key);
+  recomputeKeyInput();
+}, {passive:false});
+
+window.addEventListener('keyup', (e)=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  keyToDirUp(e.key);
+  recomputeKeyInput();
+}, {passive:false});
+
+// Keep focus on the page so keys work after tapping/clicking
+BOX.addEventListener('mousedown', ()=>{ BOX.focus?.(); });
+BOX.addEventListener('touchstart', ()=>{ BOX.focus?.(); }, {passive:true});
+
+// Resize
+function resize(){
+  CANVAS.width=BOX.clientWidth;
+  CANVAS.height=BOX.clientHeight;
+  CTX.imageSmoothingEnabled=false;
+}
+window.addEventListener('resize', resize);
 </script>
 
 </body>
 </html>
-
