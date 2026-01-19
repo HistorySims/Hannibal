@@ -3,291 +3,277 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-<title>Cannae: Chromebook Edition</title>
+<title>Cannae: The Crush</title>
 <style>
   :root{
-    --bg:#0f172a; --panel:#1e293b; --border:#334155; --text:#f1f5f9;
-    --red:#ef4444; --gold:#f59e0b; --blue:#3b82f6; --green:#22c55e;
+    --bg:#111;
+    --red:#ef4444; --gold:#f59e0b; --blue:#3b82f6; --text:#e7e7ea;
   }
-  *{box-sizing:border-box}
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;}
   html,body{
     margin:0; padding:0; background:var(--bg); color:var(--text);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    height:100vh; overflow:hidden;
+    font-family:system-ui,-apple-system,sans-serif;
+    height:100dvh; width:100%;
+    overflow:hidden;
     display:flex; align-items:center; justify-content:center;
+  }
+  #game-box{
+    position:relative; width:100%; height:100%;
+    max-width:800px; background:#2d332d;
+    overflow:hidden;
+    box-shadow:0 0 20px rgba(0,0,0,0.5);
+  }
+  canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
+  .hud-top{
+    position:absolute; top:10px; left:0; width:100%; height:40px; z-index:10;
+    display:flex; justify-content:center; align-items:center;
+    pointer-events:none; font-weight:900; font-size:15px;
+    text-shadow:0 1px 3px #000; gap:15px;
+    background:linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+  }
+  .team-rom{color:var(--red);}
+  .team-han{color:#60a5fa;}
+  .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
+
+  /* --- Mobile stick (touch) --- */
+  #stick-zone{
+    position:absolute; bottom:20px; left:20px;
+    width:140px; height:140px; pointer-events:auto;
+    background:rgba(0,0,0,0.1); border-radius:50%;
+  }
+  .stick-bg{
+    width:100%; height:100%; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.2); position:relative;
+  }
+  .stick-nub{
+    position:absolute; top:50%; left:50%;
+    width:50px; height:50px; margin:-25px 0 0 -25px;
+    background:rgba(255,255,255,0.8); border-radius:50%;
+    box-shadow:0 2px 5px rgba(0,0,0,0.5);
+  }
+
+  /* --- Desktop D-pad (clickable) --- */
+  #dpad{
+    position:absolute; bottom:20px; left:20px;
+    width:140px; height:140px;
+    pointer-events:auto;
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap:8px;
+    align-items:center;
+    justify-items:center;
+  }
+  .dpad-btn{
+    width:44px; height:44px;
+    border-radius:12px;
+    background:rgba(255,255,255,0.16);
+    border:1px solid rgba(255,255,255,0.28);
+    display:grid; place-items:center;
+    color:#fff; font-size:18px; font-weight:900;
+    box-shadow:0 3px 10px rgba(0,0,0,0.35);
+    user-select:none;
     touch-action:none;
   }
+  .dpad-btn:active{ transform:scale(0.96); background:rgba(255,255,255,0.22); }
+  .dpad-spacer{ width:44px; height:44px; opacity:0; }
 
-  /* LAYOUT */
-  #app-container{
-    display:flex; width:100vw; height:100vh;
-    background:#000;
-    transition: all 0.2s ease;
+  /* show stick on touch devices, dpad on non-touch */
+  .touch-only{ display:none; }
+  .no-touch-only{ display:none; }
+  body.is-touch .touch-only{ display:block; }
+  body.is-touch .no-touch-only{ display:none; }
+  body.is-no-touch .touch-only{ display:none; }
+  body.is-no-touch .no-touch-only{ display:grid; } /* dpad is a grid */
+
+  .btn-wrapper{
+    position:absolute; bottom:30px; right:30px;
+    display:flex; flex-direction:column; gap:12px;
+    pointer-events:auto; align-items:center;
+  }
+  #btn-attack{
+    width:75px; height:75px;
+    background:rgba(245,158,11,0.95);
+    border:3px solid #fff; border-radius:50%;
+    display:grid; place-items:center;
+    box-shadow:0 4px 10px rgba(0,0,0,0.6);
+  }
+  #btn-attack:active{transform:scale(0.95); background:#d97706;}
+  .sword-icon{font-size:32px;}
+  .btn-hint{
+    font-size:11px;
+    color:rgba(255,255,255,0.75);
+    margin-top:-6px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.7);
   }
 
-  /* LEFT: BATTLEFIELD */
-  #game-stage{
-    flex:1; position:relative; background:#2d332d; overflow:hidden;
-    border-right:4px solid var(--border);
-    cursor:crosshair;
-    touch-action:none;
+  #btn-zoom{
+    width:40px; height:40px;
+    background:rgba(255,255,255,0.2);
+    border:1px solid rgba(255,255,255,0.4); border-radius:50%;
+    display:grid; place-items:center; font-size:18px; color:#fff;
+    backdrop-filter:blur(4px);
   }
-  canvas{display:block; width:100%; height:100%; image-rendering:pixelated;}
-
-  /* TEXT OVERLAYS */
   #center-msg{
-    position:absolute; top:20%; left:50%; transform:translate(-50%,-50%);
-    text-align:center; width:100%; pointer-events:none; z-index:40;
+    position:absolute; top:25%; left:50%; transform:translate(-50%,-50%);
+    text-align:center; width:90%; pointer-events:none; z-index:30;
   }
   .big-text{
-    font-size:36px; font-weight:900; color:#fff; letter-spacing:2px;
-    text-shadow:0 4px 12px rgba(0,0,0,1);
+    font-size:26px; font-weight:900; color:#fff;
+    text-shadow:0 2px 8px rgba(0,0,0,1);
     opacity:0; transition:opacity 0.5s;
   }
-
-  /* START/END OVERLAY */
   #overlay{
-    position:absolute; inset:0; background:rgba(15,23,42,0.96); z-index:50;
+    position:absolute; inset:0; background:rgba(0,0,0,0.95); z-index:100;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center;
+    padding:20px; text-align:center;
   }
-  .intro-box{
-    max-width:600px; padding:40px; border:2px solid var(--border);
-    background:var(--panel); border-radius:12px;
-    box-shadow:0 20px 50px rgba(0,0,0,0.8);
-  }
-  h1{color:var(--gold); margin:0 0 15px 0; font-size:32px; letter-spacing:2px; text-transform:uppercase;}
-  p{color:#cbd5e1; margin-bottom:15px; font-size:16px; line-height:1.6;}
-  .highlight{color:var(--red); font-weight:bold;}
+  h1{color:var(--gold); margin:0 0 10px 0; font-size:32px; letter-spacing:2px;}
+  p{color:#ccc; margin-bottom:20px; font-size:15px; max-width:360px; line-height:1.5;}
   .btn-start{
-    background:var(--red); color:#fff; border:none; padding:16px 40px;
-    font-size:18px; font-weight:900; border-radius:6px; cursor:pointer;
-    transition:transform 0.1s; box-shadow:0 4px 0 #991b1b; margin-top:10px;
+    background:var(--red); color:#fff; border:none; padding:14px 30px;
+    font-size:18px; font-weight:900; border-radius:8px;
+    box-shadow:0 4px 0 #991b1b;
   }
-  .btn-start:hover{transform:scale(1.03);}
-  .btn-muted{
-    background:#475569; box-shadow:0 4px 0 #334155;
-  }
-  .btn-gold{
-    background:var(--gold); box-shadow:0 4px 0 #92400e;
-  }
-
-  /* RIGHT: SIDEBAR */
-  #sidebar{
-    width:340px; background:var(--panel);
-    display:flex; flex-direction:column;
-    z-index:20; border-left:1px solid var(--border);
-    transition: transform 0.2s ease;
-  }
-  .sb-header{
-    padding:20px; background:rgba(0,0,0,0.2); border-bottom:1px solid var(--border);
-    display:flex; justify-content:space-between; align-items:center;
-  }
-  .game-title{font-weight:900; font-size:14px; letter-spacing:1px; color:var(--gold);}
-
-  /* LOG TOGGLE CONTROLS */
-  .btn-mini {
-    background:rgba(255,255,255,0.1); border:1px solid var(--border);
-    color:var(--text); cursor:pointer; padding:4px 8px; border-radius:4px;
-    font-family:monospace; font-size:12px;
-  }
-  .btn-mini:hover{background:rgba(255,255,255,0.2);}
-  
-  #btn-reopen-log {
-    position:absolute; top:15px; right:15px; z-index:30;
-    background:var(--panel); color:var(--gold); 
-    border:1px solid var(--border); box-shadow:0 4px 10px rgba(0,0,0,0.5);
-    display:none; /* Hidden by default */
-    font-weight:bold; letter-spacing:1px;
-  }
-
-  /* LOG CLOSED STATE */
-  #app-container.log-closed #sidebar { display:none; }
-  #app-container.log-closed #game-stage { border-right:none; }
-  #app-container.log-closed #btn-reopen-log { display:block; }
-
-  /* STATS & LOGS */
-  .stats-container{
-    padding:20px; display:grid; gap:12px;
-  }
-  .stat-row{
-    display:flex; justify-content:space-between; align-items:center;
-    padding:12px; background:rgba(255,255,255,0.05); border-radius:6px;
-    border:1px solid rgba(255,255,255,0.1);
-  }
-  .stat-label{font-size:11px; text-transform:uppercase; font-weight:bold; color:#94a3b8;}
-  .stat-val{font-size:18px; font-weight:900;}
-  .val-rom{color:var(--red);}
-  .val-han{color:var(--blue);}
-
-  .info-box{
-    padding:20px; flex:1; border-top:1px solid var(--border);
-    background:rgba(0,0,0,0.2); overflow-y:auto;
-  }
-  .log-line{
-    font-family:monospace; font-size:11px; margin-bottom:6px; padding-bottom:6px;
-    border-bottom:1px solid rgba(255,255,255,0.05); color:#cbd5e1;
-  }
-  .log-line.event{color:var(--gold); font-weight:bold;}
-
-  .controls-hint{
-    padding:15px; background:#0f172a; border-top:1px solid var(--border);
-    font-size:11px; color:#64748b; text-align:center;
-  }
-  kbd{
-    background:#333; padding:2px 6px; border-radius:3px; border:1px solid #555;
-    color:#fff; font-family:monospace; font-weight:bold; font-size:12px;
-  }
+  .btn-start:active{transform:translateY(4px); box-shadow:none;}
 </style>
 </head>
 <body>
-
-<div id="app-container">
-
-  <div id="game-stage">
-    <button class="btn-mini" id="btn-reopen-log">OPEN LOG</button>
-
-    <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
-    <canvas id="cv"></canvas>
-
-    <div id="overlay">
-      <div class="intro-box" id="intro-box"></div>
-    </div>
+<div id="game-box">
+  <div id="overlay">
+    <h1>CANNAE</h1>
+    <p>You are a Centurion (Green/White). Your men will crowd around you as the trap closes.</p>
+    <p><b>Updated Physics:</b> Chain-shoving is enabled. If enemies pack too tightly, they will be <b>CRUSHED</b>.</p>
+    <button class="btn-start" onclick="startGame()">LEAD THE CHARGE</button>
   </div>
 
-  <div id="sidebar">
-    <div class="sb-header">
-      <div class="game-title">TACTICAL LOG</div>
-      <button class="btn-mini" id="btn-close-log">[-]</button>
-    </div>
-
-    <div class="stats-container">
-      <div class="stat-row">
-        <span class="stat-label">Roman Legions</span>
-        <span class="stat-val val-rom" id="ui-rome">0</span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Carthaginians</span>
-        <span class="stat-val val-han" id="ui-han">0</span>
-      </div>
-    </div>
-
-    <div class="info-box" id="log-box">
-      <div class="log-line">Battle commencing...</div>
-    </div>
-
-    <div class="controls-hint">
-      Desktop: <kbd>WASD</kbd>/<kbd>ARROWS</kbd> Move &nbsp;&bull;&nbsp; <kbd>SPACE</kbd> Attack<br>
-      Mobile: Drag to move &nbsp;&bull;&nbsp; Double-tap to attack
-    </div>
+  <div class="hud-top">
+    <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
+    <span class="team-han">CARTHAGE: <span id="ui-han">0</span></span>
   </div>
 
+  <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <canvas id="cv"></canvas>
+
+  <div class="controls-layer">
+    <!-- Touch joystick -->
+    <div id="stick-zone" class="touch-only">
+      <div class="stick-bg"><div class="stick-nub" id="stick"></div></div>
+    </div>
+
+    <!-- Desktop D-pad -->
+    <div id="dpad" class="no-touch-only" aria-label="D-pad controls">
+      <div class="dpad-spacer"></div>
+      <div class="dpad-btn" data-dir="up">▲</div>
+      <div class="dpad-spacer"></div>
+
+      <div class="dpad-btn" data-dir="left">◀</div>
+      <div class="dpad-spacer"></div>
+      <div class="dpad-btn" data-dir="right">▶</div>
+
+      <div class="dpad-spacer"></div>
+      <div class="dpad-btn" data-dir="down">▼</div>
+      <div class="dpad-spacer"></div>
+    </div>
+
+    <div class="btn-wrapper">
+      <div id="btn-zoom" onclick="toggleZoom()">🔍</div>
+      <div id="btn-attack" ontouchstart="handleAttack(event)" onmousedown="handleAttack(event)">
+        <div class="sword-icon">⚔️</div>
+      </div>
+      <div class="btn-hint">spacebar</div>
+    </div>
+  </div>
 </div>
 
 <script>
-// ===================================================
-//  ROUTING / END FLOW
-// ===================================================
-const NEXT_PAGE = "map.html";
-function goToMap(){ window.location.href = NEXT_PAGE; }
+// =========================
+//  TOUCH vs DESKTOP UI TOGGLE
+// =========================
+(function initInputMode(){
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  document.body.classList.add(isTouch ? 'is-touch' : 'is-no-touch');
+})();
 
-// ===================================================
-//  OVERLAY CONTENT (INTRO / HISTORY / END)
-// ===================================================
-const INTRO_HTML = `
-  <h1>BATTLE OF CANNAE</h1>
-  <p><b>216 BC.</b> Hannibal's greatest victory.</p>
-  <p>You are a Roman Centurion caught in the center. The line will bend, then break.</p>
-  <p class="highlight">SURVIVE THE CRUSH.</p>
-  <button class="btn-start" id="btn-start">FORM RANKS</button>
-`;
-
-const HISTORY_HTML = `
-  <h1 style="color:var(--red)">CANNAE (216 BC)</h1>
-  <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
-    <p><strong style="color:#fff">FORCES:</strong><br>
-      <span style="color:#ef4444">Rome:</span> ~86,000 (Varro &amp; Paullus)<br>
-      <span style="color:#60a5fa">Carthage:</span> ~50,000 (Hannibal)
-    </p>
-    <p><strong style="color:#fff">CASUALTIES:</strong><br>
-      <span style="color:#ef4444">Rome:</span> ~50,000–75,000 killed<br>
-      <span style="color:#60a5fa">Carthage:</span> ~6,000
-    </p>
-    <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
-      Hannibal allowed his weak center to retreat, drawing the Romans in.
-      His infantry on the wings then turned inward, and cavalry hit the rear.
-      Packed so tight, the Romans could barely fight back.
-    </p>
-  </div>
-`;
-
-function renderIntro(){
-  const box = document.getElementById('intro-box');
-  box.innerHTML = INTRO_HTML;
-
-  const histBtn = document.createElement('button');
-  histBtn.className = "btn-start btn-muted";
-  histBtn.textContent = "HISTORY";
-  histBtn.style.marginTop = "10px";
-  histBtn.onclick = ()=> renderHistory('intro');
-  box.appendChild(histBtn);
-
-  document.getElementById('btn-start').onclick = startGame;
-}
-
-function renderHistory(backTo){
-  const box = document.getElementById('intro-box');
-  box.innerHTML = `
-    ${HISTORY_HTML}
-    <button class="btn-start btn-muted" id="btn-back" style="margin-top:18px;">BACK</button>
-  `;
-  document.getElementById('btn-back').onclick = ()=> {
-    if(backTo === 'intro') renderIntro();
-  };
-}
-
-function finishRun(title, msg){
-  gameActive=false;
-  document.getElementById('overlay').style.display='flex';
-  const box = document.getElementById('intro-box');
-
-  box.innerHTML = `
-    <h1 style="color:var(--red)">${title}</h1>
-    <p><b>${msg}</b></p>
-    ${HISTORY_HTML}
-    <button class="btn-start btn-gold" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
-    <button class="btn-start btn-muted" id="btn-replay" style="margin-top:10px;">REPLAY</button>
-  `;
-
-  document.getElementById('btn-map').onclick = goToMap;
-  document.getElementById('btn-replay').onclick = ()=> { renderIntro(); };
-
-  // Auto return (keeps pacing, still readable)
-  setTimeout(goToMap, 2200);
-}
-
-// ===================================================
-//  ASSETS
-// ===================================================
+// =========================
+//  SPRITES
+// =========================
 const P = {
   metal:'#b7bcc5', black:'#111114',
   roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
   gold:'#fbbf24', white:'#e7e7ea',
-  mane:'#2b1a10', hoof:'#0b0b0c',
+  mane:'#2b1a10',
+  hoof:'#0b0b0c',
   shadow:'rgba(0,0,0,0.35)'
 };
-
 const CANVAS = document.getElementById('cv');
-const CTX = CANVAS.getContext('2d', {alpha:false});
-const STAGE = document.getElementById('game-stage');
+const CTX = CANVAS.getContext('2d');
+const BOX = document.getElementById('game-box');
 
-// ===================================================
+function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+function isInvaderType(t){ return (t==='invader' || t==='cavalry'); }
+
+function drawInfSprite(kind, x, y, scale){
+  const s = scale;
+  const coat =
+    kind==='roman' ? P.roman :
+    kind==='yours' ? P.you :
+    isInvaderType(kind) ? P.inv : P.inv;
+
+  CTX.fillStyle=P.shadow;
+  CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+
+  px(x+1*s, y+6*s, s, P.black);
+  px(x+6*s, y+6*s, s, P.black);
+  px(x+2*s, y+5*s, s, P.metal);
+  px(x+5*s, y+5*s, s, P.metal);
+
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+
+  if(kind==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
+  else if(kind==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
+  else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
+}
+function drawHorseSprite(x,y,scale){
+  const s=scale;
+  CTX.fillStyle=P.shadow;
+  CTX.beginPath(); CTX.ellipse(x+6*s, y+10*s, 6*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+
+  for(let dx=2; dx<=9; dx++) px(x+dx*s, y+6*s, s, P.inv);
+  for(let dx=3; dx<=10; dx++) px(x+dx*s, y+7*s, s, P.inv);
+  for(let dx=3; dx<=9; dx++) px(x+dx*s, y+8*s, s, P.inv);
+
+  px(x+2*s, y+5*s, s, P.inv);
+  px(x+1*s, y+5*s, s, P.inv);
+  px(x+0*s, y+6*s, s, P.inv);
+  px(x+1*s, y+6*s, s, P.inv);
+
+  px(x+2*s, y+5*s, s, P.mane);
+  px(x+2*s, y+6*s, s, P.mane);
+
+  px(x+6*s, y+4*s, s, P.black);
+  px(x+6*s, y+5*s, s, P.black);
+  px(x+7*s, y+5*s, s, P.black);
+
+  px(x+6*s, y+4*s, s, P.gold);
+
+  px(x+4*s, y+9*s, s, P.inv);
+  px(x+4*s, y+10*s, s, P.hoof);
+  px(x+8*s, y+9*s, s, P.inv);
+  px(x+8*s, y+10*s, s, P.hoof);
+}
+function drawSprite(kind, x, y, scale){
+  if(kind==='cavalry') return drawHorseSprite(x,y,scale);
+  return drawInfSprite(kind,x,y,scale);
+}
+
+// =========================
 //  CONFIG
-// ===================================================
+// =========================
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
-let SCALE = 3; // Desktop scale (we'll auto-tune on small screens)
+let SCALE = 2;
 
 const PACE = {
   playerMove: 16,
@@ -297,25 +283,38 @@ const PACE = {
   aiThinkJitter: 26,
   combatDelay: 56
 };
-
 const PHASE = {
   bendAt: 280,
   encircleAt: 1050,
   reinfAt: 1450
 };
-
-const PLAYER_ATTACK = { cooldownFrames: 18, maxHits: 2 };
+const PLAYER_ATTACK = {
+  cooldownFrames: 18,
+  maxHits: 2
+};
 const PRESSURE = {
   blockDiagonalWhenEngaged: true,
+  blockIntoPressAdj: 2,
+  blockWorseningContact: true,
   shoveChance: 0.25
 };
 const KNOT = {
-  startR: 12, endR: 4, shrinkEvery: 160
+  startR: 12,
+  endR: 4,
+  shrinkEvery: 160,
+  invaderBiteChance: 0.25
+};
+const SHIELDWALL = {
+  startAtPhase: 1,
+  reserveRadius: 14,
+  ringDesired: 8,
+  ringAggro: 0.9,
+  swapChance: 0.18
 };
 
-// ===================================================
+// =========================
 //  STATE
-// ===================================================
+// =========================
 let gameActive = false;
 let cam = {x:0, y:0};
 let grid = [];
@@ -323,72 +322,70 @@ let units = [];
 let particles = [];
 let floats = [];
 let player = null;
-
 let battlePhase = 0;
 let phaseTimer = 0;
 let hasReinforced = false;
 let frontY = 0;
 let doom = { x:0, y:0, r:KNOT.startR };
-
-// Input
-const keys = {w:false, a:false, s:false, d:false, up:false, down:false, left:false, right:false};
 let atkCD = 0;
 
-// Touch movement (mobile)
-let touchMove = {active:false, startX:0, startY:0, dx:0, dy:0, lastTap:0};
+// movement input comes from stick OR keyboard OR dpad
+let input = {dx:0, dy:0};
 
-let DPR=1, VIEW_W=0, VIEW_H=0;
+// keyboard state (WASD + arrows)
+let keysDown = { up:false, down:false, left:false, right:false };
 
-function resize(){
-  const rect = STAGE.getBoundingClientRect();
-  VIEW_W = Math.max(1, Math.floor(rect.width));
-  VIEW_H = Math.max(1, Math.floor(rect.height));
-  DPR = Math.min(3, window.devicePixelRatio || 1);
+let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
 
-  CANVAS.width = Math.floor(VIEW_W * DPR);
-  CANVAS.height = Math.floor(VIEW_H * DPR);
-  CTX.setTransform(DPR,0,0,DPR,0,0); // draw in CSS pixels
-  CTX.imageSmoothingEnabled = false;
-
-  // Auto scale down on small screens so units don't become huge
-  SCALE = (VIEW_W < 700) ? 2 : 3;
-}
-window.addEventListener('resize', resize, {passive:true});
-window.addEventListener('orientationchange', resize, {passive:true});
-
+// =========================
+//  START / SETUP
+// =========================
 function startGame(){
   document.getElementById('overlay').style.display = 'none';
+  document.querySelector('#overlay h1').innerText = "CANNAE";
   if(gameActive) return;
   gameActive = true;
   resize();
   setupMap();
   requestAnimationFrame(loop);
 }
+function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
 
 function setupMap(){
-  units = []; particles = []; floats = [];
+  units = [];
+  particles = [];
+  floats = [];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
-  battlePhase = 0; phaseTimer = 0; hasReinforced = false;
+  battlePhase = 0;
+  phaseTimer = 0;
+  hasReinforced = false;
+  atkCD = 0;
 
   const CX = Math.floor(GRID_W/2);
   const CY = Math.floor(GRID_H/2);
   frontY = CY - 6;
 
   player = spawnUnit(CX, CY+2, 'yours');
-  cam.x = player.x*TILE; cam.y = player.y*TILE;
-  doom.x = player.x; doom.y = player.y; doom.r = KNOT.startR;
+  cam.x = player.x*TILE + TILE/2;
+  cam.y = player.y*TILE + TILE/2;
 
-  // ROMANS
+  doom.x = player.x;
+  doom.y = player.y;
+  doom.r = KNOT.startR;
+
+  // ROMANS (more)
   for(let y=CY; y<CY+10; y++){
     for(let x=CX-7; x<CX+7; x++){
       if(Math.random()>0.1 && !grid[y][x]){
         const u = spawnUnit(x, y, 'roman');
-        if(u) u.role = (y >= CY+5) ? 'reserve' : 'front';
+        if(u){
+          u.role = (y >= CY+5) ? 'reserve' : 'front';
+        }
       }
     }
   }
 
-  // CARTHAGE (Crescent Formation)
+  // CARTHAGE (fewer + starts closer)
   for(let x=CX-12; x<CX+12; x++){
     const dist = Math.abs(x-CX);
     const curve = Math.floor((dist*dist)/16);
@@ -401,7 +398,7 @@ function setupMap(){
     }
   }
 
-  // Center Thickening
+  // extra center thickening
   let added = 0;
   const centerXs = [];
   for(let d=0; d<=12; d++){
@@ -423,20 +420,31 @@ function setupMap(){
   }
 
   showMsg("ADVANCE!", "#fff");
-  updateUI();
 }
 
+// =========================
+//  UNITS
+// =========================
 function spawnUnit(gx, gy, type){
   if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H || grid[gy][gx]) return null;
   let hp, maxHp, moveSpeed;
-  if(type === 'yours'){ hp=80; maxHp=100; moveSpeed=PACE.playerMove; }
-  else if(type === 'roman'){ hp=8; maxHp=8; moveSpeed=PACE.romanMove; }
-  else if(type === 'cavalry'){ hp=15; maxHp=15; moveSpeed=PACE.cavalryMove; }
-  else { hp=12; maxHp=12; moveSpeed=PACE.invaderMove; }
-
+  if(type === 'yours'){
+    hp=80; maxHp=100; moveSpeed=PACE.playerMove;
+  } else if(type === 'roman'){
+    hp=8; maxHp=8; moveSpeed=PACE.romanMove;
+  } else if(type === 'cavalry'){
+    hp=15; maxHp=15; moveSpeed=PACE.cavalryMove;
+  } else {
+    hp=12; maxHp=12; moveSpeed=PACE.invaderMove;
+  }
   const u = {
-    id: Math.random(), x: gx, y: gy, type, hp, maxHp,
-    cooldown: Math.random()*60, moveSpeed, role: null
+    id: Math.random(),
+    x: gx, y: gy,
+    type,
+    hp, maxHp,
+    cooldown: Math.random()*60,
+    moveSpeed,
+    role: null
   };
   units.push(u);
   grid[gy][gx] = u;
@@ -448,43 +456,135 @@ function spawnUnit(gx, gy, type){
 // =========================
 function loop(){
   if(!gameActive) return;
-
-  let dx=0, dy=0;
-
-  // keyboard intent
-  if(keys.left || keys.a) dx=-1;
-  if(keys.right || keys.d) dx=1;
-  if(keys.up || keys.w) dy=-1;
-  if(keys.down || keys.s) dy=1;
-
-  // touch intent overrides keyboard when active
-  if(touchMove.active){
-    dx = touchMove.dx;
-    dy = touchMove.dy;
-  }
-
-  update(dx, dy);
+  update();
   draw();
   requestAnimationFrame(loop);
 }
 
-function update(pDx, pDy){
+// =========================
+//  KEYBOARD + DPAD INPUT (WASD / Arrows + Space to slash)
+// =========================
+function recomputeInputFromKeys(){
+  // if stick is active, let stick “win”
+  if(stick.active) return;
+
+  const left = keysDown.left ? 1 : 0;
+  const right = keysDown.right ? 1 : 0;
+  const up = keysDown.up ? 1 : 0;
+  const down = keysDown.down ? 1 : 0;
+
+  const dx = right - left;
+  const dy = down - up;
+
+  input.dx = 0; input.dy = 0;
+
+  // choose axis with stronger intent; if both held, pick last non-zero preference:
+  if(dx !== 0 && dy !== 0){
+    // prefer horizontal if arrows/WASD pressed “more recently” isn't tracked;
+    // keep it simple and prefer horizontal
+    input.dx = Math.sign(dx);
+  } else if(dx !== 0){
+    input.dx = Math.sign(dx);
+  } else if(dy !== 0){
+    input.dy = Math.sign(dy);
+  }
+}
+
+// prevent arrow keys from scrolling the page + add slash on space
+window.addEventListener('keydown', (e)=>{
+  const k = e.key.toLowerCase();
+
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase()) ||
+     ["arrowup","arrowdown","arrowleft","arrowright"].includes(e.key)){
+    e.preventDefault();
+  }
+
+  if(k === "w" || e.key === "ArrowUp") keysDown.up = true;
+  if(k === "s" || e.key === "ArrowDown") keysDown.down = true;
+  if(k === "a" || e.key === "ArrowLeft") keysDown.left = true;
+  if(k === "d" || e.key === "ArrowRight") keysDown.right = true;
+
+  // spacebar to slash
+  if(e.code === "Space"){
+    // call the same attack handler; fabricate a minimal event-like object
+    handleAttack({ stopPropagation(){}, preventDefault(){} });
+  }
+
+  recomputeInputFromKeys();
+}, {passive:false});
+
+window.addEventListener('keyup', (e)=>{
+  const k = e.key.toLowerCase();
+  if(k === "w" || e.key === "ArrowUp") keysDown.up = false;
+  if(k === "s" || e.key === "ArrowDown") keysDown.down = false;
+  if(k === "a" || e.key === "ArrowLeft") keysDown.left = false;
+  if(k === "d" || e.key === "ArrowRight") keysDown.right = false;
+  recomputeInputFromKeys();
+}, {passive:false});
+
+// clickable dpad (mouse or touch)
+(function initDpad(){
+  const dpad = document.getElementById('dpad');
+  if(!dpad) return;
+
+  const dirToKeys = (dir)=>({
+    up: dir==="up",
+    down: dir==="down",
+    left: dir==="left",
+    right: dir==="right"
+  });
+
+  const clearKeys = ()=>{
+    keysDown.up = keysDown.down = keysDown.left = keysDown.right = false;
+    recomputeInputFromKeys();
+  };
+
+  const pressDir = (dir)=>{
+    clearKeys();
+    const k = dirToKeys(dir);
+    keysDown.up = k.up; keysDown.down = k.down; keysDown.left = k.left; keysDown.right = k.right;
+    recomputeInputFromKeys();
+  };
+
+  dpad.querySelectorAll('.dpad-btn').forEach(btn=>{
+    const dir = btn.dataset.dir;
+
+    const onDown = (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      pressDir(dir);
+    };
+    const onUp = (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      clearKeys();
+    };
+
+    btn.addEventListener('mousedown', onDown);
+    window.addEventListener('mouseup', onUp);
+
+    btn.addEventListener('touchstart', onDown, {passive:false});
+    btn.addEventListener('touchend', onUp, {passive:false});
+    btn.addEventListener('touchcancel', onUp, {passive:false});
+    btn.addEventListener('mouseleave', onUp);
+  });
+})();
+
+// =========================
+//  UPDATE
+// =========================
+function update(){
   phaseTimer++;
   if(atkCD>0) atkCD--;
 
   const CX = Math.floor(GRID_W/2);
   const CY = Math.floor(GRID_H/2);
 
-  // Phases
   if(battlePhase === 0 && phaseTimer > PHASE.bendAt){
     battlePhase = 1;
     showMsg("THE LINE BENDS...", P.gold);
-    log("The center gives ground. A trap?", "event");
   }
   if(battlePhase === 1 && phaseTimer > PHASE.encircleAt){
     battlePhase = 2;
-    showMsg("ENCIRCLED.", P.roman);
-    log("Flanks collapsed. We are surrounded.", "event");
+    showMsg("ENCIRCLED. HOLD FAST.", P.roman);
     for(let y=CY-12; y<CY+12; y++){
       let a = spawnUnit(2, y, 'invader'); if(a) a.role='sealer';
       let b = spawnUnit(GRID_W-3, y, 'invader'); if(b) b.role='sealer';
@@ -492,22 +592,18 @@ function update(pDx, pDy){
   }
   if(battlePhase === 2 && phaseTimer > PHASE.reinfAt && !hasReinforced){
     hasReinforced = true;
-    showMsg("NUMIDIAN CAVALRY!", "#fbbf24");
-    log("Cavalry hits the rear. Total encirclement.", "event");
+    showMsg("NUMIDIAN CAVALRY! Closing the rear.", "#fbbf24");
     for(let x=CX-8; x<=CX+8; x+=2){
       let c1 = spawnUnit(x, player.y+10, 'cavalry'); if(c1) c1.role='rearSealer';
     }
   }
 
-  // Camera
-  if(player && player.hp>0){
-    let tx = player.x*TILE + TILE/2;
-    let ty = player.y*TILE + TILE/2;
-    cam.x += (tx-cam.x)*0.1;
-    cam.y += (ty-cam.y)*0.1;
-  }
+  if(battlePhase >= 1) frontY += 0.002;
 
-  // Crush zone
+  if(player && player.hp>0){
+    doom.x += (player.x - doom.x) * 0.35;
+    doom.y += (player.y - doom.y) * 0.35;
+  }
   if(battlePhase >= 2){
     const t = Math.max(0, phaseTimer - PHASE.encircleAt);
     const steps = Math.floor(t / KNOT.shrinkEvery);
@@ -516,16 +612,19 @@ function update(pDx, pDy){
     doom.r = KNOT.startR;
   }
 
-  // Units
   units.sort((a,b)=>a.y-b.y);
+
   for(const u of units){
     if(u.hp<=0) continue;
+
     if(u.type==='yours'){
       if(u.cooldown>0) u.cooldown--;
-      if(u.cooldown<=0 && (pDx || pDy)){
-        tryMove(u, pDx, pDy);
+      if(u.cooldown<=0 && (input.dx || input.dy)){
+        tryMove(u, input.dx, input.dy);
         u.cooldown = u.moveSpeed;
-        if(isEngaged(u)) u.cooldown *= 2.0;
+        if(isEngaged(u)){
+          u.cooldown *= 2.0;
+        }
       }
     } else {
       handleAI(u, CX, CY);
@@ -533,16 +632,24 @@ function update(pDx, pDy){
   }
 
   units = units.filter(u=>u.hp>0);
-  updateFX();
-  updateUI();
 
-  if(player && player.hp<=0){
-    finishRun("SLAUGHTERED", "Crushed in the press.");
+  if(player && player.hp>0){
+    const tx = player.x*TILE + TILE/2;
+    const ty = player.y*TILE + TILE/2;
+    cam.x += (tx-cam.x)*0.1;
+    cam.y += (ty-cam.y)*0.1;
   }
+
+  updateFX();
+
+  document.getElementById('ui-rome').innerText = units.filter(u=>!isInvaderType(u.type)).length;
+  document.getElementById('ui-han').innerText  = units.filter(u=>isInvaderType(u.type)).length;
+
+  if(player && player.hp<=0) gameOver("Crushed in the press.");
 }
 
 // =========================
-//  AI
+//  AI CORE (unchanged)
 // =========================
 function handleAI(u, CX, CY){
   if(u.cooldown>0){ u.cooldown--; return; }
@@ -550,8 +657,9 @@ function handleAI(u, CX, CY){
   let target=null, minDist=99;
   for(const o of units){
     if(Math.abs(o.x-u.x)>3 || Math.abs(o.y-u.y)>3) continue;
-    const isEnemy = (!isInvaderType(u.type) && isInvaderType(o.type)) ||
-                    ( isInvaderType(u.type) && !isInvaderType(o.type) );
+    const isEnemy =
+      (!isInvaderType(u.type) && isInvaderType(o.type)) ||
+      ( isInvaderType(u.type) && !isInvaderType(o.type) );
     if(isEnemy){
       const d = dist(u,o);
       if(d<minDist){ minDist=d; target=o; }
@@ -559,7 +667,7 @@ function handleAI(u, CX, CY){
   }
 
   if(target && minDist<=1.5){
-    attack(u, target);
+    attack(u,target);
     u.cooldown = PACE.combatDelay + Math.random()*20;
     return;
   }
@@ -571,20 +679,61 @@ function handleAI(u, CX, CY){
       const dy = doom.y - u.y;
       const d = Math.hypot(dx, dy);
 
-      if(d > doom.r + 1){
+      if(target && minDist<=2 && Math.random() < KNOT.invaderBiteChance){
+        md = getStep(u,target);
+      } else if(d > doom.r + 1){
         md = (Math.abs(dx) > Math.abs(dy)) ? {x:Math.sign(dx), y:0} : {x:0, y:Math.sign(dy)};
       } else {
-        md = (Math.random()<0.5) ? {x:(dy>0?1:-1), y:0} : {x:0, y:(dx>0?-1:1)};
+        md = (Math.random()<0.5)
+          ? {x:(dy>0 ? 1 : -1), y:0}
+          : {x:0, y:(dx>0 ? -1 : 1)};
+      }
+
+      if(u.type==='cavalry'){
+        if(md.x || md.y){
+          const moved = tryMoveSmart(u, md.x, md.y);
+          if(!moved){
+            u.cooldown = u.moveSpeed * 0.35;
+            return;
+          }
+        }
+        u.cooldown = u.moveSpeed + Math.random()*8;
+        return;
       }
     } else {
-      if(u.y < frontY + 6 && Math.random() < 0.65) md = {x:0, y:1};
-      else if(target) md = getStep(u, target);
+      if(battlePhase < 2){
+        if(u.y < frontY + 6 && Math.random() < 0.65) md = {x:0, y:1};
+      }
+      if(u.role==='sealer' && player && player.hp>0){
+        const ringY = player.y + 4;
+        if(u.y < ringY) md = {x:0, y:1};
+        else if(u.y > ringY) md = {x:0, y:-1};
+        else md = {x:(u.x < CX) ? 1 : -1, y:0};
+      } else {
+        if(target) md = getStep(u,target);
+        else if(Math.random()>0.7) md = {x:(u.x<CX)?1:-1, y:0};
+      }
     }
   }
 
   if(u.type==='roman'){
-    if(target) md = getStep(u, target);
-    else md = {x:0, y:-1};
+    const wantsShield = (battlePhase >= SHIELDWALL.startAtPhase) && (u.role==='reserve');
+    if(wantsShield && player && player.hp>0 && Math.random() < SHIELDWALL.ringAggro){
+      const ring = ringTargets(player.x, player.y);
+      let best = null;
+      for(const t of ring){
+        if(!inBounds(t.x,t.y)) continue;
+        if(!grid[t.y][t.x]){ best = t; break; }
+      }
+      if(best){
+        md = getStep(u, best);
+      } else {
+        md = orbitAround(u, player.x, player.y);
+      }
+    } else {
+      if(target) md = getStep(u, target);
+      else md = {x:0, y:-1};
+    }
   }
 
   if(md.x || md.y) tryMove(u, md.x, md.y);
@@ -592,10 +741,32 @@ function handleAI(u, CX, CY){
 }
 
 // =========================
-//  MOVEMENT & PHYSICS
+//  SMART MOVE HELPERS
 // =========================
-function isInvaderType(t){ return (t==='invader' || t==='cavalry'); }
+function tryMoveSmart(u, dx, dy){
+  if(tryMoveReturn(u, dx, dy)) return true;
+  const opts = [
+    {x:dy, y:dx},
+    {x:-dy, y:-dx},
+    {x:dx, y:0},
+    {x:0, y:dy},
+    {x:Math.sign(dx), y:Math.sign(dy)}
+  ];
+  for(const o of opts){
+    if(o.x===0 && o.y===0) continue;
+    if(tryMoveReturn(u, o.x, o.y)) return true;
+  }
+  return false;
+}
+function tryMoveReturn(u, dx, dy){
+  const ox=u.x, oy=u.y;
+  tryMove(u, dx, dy);
+  return (u.x!==ox || u.y!==oy);
+}
 
+// =========================
+//  PRESSURE
+// =========================
 function countAdjacentInvaders(gx, gy){
   let c=0;
   for(let dy=-1; dy<=1; dy++){
@@ -610,50 +781,95 @@ function countAdjacentInvaders(gx, gy){
 function isEngaged(u){ return countAdjacentInvaders(u.x, u.y) > 0; }
 
 function tryMove(u, dx, dy){
-  const tx = u.x + dx;
-  const ty = u.y + dy;
+  const tx=u.x+dx, ty=u.y+dy;
   if(!inBounds(tx,ty)) return;
 
-  if(u.type==='yours' && isEngaged(u)){
-    if(PRESSURE.blockDiagonalWhenEngaged && dx!==0 && dy!==0) return;
-    if(Math.random() < PRESSURE.shoveChance) return;
+  if(u.type==='yours'){
+    const engaged = isEngaged(u);
+    if(engaged){
+      if(PRESSURE.blockDiagonalWhenEngaged && dx!==0 && dy!==0) return;
+      const herePress = countAdjacentInvaders(u.x, u.y);
+      const therePress = countAdjacentInvaders(tx, ty);
+      if(grid[ty][tx]) return;
+      if(therePress >= PRESSURE.blockIntoPressAdj) return;
+      if(PRESSURE.blockWorseningContact && therePress > herePress) return;
+      if(Math.random() < PRESSURE.shoveChance) return;
+    }
   }
-
   if(grid[ty][tx]) return;
 
-  grid[u.y][u.x] = null;
-  u.x = tx; u.y = ty;
-  grid[ty][tx] = u;
+  grid[u.y][u.x]=null;
+  u.x=tx; u.y=ty;
+  grid[ty][tx]=u;
 }
 
 // =========================
 //  COMBAT
 // =========================
 function attack(atk, def){
-  let dmg = (atk.type === 'cavalry') ? 2 : 1;
+  let mult = 1.0;
+  if(atk.type === 'yours') mult = 0.25;
+  if(atk.type === 'cavalry') mult = 1.5;
+  let dmg = 1 * mult;
 
   def.hp -= dmg;
   spawnBlood(def.x, def.y);
-  spawnFloat("-"+dmg, def.x, def.y, "#ef4444");
+  spawnFloat("-"+formatDmg(dmg), def.x, def.y, "#ef4444");
 
-  if(isInvaderType(atk.type) && !isInvaderType(def.type) && def.hp>0){
-    if(Math.random() < PRESSURE.shoveChance){
-      let dx = def.x - atk.x;
-      let dy = def.y - atk.y;
-      let tx = def.x + dx;
-      let ty = def.y + dy;
+  // no shove for player
+  if(atk.type === 'yours'){
+    if(def.hp<=0){
+      grid[def.y][def.x]=null;
+      spawnFloat("KILL", def.x, def.y, P.gold);
+    }
+    return;
+  }
 
-      if(inBounds(tx,ty)){
-        if(!grid[ty][tx]){
-          grid[def.y][def.x] = null;
-          def.x = tx; def.y = ty;
-          grid[ty][tx] = def;
-          spawnFloat("SHOVE", def.x, def.y, "#fff");
-        } else {
-          def.hp -= 2;
-          spawnFloat("CRUSH", def.x, def.y, "#f00");
-        }
-      }
+  // shove calc (AI only)
+  let dx = def.x - atk.x;
+  let dy = def.y - atk.y;
+  if(Math.abs(dx) > Math.abs(dy)) { dx = Math.sign(dx); dy = 0; }
+  else { dx = 0; dy = Math.sign(dy); }
+
+  let tx = def.x + dx;
+  let ty = def.y + dy;
+
+  if(!inBounds(tx,ty)){
+     const crush = 3 * mult;
+     def.hp -= crush;
+     spawnFloat("CRUSH", def.x, def.y, "#f00");
+     spawnFloat("-"+formatDmg(crush), def.x, def.y, "#f00");
+     if(def.hp<=0){
+       grid[def.y][def.x]=null;
+       spawnFloat("KILL", def.x, def.y, P.gold);
+     }
+     return;
+  }
+
+  if(!grid[ty][tx]){
+    grid[def.y][def.x] = null;
+    def.x = tx; def.y = ty;
+    grid[def.y][def.x] = def;
+    spawnFloat("SHOVE", def.x, def.y, "#fff");
+  } else {
+    let behind = grid[ty][tx];
+    let tx2 = tx + dx;
+    let ty2 = ty + dy;
+    if(inBounds(tx2, ty2) && !grid[ty2][tx2]){
+       grid[ty][tx] = null;
+       behind.x = tx2; behind.y = ty2;
+       grid[ty2][tx2] = behind;
+
+       grid[def.y][def.x] = null;
+       def.x = tx; def.y = ty;
+       grid[ty][tx] = def;
+       spawnFloat("DOMINO", def.x, def.y, "#fff");
+    } else {
+       const crush = 3 * mult;
+       def.hp -= crush;
+       spawnFloat("CRUSH", def.x, def.y, "#f00");
+       spawnFloat("-"+formatDmg(crush), def.x, def.y, "#f00");
+       spawnBlood(def.x, def.y);
     }
   }
 
@@ -662,216 +878,232 @@ function attack(atk, def){
     spawnFloat("KILL", def.x, def.y, P.gold);
   }
 }
+function formatDmg(n){
+  return (Math.abs(n - Math.round(n)) < 1e-6) ? String(Math.round(n)) : n.toFixed(2);
+}
 
-// Player attack (keyboard + mobile)
-function handlePlayerAttack(){
-  if(!gameActive || !player || player.hp<=0) return;
-  if(atkCD>0) return;
-  atkCD = PLAYER_ATTACK.cooldownFrames;
+// =========================
+//  INPUT (TOUCH STICK) + ATTACK BUTTON
+// =========================
+const stickEl = document.getElementById('stick');
+const stickZone = document.getElementById('stick-zone');
 
-  const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
-  let hits = 0;
-  for(const d of dirs){
-    if(hits >= PLAYER_ATTACK.maxHits) break;
-    const tx = player.x + d[0];
-    const ty = player.y + d[1];
-    const t = grid[ty]?.[tx];
-    if(t && isInvaderType(t.type)){
-      attack(player, t);
-      hits++;
+if(stickZone){
+  stickZone.addEventListener('touchstart', e=>{
+    stick.active=true;
+    stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
+    stick.curX=stick.startX; stick.curY=stick.startY;
+  }, {passive:false});
+
+  stickZone.addEventListener('touchmove', e=>{
+    if(!stick.active) return;
+    e.preventDefault();
+    stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY;
+    updateStick();
+  }, {passive:false});
+
+  const endStick=()=>{
+    stick.active=false;
+    stickEl.style.transform=`translate(0px,0px)`;
+    // after stick ends, fall back to keyboard/dpad state
+    recomputeInputFromKeys();
+  };
+  stickZone.addEventListener('touchend', endStick);
+  stickZone.addEventListener('touchcancel', endStick);
+
+  function updateStick(){
+    const max=45;
+    let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY;
+    const d=Math.sqrt(dx*dx+dy*dy);
+    if(d>max){ dx=(dx/d)*max; dy=(dy/d)*max; }
+    stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
+
+    input.dx=0; input.dy=0;
+    if(d>10){
+      if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx);
+      else input.dy=Math.sign(dy);
     }
   }
-  spawnFloat(hits===0 ? "SWING" : "SLASH", player.x, player.y, "#fff");
+}
+
+window.handleAttack = function(e){
+  e.stopPropagation?.(); e.preventDefault?.();
+  if(!gameActive || !player || player.hp<=0) return;
+  if(atkCD > 0) return;
+
+  atkCD = PLAYER_ATTACK.cooldownFrames;
+
+  const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let targets=[];
+  for(const d of dirs){
+    const tx=player.x+d[0], ty=player.y+d[1];
+    const u = (grid[ty] && grid[ty][tx]) ? grid[ty][tx] : null;
+    if(u && isInvaderType(u.type)) targets.push(u);
+  }
+  if(!targets.length) return;
+
+  targets.sort((a,b)=>dist(player,a)-dist(player,b));
+  for(const t of targets.slice(0, PLAYER_ATTACK.maxHits)){
+    attack(player, t);
+  }
+  spawnFloat("CLASH", player.x, player.y, "#fff");
+};
+
+// =========================
+//  FX + UI
+// =========================
+function spawnBlood(gx, gy){
+  for(let i=0;i<3;i++){
+    particles.push({
+      x:gx*TILE+TILE/2, y:gy*TILE+TILE/2,
+      vx:(Math.random()-.5)*2.2, vy:(Math.random()-.5)*2.2,
+      life:1, color:P.roman
+    });
+  }
+}
+function spawnFloat(txt,gx,gy,col){
+  floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col});
+}
+function updateFX(){
+  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life-=0.05; });
+  particles = particles.filter(p=>p.life>0);
+  floats.forEach(f=>{ f.y-=0.25; f.life-=0.02; });
+  floats = floats.filter(f=>f.life>0);
+}
+function showMsg(txt, col){
+  const el=document.getElementById('battle-text');
+  el.innerText=txt; el.style.color=col; el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0, 2500);
+}
+function gameOver(t){
+  gameActive=false;
+  document.getElementById('overlay').style.display='flex';
+  document.querySelector('#overlay h1').innerText="DEFEAT";
+  document.querySelectorAll('#overlay p')[0].innerHTML=t;
+  document.querySelectorAll('#overlay p')[1].innerHTML="Your shield wall collapsed.";
+  document.querySelectorAll('#overlay p')[2].innerHTML="Tap Lead the Charge to try again.";
 }
 
 // =========================
-//  INPUT: KEYBOARD + TOUCH
-// =========================
-window.addEventListener('keydown', e => {
-  const code = e.code;
-  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'].includes(code)){
-    e.preventDefault();
-  }
-  if(code==='KeyW' || code==='ArrowUp') keys.up=true;
-  if(code==='KeyA' || code==='ArrowLeft') keys.left=true;
-  if(code==='KeyS' || code==='ArrowDown') keys.down=true;
-  if(code==='KeyD' || code==='ArrowRight') keys.right=true;
-  if(code==='Space') handlePlayerAttack();
-}, {passive:false});
-
-window.addEventListener('keyup', e => {
-  const code = e.code;
-  if(code==='KeyW' || code==='ArrowUp') keys.up=false;
-  if(code==='KeyA' || code==='ArrowLeft') keys.left=false;
-  if(code==='KeyS' || code==='ArrowDown') keys.down=false;
-  if(code==='KeyD' || code==='ArrowRight') keys.right=false;
-}, {passive:true});
-
-// Mobile: drag anywhere on battlefield to set direction; double tap to attack
-STAGE.addEventListener('pointerdown', (e)=>{
-  if(e.target.tagName === 'BUTTON') return; // Don't drag if clicking buttons
-  if(!gameActive) return;
-  const now = Date.now();
-  if(now - touchMove.lastTap < 280){
-    handlePlayerAttack();
-  }
-  touchMove.lastTap = now;
-
-  touchMove.active = true;
-  touchMove.startX = e.clientX;
-  touchMove.startY = e.clientY;
-  touchMove.dx = 0;
-  touchMove.dy = 0;
-  STAGE.setPointerCapture(e.pointerId);
-}, {passive:false});
-
-STAGE.addEventListener('pointermove', (e)=>{
-  if(!touchMove.active || !gameActive) return;
-  e.preventDefault();
-  const dx = e.clientX - touchMove.startX;
-  const dy = e.clientY - touchMove.startY;
-
-  // choose cardinal direction
-  touchMove.dx = 0; touchMove.dy = 0;
-  if(Math.abs(dx) > 18 || Math.abs(dy) > 18){
-    if(Math.abs(dx) > Math.abs(dy)) touchMove.dx = Math.sign(dx);
-    else touchMove.dy = Math.sign(dy);
-  }
-}, {passive:false});
-
-function endTouch(){
-  touchMove.active = false;
-  touchMove.dx = 0;
-  touchMove.dy = 0;
-}
-STAGE.addEventListener('pointerup', endTouch, {passive:true});
-STAGE.addEventListener('pointercancel', endTouch, {passive:true});
-STAGE.addEventListener('lostpointercapture', endTouch, {passive:true});
-
-// =========================
-//  VISUALS
+//  DRAW
 // =========================
 function draw(){
   CTX.fillStyle='#2d332d';
-  CTX.fillRect(0,0,VIEW_W,VIEW_H);
+  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
 
   CTX.save();
-  const cx = VIEW_W/2 - cam.x*SCALE;
-  const cy = VIEW_H/2 - cam.y*SCALE;
+  const cx = CANVAS.width/2 - cam.x;
+  const cy = CANVAS.height/2 - cam.y;
   CTX.translate(Math.round(cx), Math.round(cy));
-  CTX.scale(SCALE, SCALE);
 
-  // Ground Grid
-  CTX.strokeStyle='rgba(255,255,255,0.03)';
+  CTX.strokeStyle='rgba(255,255,255,0.05)';
   CTX.lineWidth=1;
   CTX.beginPath();
-  for(let i=0; i<GRID_W; i++){ CTX.moveTo(i*TILE,0); CTX.lineTo(i*TILE,GRID_H*TILE); }
-  for(let i=0; i<GRID_H; i++){ CTX.moveTo(0,i*TILE); CTX.lineTo(GRID_W*TILE,i*TILE); }
+  for(let i=0;i<GRID_W;i++){ CTX.moveTo(i*TILE,0); CTX.lineTo(i*TILE,GRID_H*TILE); }
+  for(let i=0;i<GRID_H;i++){ CTX.moveTo(0,i*TILE); CTX.lineTo(GRID_W*TILE,i*TILE); }
   CTX.stroke();
 
-  let all = [...units, player];
-  all.sort((a,b)=>a.y - b.y);
-
-  for(let u of all){
-    if(!u || u.hp<=0) continue;
-    drawSprite(u.type, u.x*TILE-4, u.y*TILE-8);
-
-    if(u.type==='yours' || u.hp < u.maxHp){
-      const sx=u.x*TILE-4, sy=u.y*TILE-8;
+  for(const u of units){
+    drawSprite(u.type, u.x*TILE - 4, u.y*TILE - 8, SCALE);
+    if(u.hp < u.maxHp){
+      const sx=u.x*TILE - 4, sy=u.y*TILE - 8;
       CTX.fillStyle='#000'; CTX.fillRect(sx, sy-6, 24, 4);
-      CTX.fillStyle = (u.type==='yours')?'#22c55e':(isInvaderType(u.type)?'#60a5fa':'#ef4444');
-      CTX.fillRect(sx+1, sy-5, Math.max(0, (u.hp/u.maxHp)*22), 2);
+      CTX.fillStyle =
+        (u.type==='yours') ? '#1f9d55' :
+        (isInvaderType(u.type)) ? '#60a5fa' : '#ef4444';
+      CTX.fillRect(sx+1, sy-5, Math.max(0,(u.hp/u.maxHp)*22), 2);
     }
   }
 
-  for(let p of particles){
-    CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, 1, 1);
+  for(const p of particles){
+    CTX.fillStyle=p.color;
+    CTX.fillRect(p.x, p.y, SCALE, SCALE);
   }
 
-  CTX.font="bold 8px monospace"; CTX.textAlign="center";
-  for(let f of floats){
-    CTX.fillStyle=f.color; CTX.globalAlpha=f.life;
+  CTX.font="bold 12px monospace";
+  CTX.textAlign="center";
+  for(const f of floats){
+    CTX.fillStyle=f.color;
+    CTX.globalAlpha=f.life;
     CTX.fillText(f.text, f.x+TILE/2, f.y);
   }
   CTX.globalAlpha=1;
+
   CTX.restore();
 }
 
-function drawSprite(kind, x, y){
-  const coat = kind==='roman' ? P.roman : kind==='yours' ? P.you : P.inv;
-
-  CTX.fillStyle=P.shadow;
-  CTX.beginPath(); CTX.ellipse(x+4, y+7, 4, 2, 0,0,Math.PI*2); CTX.fill();
-
-  px(x+1, y+6, 1, P.black); px(x+6, y+6, 1, P.black);
-  px(x+2, y+5, 1, P.metal); px(x+5, y+5, 1, P.metal);
-  for(let dx=2; dx<=5; dx++) px(x+dx, y+3, 1, coat);
-
-  if(kind==='cavalry'){
-    CTX.fillStyle = P.mane;
-    CTX.fillRect(x+2, y+2, 4, 4);
-  }
-}
-function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-
 // =========================
-//  UTILS & UI
+//  UTILS
 // =========================
-function inBounds(x,y){return x>=0&&x<GRID_W&&y>=0&&y<GRID_H;}
-function dist(a,b){return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);}
-function getStep(u,t){
+function inBounds(x,y){ return !(x<0||x>=GRID_W||y<0||y>=GRID_H); }
+function dist(a,b){ return Math.sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y)); }
+function getStep(u, t){
   const dx=t.x-u.x, dy=t.y-u.y;
   if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
   return {x:0, y:Math.sign(dy)};
 }
-
-function spawnBlood(gx, gy){
-  for(let i=0;i<3;i++) particles.push({
-    x:gx*TILE+12, y:gy*TILE+12, vx:(Math.random()-.5)*2, vy:(Math.random()-.5)*2, life:1, color:'#7f1d1d'
-  });
+function ringTargets(px,py){
+  return [
+    {x:px, y:py-1},{x:px, y:py+1},{x:px-1,y:py},{x:px+1,y:py},
+    {x:px-1,y:py-1},{x:px+1,y:py-1},{x:px-1,y:py+1},{x:px+1,y:py+1},
+  ];
 }
-function spawnFloat(txt,gx,gy,col){ floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col}); }
-
-function updateFX(){
-  particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.life-=0.05});
-  particles=particles.filter(p=>p.life>0);
-  floats.forEach(f=>{f.y-=0.2; f.life-=0.02});
-  floats=floats.filter(f=>f.life>0);
+function orbitAround(u, cx, cy){
+  const dx = u.x - cx, dy = u.y - cy;
+  if(Math.abs(dx)+Math.abs(dy) === 0) return {x:0,y:0};
+  if(Math.abs(dx) > Math.abs(dy)){
+    return {x:0, y:(dx>0 ? 1 : -1)};
+  } else {
+    return {x:(dy>0 ? -1 : 1), y:0};
+  }
 }
-
-function showMsg(txt, col){
-  const el=document.getElementById('battle-text');
-  el.innerText=txt; el.style.color=col; el.style.opacity=1;
-  setTimeout(()=>el.style.opacity=0, 3000);
+function resize(){
+  CANVAS.width = BOX.clientWidth;
+  CANVAS.height = BOX.clientHeight;
+  CTX.imageSmoothingEnabled=false;
 }
+window.addEventListener('resize', resize);
+</script>
 
-function log(msg, type='neutral'){
-  const box = document.getElementById('log-box');
-  const d = document.createElement('div');
-  d.className=`log-line ${type}`;
-  d.innerText = msg;
-  box.insertBefore(d, box.firstChild);
-}
+<script>
+// --- HISTORICAL CONTEXT MODULE (redirects to map.html when exiting) ---
+(function addHistoryModule(){
+  const historyData = `
+    <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF CANNAE (216 BC)</h2>
+    <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
+      <p><strong style="color:#fff">FORCES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~86,000 (Varro &amp; Paullus)<br>
+      <span style="color:#60a5fa">Carthage:</span> ~50,000 (Hannibal)</p>
 
-function updateUI(){
-  document.getElementById('ui-rome').innerText = units.filter(u=>!isInvaderType(u.type)).length;
-  document.getElementById('ui-han').innerText = units.filter(u=>isInvaderType(u.type)).length;
-}
+      <p><strong style="color:#fff">CASUALTIES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~50,000-75,000 killed<br>
+      <span style="color:#60a5fa">Carthage:</span> ~6,000</p>
 
-// TOGGLE LOG FUNCTION
-function toggleLog(){
-  document.getElementById('app-container').classList.toggle('log-closed');
-  // Trigger resize so canvas expands to fill the new space
-  resize();
-}
+      <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
+      The "Perfect Battle." Hannibal allowed his weak center to retreat, drawing the Romans in. His elite infantry on the wings then turned inward, and his cavalry hit the rear. The Roman army was packed so tight (the "Crush" mechanic) they could not raise their weapons. It remains the deadliest single day of combat in Western history.</p>
+    </div>
 
-// Add listeners to new buttons
-document.getElementById('btn-close-log').addEventListener('click', toggleLog);
-document.getElementById('btn-reopen-log').addEventListener('click', toggleLog);
+    <button class="btn-start" onclick="window.location.href='map.html'" style="margin-top:20px;">
+      BACK TO MAP
+    </button>
+  `;
 
-// BOOT
-resize();
-renderIntro();
+  const introBox = document.querySelector('.intro-box') || document.querySelector('#overlay');
+
+  const btn = document.createElement('button');
+  btn.innerText = "HISTORY";
+  btn.className = "btn-start";
+  btn.style.backgroundColor = "#475569";
+  btn.style.marginTop = "10px";
+  btn.style.boxShadow = "0 4px 0 #334155";
+  btn.onclick = () => {
+    if(document.querySelector('.intro-box')) document.querySelector('.intro-box').innerHTML = historyData;
+    else introBox.innerHTML = historyData;
+  };
+
+  if(document.querySelector('.intro-box')) document.querySelector('.intro-box').appendChild(btn);
+  else introBox.appendChild(btn);
+})();
 </script>
 
 </body>
