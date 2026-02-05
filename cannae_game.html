@@ -25,17 +25,36 @@
   }
   canvas{width:100%; height:100%; display:block; image-rendering:pixelated;}
   .hud-top{
-    position:absolute; top:10px; left:0; width:100%; height:40px; z-index:10;
-    display:flex; justify-content:center; align-items:center;
-    pointer-events:none; font-weight:900; font-size:15px;
-    text-shadow:0 1px 3px #000; gap:15px;
-    background:linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    position:absolute; top:10px; left:0; width:100%; height:50px; z-index:10;
+    display:flex; flex-direction:column; justify-content:flex-start; align-items:center;
+    pointer-events:none; font-weight:900; font-size:14px;
+    text-shadow:0 1px 3px #000;
+    background:linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+    padding-top:6px;
+  }
+  .hud-row{
+    display:flex; gap:20px; justify-content:center;
   }
   .team-rom{color:var(--red);}
   .team-han{color:#60a5fa;}
+  .pressure-bar{
+    margin-top:4px;
+    width:200px; height:8px;
+    background:rgba(0,0,0,0.5);
+    border:1px solid rgba(255,255,255,0.3);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .pressure-fill{
+    height:100%;
+    background: linear-gradient(90deg, #22c55e 0%, #f59e0b 50%, #ef4444 100%);
+    transition: width 0.3s;
+  }
+  .pressure-label{
+    font-size:10px; color:#aaa; margin-top:2px;
+  }
   .controls-layer{position:absolute; inset:0; z-index:20; pointer-events:none;}
 
-  /* --- Mobile stick (touch) --- */
   #stick-zone{
     position:absolute; bottom:20px; left:20px;
     width:140px; height:140px; pointer-events:auto;
@@ -52,7 +71,6 @@
     box-shadow:0 2px 5px rgba(0,0,0,0.5);
   }
 
-  /* --- Desktop D-pad (clickable) --- */
   #dpad{
     position:absolute; bottom:20px; left:20px;
     width:140px; height:140px;
@@ -78,13 +96,12 @@
   .dpad-btn:active{ transform:scale(0.96); background:rgba(255,255,255,0.22); }
   .dpad-spacer{ width:44px; height:44px; opacity:0; }
 
-  /* show stick on touch devices, dpad on non-touch */
   .touch-only{ display:none; }
   .no-touch-only{ display:none; }
   body.is-touch .touch-only{ display:block; }
   body.is-touch .no-touch-only{ display:none; }
   body.is-no-touch .touch-only{ display:none; }
-  body.is-no-touch .no-touch-only{ display:grid; } /* dpad is a grid */
+  body.is-no-touch .no-touch-only{ display:grid; }
 
   .btn-wrapper{
     position:absolute; bottom:30px; right:30px;
@@ -142,35 +159,36 @@
 <div id="game-box">
   <div id="overlay">
     <h1>CANNAE</h1>
-    <p>You are a Centurion (Green/White). Your men will crowd around you as the trap closes.</p>
-    <p><b>Updated Physics:</b> Chain-shoving is enabled. If enemies pack too tightly, they will be <b>CRUSHED</b>.</p>
+    <p>You are a Centurion in the Roman center. Your men surround you. The enemy waits.</p>
+    <p><b>The trap:</b> When the center gives, you'll think you're winning. You're not.</p>
     <button class="btn-start" onclick="startGame()">LEAD THE CHARGE</button>
+    <button class="btn-start" onclick="showHistory()" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">HISTORY</button>
   </div>
 
   <div class="hud-top">
-    <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
-    <span class="team-han">CARTHAGE: <span id="ui-han">0</span></span>
+    <div class="hud-row">
+      <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
+      <span class="team-han">CARTHAGE: <span id="ui-han">0</span></span>
+    </div>
+    <div class="pressure-bar"><div class="pressure-fill" id="pressure-fill" style="width:0%"></div></div>
+    <div class="pressure-label" id="pressure-label">FORMATION SOLID</div>
   </div>
 
   <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
   <canvas id="cv"></canvas>
 
   <div class="controls-layer">
-    <!-- Touch joystick -->
     <div id="stick-zone" class="touch-only">
       <div class="stick-bg"><div class="stick-nub" id="stick"></div></div>
     </div>
 
-    <!-- Desktop D-pad -->
     <div id="dpad" class="no-touch-only" aria-label="D-pad controls">
       <div class="dpad-spacer"></div>
       <div class="dpad-btn" data-dir="up">▲</div>
       <div class="dpad-spacer"></div>
-
       <div class="dpad-btn" data-dir="left">◀</div>
       <div class="dpad-spacer"></div>
       <div class="dpad-btn" data-dir="right">▶</div>
-
       <div class="dpad-spacer"></div>
       <div class="dpad-btn" data-dir="down">▼</div>
       <div class="dpad-spacer"></div>
@@ -188,7 +206,7 @@
 
 <script>
 // =========================
-//  TOUCH vs DESKTOP UI TOGGLE
+//  TOUCH vs DESKTOP
 // =========================
 (function initInputMode(){
   const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -202,8 +220,7 @@ const P = {
   metal:'#b7bcc5', black:'#111114',
   roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
   gold:'#fbbf24', white:'#e7e7ea',
-  mane:'#2b1a10',
-  hoof:'#0b0b0c',
+  mane:'#2b1a10', hoof:'#0b0b0c',
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
@@ -215,10 +232,7 @@ function isInvaderType(t){ return (t==='invader' || t==='cavalry'); }
 
 function drawInfSprite(kind, x, y, scale){
   const s = scale;
-  const coat =
-    kind==='roman' ? P.roman :
-    kind==='yours' ? P.you :
-    isInvaderType(kind) ? P.inv : P.inv;
+  const coat = kind==='roman' ? P.roman : kind==='yours' ? P.you : P.inv;
 
   CTX.fillStyle=P.shadow;
   CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
@@ -234,6 +248,7 @@ function drawInfSprite(kind, x, y, scale){
   else if(kind==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
   else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
 }
+
 function drawHorseSprite(x,y,scale){
   const s=scale;
   CTX.fillStyle=P.shadow;
@@ -247,21 +262,18 @@ function drawHorseSprite(x,y,scale){
   px(x+1*s, y+5*s, s, P.inv);
   px(x+0*s, y+6*s, s, P.inv);
   px(x+1*s, y+6*s, s, P.inv);
-
   px(x+2*s, y+5*s, s, P.mane);
   px(x+2*s, y+6*s, s, P.mane);
-
   px(x+6*s, y+4*s, s, P.black);
   px(x+6*s, y+5*s, s, P.black);
   px(x+7*s, y+5*s, s, P.black);
-
   px(x+6*s, y+4*s, s, P.gold);
-
   px(x+4*s, y+9*s, s, P.inv);
   px(x+4*s, y+10*s, s, P.hoof);
   px(x+8*s, y+9*s, s, P.inv);
   px(x+8*s, y+10*s, s, P.hoof);
 }
+
 function drawSprite(kind, x, y, scale){
   if(kind==='cavalry') return drawHorseSprite(x,y,scale);
   return drawInfSprite(kind,x,y,scale);
@@ -271,46 +283,38 @@ function drawSprite(kind, x, y, scale){
 //  CONFIG
 // =========================
 const TILE = 24;
-const GRID_W = 40;
-const GRID_H = 60;
+const GRID_W = 50;
+const GRID_H = 70;
 let SCALE = 2;
 
 const PACE = {
-  playerMove: 16,
-  romanMove: 34,
-  invaderMove: 40,
-  cavalryMove: 18,
-  aiThinkJitter: 26,
-  combatDelay: 56
+  playerMove: 14,
+  romanMove: 28,
+  invaderMove: 32,
+  cavalryMove: 12,
+  combatDelay: 50
 };
+
+// Position-based phase triggers
+const TRIGGERS = {
+  contactLine: 0,      // Set dynamically based on enemy front
+  giveLine: 0,         // When player crosses this, center starts giving
+  squeezeDensity: 5,   // Adjacent friendlies that trigger squeeze feel
+  crushDensity: 7,     // Adjacent units that cause crush damage
+  crushDamagePerTick: 0.15
+};
+
+// Emotional phases
 const PHASE = {
-  bendAt: 280,
-  encircleAt: 1050,
-  reinfAt: 1450
+  ADVANCE: 0,    // "I'm in a crowd"
+  CONTACT: 1,    // "Early fight"
+  GIVE: 2,       // "Are they backing up?"
+  SQUEEZE: 3,    // "I can't move"
+  ENCIRCLE: 4,   // "The map closes"
+  CAVALRY: 5     // "The last door"
 };
-const PLAYER_ATTACK = {
-  cooldownFrames: 18,
-  maxHits: 2
-};
-const PRESSURE = {
-  blockDiagonalWhenEngaged: true,
-  blockIntoPressAdj: 2,
-  blockWorseningContact: true,
-  shoveChance: 0.25
-};
-const KNOT = {
-  startR: 12,
-  endR: 4,
-  shrinkEvery: 160,
-  invaderBiteChance: 0.25
-};
-const SHIELDWALL = {
-  startAtPhase: 1,
-  reserveRadius: 14,
-  ringDesired: 8,
-  ringAggro: 0.9,
-  swapChance: 0.18
-};
+
+const PLAYER_ATTACK = { cooldownFrames: 16, maxHits: 2 };
 
 // =========================
 //  STATE
@@ -322,19 +326,23 @@ let units = [];
 let particles = [];
 let floats = [];
 let player = null;
-let battlePhase = 0;
+let battlePhase = PHASE.ADVANCE;
 let phaseTimer = 0;
-let hasReinforced = false;
-let frontY = 0;
-let doom = { x:0, y:0, r:KNOT.startR };
 let atkCD = 0;
 
-// movement input comes from stick OR keyboard OR dpad
+// Tracking the "give"
+let centerGiveProgress = 0;
+let flankProgress = { left: 0, right: 0 };
+let playerDeepestY = 999;  // Track how far north player has pushed
+
+// Pressure tracking
+let currentPressure = 0;
+let blockedMoves = 0;
+let lastMoveBlocked = false;
+
+// Input
 let input = {dx:0, dy:0};
-
-// keyboard state (WASD + arrows)
 let keysDown = { up:false, down:false, left:false, right:false };
-
 let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
 
 // =========================
@@ -342,13 +350,13 @@ let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
 // =========================
 function startGame(){
   document.getElementById('overlay').style.display = 'none';
-  document.querySelector('#overlay h1').innerText = "CANNAE";
   if(gameActive) return;
   gameActive = true;
   resize();
   setupMap();
   requestAnimationFrame(loop);
 }
+
 function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
 
 function setupMap(){
@@ -356,70 +364,66 @@ function setupMap(){
   particles = [];
   floats = [];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
-  battlePhase = 0;
+  battlePhase = PHASE.ADVANCE;
   phaseTimer = 0;
-  hasReinforced = false;
   atkCD = 0;
+  centerGiveProgress = 0;
+  flankProgress = { left: 0, right: 0 };
+  playerDeepestY = 999;
+  currentPressure = 0;
+  blockedMoves = 0;
 
   const CX = Math.floor(GRID_W/2);
-  const CY = Math.floor(GRID_H/2);
-  frontY = CY - 6;
+  const CY = Math.floor(GRID_H/2) + 8;  // Start further south
 
-  player = spawnUnit(CX, CY+2, 'yours');
+  // === DENSE ROMAN FORMATION ===
+  // Player in the middle of a packed rectangle
+  player = spawnUnit(CX, CY, 'yours');
   cam.x = player.x*TILE + TILE/2;
   cam.y = player.y*TILE + TILE/2;
 
-  doom.x = player.x;
-  doom.y = player.y;
-  doom.r = KNOT.startR;
-
-  // ROMANS (more)
-  for(let y=CY; y<CY+10; y++){
-    for(let x=CX-7; x<CX+7; x++){
-      if(Math.random()>0.1 && !grid[y][x]){
+  // Pack Romans TIGHT around player - this is the "shoulder to shoulder" feel
+  const romanBlock = { left: CX-8, right: CX+8, top: CY-4, bottom: CY+6 };
+  for(let y = romanBlock.top; y <= romanBlock.bottom; y++){
+    for(let x = romanBlock.left; x <= romanBlock.right; x++){
+      if(grid[y] && !grid[y][x]){
         const u = spawnUnit(x, y, 'roman');
         if(u){
-          u.role = (y >= CY+5) ? 'reserve' : 'front';
+          // Front ranks are "front", back ranks are "reserve"
+          u.role = (y < CY) ? 'front' : 'reserve';
         }
       }
     }
   }
 
-  // CARTHAGE (fewer + starts closer)
-  for(let x=CX-12; x<CX+12; x++){
-    const dist = Math.abs(x-CX);
-    const curve = Math.floor((dist*dist)/16);
-    const frontRow = (CY-5) - curve;
-    for(let r=0; r<2; r++){
-      const uy = frontRow - r;
-      if(uy>2 && uy<GRID_H && x>2 && x<GRID_W-2 && !grid[uy][x]){
-        if(Math.random() < 0.75) spawnUnit(x, uy, 'invader');
-      }
-    }
-  }
+  // === CARTHAGINIAN CRESCENT ===
+  // The famous curved line - center closer, wings further back
+  const enemyBaseLine = CY - 12;
+  TRIGGERS.contactLine = enemyBaseLine + 3;
+  TRIGGERS.giveLine = enemyBaseLine;
 
-  // extra center thickening
-  let added = 0;
-  const centerXs = [];
-  for(let d=0; d<=12; d++){
-    if(CX-d > 2) centerXs.push(CX-d);
-    if(d!==0 && CX+d < GRID_W-3) centerXs.push(CX+d);
-  }
-  for(const x of centerXs){
-    if(added >= 20) break;
-    const dist = Math.abs(x-CX);
-    const curve = Math.floor((dist*dist)/16);
-    const frontRow = (CY-5) - curve;
-    for(const uy of [frontRow, frontRow-1]){
-      if(added >= 20) break;
-      if(uy>2 && uy<GRID_H-2 && !grid[uy][x]){
-        spawnUnit(x, uy, 'invader');
-        added++;
+  for(let x = CX - 16; x <= CX + 16; x++){
+    const distFromCenter = Math.abs(x - CX);
+    // Crescent shape: center bulges forward, wings hang back
+    const curve = Math.floor((distFromCenter * distFromCenter) / 24);
+    const frontRow = enemyBaseLine + curve;
+
+    // 2-3 rows deep
+    for(let depth = 0; depth < 3; depth++){
+      const y = frontRow - depth;
+      if(y > 2 && y < GRID_H - 2 && !grid[y][x]){
+        const u = spawnUnit(x, y, 'invader');
+        if(u){
+          // Track if this is center or wing
+          if(distFromCenter <= 6) u.role = 'center';
+          else u.role = 'wing';
+        }
       }
     }
   }
 
   showMsg("ADVANCE!", "#fff");
+  updatePressureUI();
 }
 
 // =========================
@@ -429,22 +433,23 @@ function spawnUnit(gx, gy, type){
   if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H || grid[gy][gx]) return null;
   let hp, maxHp, moveSpeed;
   if(type === 'yours'){
-    hp=80; maxHp=100; moveSpeed=PACE.playerMove;
+    hp=60; maxHp=60; moveSpeed=PACE.playerMove;
   } else if(type === 'roman'){
-    hp=8; maxHp=8; moveSpeed=PACE.romanMove;
+    hp=6; maxHp=6; moveSpeed=PACE.romanMove;
   } else if(type === 'cavalry'){
-    hp=15; maxHp=15; moveSpeed=PACE.cavalryMove;
+    hp=12; maxHp=12; moveSpeed=PACE.cavalryMove;
   } else {
-    hp=12; maxHp=12; moveSpeed=PACE.invaderMove;
+    hp=8; maxHp=8; moveSpeed=PACE.invaderMove;
   }
   const u = {
     id: Math.random(),
     x: gx, y: gy,
     type,
     hp, maxHp,
-    cooldown: Math.random()*60,
+    cooldown: Math.random()*40,
     moveSpeed,
-    role: null
+    role: null,
+    retreating: false  // For the "give" mechanic
   };
   units.push(u);
   grid[gy][gx] = u;
@@ -462,26 +467,18 @@ function loop(){
 }
 
 // =========================
-//  KEYBOARD + DPAD INPUT (WASD / Arrows + Space to slash)
+//  KEYBOARD INPUT
 // =========================
 function recomputeInputFromKeys(){
-  // if stick is active, let stick “win”
   if(stick.active) return;
-
   const left = keysDown.left ? 1 : 0;
   const right = keysDown.right ? 1 : 0;
   const up = keysDown.up ? 1 : 0;
   const down = keysDown.down ? 1 : 0;
-
   const dx = right - left;
   const dy = down - up;
-
   input.dx = 0; input.dy = 0;
-
-  // choose axis with stronger intent; if both held, pick last non-zero preference:
   if(dx !== 0 && dy !== 0){
-    // prefer horizontal if arrows/WASD pressed “more recently” isn't tracked;
-    // keep it simple and prefer horizontal
     input.dx = Math.sign(dx);
   } else if(dx !== 0){
     input.dx = Math.sign(dx);
@@ -490,26 +487,19 @@ function recomputeInputFromKeys(){
   }
 }
 
-// prevent arrow keys from scrolling the page + add slash on space
 window.addEventListener('keydown', (e)=>{
   const k = e.key.toLowerCase();
-
-  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase()) ||
-     ["arrowup","arrowdown","arrowleft","arrowright"].includes(e.key)){
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k) ||
+     ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){
     e.preventDefault();
   }
-
   if(k === "w" || e.key === "ArrowUp") keysDown.up = true;
   if(k === "s" || e.key === "ArrowDown") keysDown.down = true;
   if(k === "a" || e.key === "ArrowLeft") keysDown.left = true;
   if(k === "d" || e.key === "ArrowRight") keysDown.right = true;
-
-  // spacebar to slash
   if(e.code === "Space"){
-    // call the same attack handler; fabricate a minimal event-like object
     handleAttack({ stopPropagation(){}, preventDefault(){} });
   }
-
   recomputeInputFromKeys();
 }, {passive:false});
 
@@ -522,117 +512,140 @@ window.addEventListener('keyup', (e)=>{
   recomputeInputFromKeys();
 }, {passive:false});
 
-// clickable dpad (mouse or touch)
+// D-pad
 (function initDpad(){
   const dpad = document.getElementById('dpad');
   if(!dpad) return;
-
   const dirToKeys = (dir)=>({
-    up: dir==="up",
-    down: dir==="down",
-    left: dir==="left",
-    right: dir==="right"
+    up: dir==="up", down: dir==="down", left: dir==="left", right: dir==="right"
   });
-
   const clearKeys = ()=>{
     keysDown.up = keysDown.down = keysDown.left = keysDown.right = false;
     recomputeInputFromKeys();
   };
-
   const pressDir = (dir)=>{
     clearKeys();
     const k = dirToKeys(dir);
     keysDown.up = k.up; keysDown.down = k.down; keysDown.left = k.left; keysDown.right = k.right;
     recomputeInputFromKeys();
   };
-
   dpad.querySelectorAll('.dpad-btn').forEach(btn=>{
     const dir = btn.dataset.dir;
-
-    const onDown = (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      pressDir(dir);
-    };
-    const onUp = (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      clearKeys();
-    };
-
+    const onDown = (e)=>{ e.preventDefault(); e.stopPropagation(); pressDir(dir); };
+    const onUp = (e)=>{ e.preventDefault(); e.stopPropagation(); clearKeys(); };
     btn.addEventListener('mousedown', onDown);
     window.addEventListener('mouseup', onUp);
-
     btn.addEventListener('touchstart', onDown, {passive:false});
     btn.addEventListener('touchend', onUp, {passive:false});
     btn.addEventListener('touchcancel', onUp, {passive:false});
-    btn.addEventListener('mouseleave', onUp);
   });
 })();
 
 // =========================
-//  UPDATE
+//  UPDATE - THE HEART OF THE EXPERIENCE
 // =========================
 function update(){
   phaseTimer++;
   if(atkCD>0) atkCD--;
 
+  if(!player || player.hp <= 0){
+    gameOver("Crushed in the press.");
+    return;
+  }
+
   const CX = Math.floor(GRID_W/2);
-  const CY = Math.floor(GRID_H/2);
 
-  if(battlePhase === 0 && phaseTimer > PHASE.bendAt){
-    battlePhase = 1;
-    showMsg("THE LINE BENDS...", P.gold);
+  // === TRACK PLAYER PROGRESS ===
+  if(player.y < playerDeepestY){
+    playerDeepestY = player.y;
   }
-  if(battlePhase === 1 && phaseTimer > PHASE.encircleAt){
-    battlePhase = 2;
-    showMsg("ENCIRCLED. HOLD FAST.", P.roman);
-    for(let y=CY-12; y<CY+12; y++){
-      let a = spawnUnit(2, y, 'invader'); if(a) a.role='sealer';
-      let b = spawnUnit(GRID_W-3, y, 'invader'); if(b) b.role='sealer';
-    }
-  }
-  if(battlePhase === 2 && phaseTimer > PHASE.reinfAt && !hasReinforced){
-    hasReinforced = true;
-    showMsg("NUMIDIAN CAVALRY! Closing the rear.", "#fbbf24");
-    for(let x=CX-8; x<=CX+8; x+=2){
-      let c1 = spawnUnit(x, player.y+10, 'cavalry'); if(c1) c1.role='rearSealer';
+
+  // === PRESSURE CALCULATION ===
+  currentPressure = countAllAdjacent(player.x, player.y);
+  const friendlyPressure = countAdjacentFriendlies(player.x, player.y);
+  const enemyPressure = countAdjacentInvaders(player.x, player.y);
+
+  // === PASSIVE CRUSH DAMAGE ===
+  if(currentPressure >= TRIGGERS.crushDensity){
+    player.hp -= TRIGGERS.crushDamagePerTick;
+    if(phaseTimer % 30 === 0){
+      spawnFloat("CRUSHED", player.x, player.y, "#ef4444");
     }
   }
 
-  if(battlePhase >= 1) frontY += 0.002;
-
-  if(player && player.hp>0){
-    doom.x += (player.x - doom.x) * 0.35;
-    doom.y += (player.y - doom.y) * 0.35;
-  }
-  if(battlePhase >= 2){
-    const t = Math.max(0, phaseTimer - PHASE.encircleAt);
-    const steps = Math.floor(t / KNOT.shrinkEvery);
-    doom.r = Math.max(KNOT.endR, KNOT.startR - steps);
-  } else {
-    doom.r = KNOT.startR;
+  // === PHASE TRANSITIONS (Position-based, not time-based) ===
+  if(battlePhase === PHASE.ADVANCE){
+    // Contact when we reach enemy line
+    if(enemyPressure > 0 || player.y <= TRIGGERS.contactLine){
+      battlePhase = PHASE.CONTACT;
+      showMsg("CONTACT!", "#fff");
+    }
   }
 
+  if(battlePhase === PHASE.CONTACT){
+    // The "give" triggers when player pushes past the original enemy line
+    if(player.y <= TRIGGERS.giveLine){
+      battlePhase = PHASE.GIVE;
+      showMsg("THE CENTER GIVES...", P.gold);
+      // Mark center enemies as retreating
+      for(const u of units){
+        if(u.type === 'invader' && u.role === 'center'){
+          u.retreating = true;
+        }
+      }
+    }
+  }
+
+  if(battlePhase === PHASE.GIVE){
+    centerGiveProgress += 0.003;
+    flankProgress.left += 0.006;
+    flankProgress.right += 0.006;
+
+    // Squeeze begins when flanks have advanced significantly
+    if(flankProgress.left > 0.5 || friendlyPressure >= TRIGGERS.squeezeDensity){
+      battlePhase = PHASE.SQUEEZE;
+      showMsg("THE FLANKS CLOSE IN...", "#fca5a5");
+    }
+  }
+
+  if(battlePhase === PHASE.SQUEEZE){
+    flankProgress.left += 0.008;
+    flankProgress.right += 0.008;
+
+    // Encirclement when flanks meet behind
+    if(flankProgress.left > 1.0){
+      battlePhase = PHASE.ENCIRCLE;
+      showMsg("ENCIRCLED. HOLD FAST.", P.roman);
+      spawnEncirclingForces(CX);
+    }
+  }
+
+  if(battlePhase === PHASE.ENCIRCLE && phaseTimer > 800 && battlePhase !== PHASE.CAVALRY){
+    // Check if enough time has passed for cavalry
+    const invaderCount = units.filter(u => isInvaderType(u.type)).length;
+    if(phaseTimer > 1200 || invaderCount < 40){
+      battlePhase = PHASE.CAVALRY;
+      showMsg("NUMIDIAN CAVALRY!", P.gold);
+      spawnCavalry(CX);
+    }
+  }
+
+  // === UNIT UPDATES ===
   units.sort((a,b)=>a.y-b.y);
 
   for(const u of units){
     if(u.hp<=0) continue;
 
-    if(u.type==='yours'){
-      if(u.cooldown>0) u.cooldown--;
-      if(u.cooldown<=0 && (input.dx || input.dy)){
-        tryMove(u, input.dx, input.dy);
-        u.cooldown = u.moveSpeed;
-        if(isEngaged(u)){
-          u.cooldown *= 2.0;
-        }
-      }
+    if(u.type === 'yours'){
+      handlePlayerMovement(u);
     } else {
-      handleAI(u, CX, CY);
+      handleAI(u, CX);
     }
   }
 
   units = units.filter(u=>u.hp>0);
 
+  // === CAMERA ===
   if(player && player.hp>0){
     const tx = player.x*TILE + TILE/2;
     const ty = player.y*TILE + TILE/2;
@@ -641,308 +654,361 @@ function update(){
   }
 
   updateFX();
+  updatePressureUI();
 
   document.getElementById('ui-rome').innerText = units.filter(u=>!isInvaderType(u.type)).length;
-  document.getElementById('ui-han').innerText  = units.filter(u=>isInvaderType(u.type)).length;
-
-  if(player && player.hp<=0) gameOver("Crushed in the press.");
+  document.getElementById('ui-han').innerText = units.filter(u=>isInvaderType(u.type)).length;
 }
 
 // =========================
-//  AI CORE (unchanged)
+//  PLAYER MOVEMENT - THE SQUEEZE FEEL
 // =========================
-function handleAI(u, CX, CY){
-  if(u.cooldown>0){ u.cooldown--; return; }
+function handlePlayerMovement(u){
+  if(u.cooldown > 0){ u.cooldown--; return; }
+  if(!input.dx && !input.dy) return;
 
-  let target=null, minDist=99;
-  for(const o of units){
-    if(Math.abs(o.x-u.x)>3 || Math.abs(o.y-u.y)>3) continue;
-    const isEnemy =
-      (!isInvaderType(u.type) && isInvaderType(o.type)) ||
-      ( isInvaderType(u.type) && !isInvaderType(o.type) );
-    if(isEnemy){
-      const d = dist(u,o);
-      if(d<minDist){ minDist=d; target=o; }
+  const pressure = currentPressure;
+  const enemyAdj = countAdjacentInvaders(u.x, u.y);
+
+  let canMove = true;
+  let moveCost = u.moveSpeed;
+  let blockReason = null;
+
+  // === MOVEMENT RESTRICTIONS BASED ON PRESSURE ===
+
+  // Light pressure (3-4): Diagonals blocked when enemies adjacent
+  if(enemyAdj > 0 && input.dx !== 0 && input.dy !== 0){
+    canMove = false;
+    blockReason = "Can't pivot!";
+  }
+
+  // Medium pressure (5-6): Lateral movement costs double
+  if(pressure >= 5){
+    if(input.dx !== 0 && input.dy === 0){
+      moveCost *= 2;
     }
   }
 
-  if(target && minDist<=1.5){
-    attack(u,target);
-    u.cooldown = PACE.combatDelay + Math.random()*20;
+  // Heavy pressure (7+): Can only move if destination has space
+  if(pressure >= 7){
+    const tx = u.x + input.dx;
+    const ty = u.y + input.dy;
+    const destPressure = countAllAdjacent(tx, ty);
+    if(destPressure >= pressure){
+      canMove = false;
+      blockReason = "No space!";
+    }
+  }
+
+  // Check destination
+  const tx = u.x + input.dx;
+  const ty = u.y + input.dy;
+  if(!inBounds(tx, ty)){
+    canMove = false;
+    blockReason = "Edge!";
+  } else if(grid[ty][tx]){
+    canMove = false;
+    blockReason = "Blocked!";
+  }
+
+  if(canMove){
+    grid[u.y][u.x] = null;
+    u.x = tx; u.y = ty;
+    grid[ty][tx] = u;
+    u.cooldown = moveCost;
+    lastMoveBlocked = false;
+
+    // Reward finding space
+    if(pressure >= 6 && countAllAdjacent(tx, ty) < pressure){
+      spawnFloat("BREATHE", u.x, u.y, "#22c55e");
+    }
+  } else {
+    u.cooldown = Math.floor(moveCost * 0.5);  // Brief pause on blocked move
+    blockedMoves++;
+    lastMoveBlocked = true;
+
+    if(blockReason && blockedMoves % 3 === 0){
+      spawnFloat(blockReason, u.x, u.y, "#fbbf24");
+    }
+  }
+}
+
+// =========================
+//  AI - THE TRAP
+// =========================
+function handleAI(u, CX){
+  if(u.cooldown > 0){ u.cooldown--; return; }
+
+  // Find nearby target
+  let target = null, minDist = 99;
+  for(const o of units){
+    if(Math.abs(o.x-u.x) > 4 || Math.abs(o.y-u.y) > 4) continue;
+    const isEnemy = (!isInvaderType(u.type) && isInvaderType(o.type)) ||
+                    (isInvaderType(u.type) && !isInvaderType(o.type));
+    if(isEnemy){
+      const d = dist(u, o);
+      if(d < minDist){ minDist = d; target = o; }
+    }
+  }
+
+  // Attack if adjacent
+  if(target && minDist <= 1.5){
+    attack(u, target);
+    u.cooldown = PACE.combatDelay + Math.random() * 15;
     return;
   }
 
   let md = {x:0, y:0};
+
+  // === INVADER AI ===
   if(isInvaderType(u.type)){
-    if(battlePhase >= 2){
-      const dx = doom.x - u.x;
-      const dy = doom.y - u.y;
-      const d = Math.hypot(dx, dy);
 
-      if(target && minDist<=2 && Math.random() < KNOT.invaderBiteChance){
-        md = getStep(u,target);
-      } else if(d > doom.r + 1){
-        md = (Math.abs(dx) > Math.abs(dy)) ? {x:Math.sign(dx), y:0} : {x:0, y:Math.sign(dy)};
-      } else {
-        md = (Math.random()<0.5)
-          ? {x:(dy>0 ? 1 : -1), y:0}
-          : {x:0, y:(dx>0 ? -1 : 1)};
-      }
-
-      if(u.type==='cavalry'){
-        if(md.x || md.y){
-          const moved = tryMoveSmart(u, md.x, md.y);
-          if(!moved){
-            u.cooldown = u.moveSpeed * 0.35;
-            return;
-          }
+    // CENTER UNITS: THE "GIVE"
+    if(u.role === 'center'){
+      if(u.retreating && battlePhase >= PHASE.GIVE){
+        // Retreat slowly - this is what makes the player feel like they're winning
+        if(Math.random() < 0.4){
+          md = {x: 0, y: -1};  // Step back
+        } else if(target){
+          md = getStep(u, target);  // Sometimes still fight
         }
-        u.cooldown = u.moveSpeed + Math.random()*8;
-        return;
+      } else if(target){
+        md = getStep(u, target);
       }
-    } else {
-      if(battlePhase < 2){
-        if(u.y < frontY + 6 && Math.random() < 0.65) md = {x:0, y:1};
+    }
+
+    // WING UNITS: THE ENCIRCLEMENT
+    else if(u.role === 'wing'){
+      if(battlePhase >= PHASE.GIVE){
+        // Wings advance and curve inward
+        const curveInward = (u.x < CX) ? 1 : -1;
+
+        if(Math.random() < 0.3 + flankProgress.left * 0.4){
+          // Advance
+          md = {x: 0, y: 1};
+        } else if(Math.random() < 0.5){
+          // Curve inward
+          md = {x: curveInward, y: 0};
+        } else if(target){
+          md = getStep(u, target);
+        }
+      } else if(target){
+        md = getStep(u, target);
       }
-      if(u.role==='sealer' && player && player.hp>0){
-        const ringY = player.y + 4;
-        if(u.y < ringY) md = {x:0, y:1};
-        else if(u.y > ringY) md = {x:0, y:-1};
-        else md = {x:(u.x < CX) ? 1 : -1, y:0};
-      } else {
-        if(target) md = getStep(u,target);
-        else if(Math.random()>0.7) md = {x:(u.x<CX)?1:-1, y:0};
+    }
+
+    // SEALERS: Close the ring
+    else if(u.role === 'sealer'){
+      if(player && player.hp > 0){
+        // Move toward player's position
+        md = getStep(u, player);
       }
+    }
+
+    // CAVALRY: Close escape lanes
+    else if(u.type === 'cavalry'){
+      if(player && player.hp > 0){
+        // Target the space BEHIND the player
+        const behindPlayer = {x: player.x, y: player.y + 3};
+        if(dist(u, behindPlayer) > 2){
+          md = getStep(u, behindPlayer);
+        } else {
+          md = getStep(u, player);
+        }
+      }
+    }
+
+    // Default invader behavior
+    else if(target){
+      md = getStep(u, target);
     }
   }
 
-  if(u.type==='roman'){
-    const wantsShield = (battlePhase >= SHIELDWALL.startAtPhase) && (u.role==='reserve');
-    if(wantsShield && player && player.hp>0 && Math.random() < SHIELDWALL.ringAggro){
-      const ring = ringTargets(player.x, player.y);
-      let best = null;
-      for(const t of ring){
-        if(!inBounds(t.x,t.y)) continue;
-        if(!grid[t.y][t.x]){ best = t; break; }
-      }
-      if(best){
-        md = getStep(u, best);
+  // === ROMAN AI ===
+  else if(u.type === 'roman'){
+    // Romans try to stay near player and form shield wall
+    if(player && player.hp > 0){
+      const distToPlayer = dist(u, player);
+
+      if(distToPlayer > 4){
+        // Too far - move toward player
+        md = getStep(u, player);
+      } else if(target && distToPlayer < 3){
+        // Close enough - fight
+        md = getStep(u, target);
       } else {
-        md = orbitAround(u, player.x, player.y);
+        // Try to position between player and enemies
+        if(target && target.y < player.y){
+          // Enemy is north - move north
+          md = {x: 0, y: -1};
+        } else if(target){
+          md = getStep(u, target);
+        }
       }
-    } else {
-      if(target) md = getStep(u, target);
-      else md = {x:0, y:-1};
+    } else if(target){
+      md = getStep(u, target);
     }
   }
 
-  if(md.x || md.y) tryMove(u, md.x, md.y);
-  u.cooldown = u.moveSpeed + Math.random()*PACE.aiThinkJitter;
-}
-
-// =========================
-//  SMART MOVE HELPERS
-// =========================
-function tryMoveSmart(u, dx, dy){
-  if(tryMoveReturn(u, dx, dy)) return true;
-  const opts = [
-    {x:dy, y:dx},
-    {x:-dy, y:-dx},
-    {x:dx, y:0},
-    {x:0, y:dy},
-    {x:Math.sign(dx), y:Math.sign(dy)}
-  ];
-  for(const o of opts){
-    if(o.x===0 && o.y===0) continue;
-    if(tryMoveReturn(u, o.x, o.y)) return true;
+  // Execute move
+  if(md.x || md.y){
+    const tx = u.x + md.x;
+    const ty = u.y + md.y;
+    if(inBounds(tx, ty) && !grid[ty][tx]){
+      grid[u.y][u.x] = null;
+      u.x = tx; u.y = ty;
+      grid[ty][tx] = u;
+    }
   }
-  return false;
-}
-function tryMoveReturn(u, dx, dy){
-  const ox=u.x, oy=u.y;
-  tryMove(u, dx, dy);
-  return (u.x!==ox || u.y!==oy);
+
+  u.cooldown = u.moveSpeed + Math.random() * 20;
 }
 
 // =========================
-//  PRESSURE
+//  SPAWNING
+// =========================
+function spawnEncirclingForces(CX){
+  // Spawn sealers on the flanks
+  for(let y = player.y - 8; y < player.y + 8; y++){
+    if(y < 2 || y >= GRID_H - 2) continue;
+
+    // Left side
+    for(let x = 2; x < CX - 10; x += 2){
+      if(!grid[y][x] && Math.random() < 0.3){
+        const u = spawnUnit(x, y, 'invader');
+        if(u) u.role = 'sealer';
+      }
+    }
+
+    // Right side
+    for(let x = CX + 10; x < GRID_W - 2; x += 2){
+      if(!grid[y][x] && Math.random() < 0.3){
+        const u = spawnUnit(x, y, 'invader');
+        if(u) u.role = 'sealer';
+      }
+    }
+  }
+}
+
+function spawnCavalry(CX){
+  // Cavalry spawns BEHIND the player - closing the escape
+  const spawnY = Math.min(GRID_H - 5, player.y + 12);
+
+  for(let x = CX - 10; x <= CX + 10; x += 3){
+    if(!grid[spawnY][x]){
+      const c = spawnUnit(x, spawnY, 'cavalry');
+      if(c) c.role = 'cavalry';
+    }
+  }
+}
+
+// =========================
+//  PRESSURE HELPERS
 // =========================
 function countAdjacentInvaders(gx, gy){
-  let c=0;
-  for(let dy=-1; dy<=1; dy++){
-    for(let dx=-1; dx<=1; dx++){
-      if(dx===0 && dy===0) continue;
-      const x=gx+dx, y=gy+dy;
+  let c = 0;
+  for(let dy = -1; dy <= 1; dy++){
+    for(let dx = -1; dx <= 1; dx++){
+      if(dx === 0 && dy === 0) continue;
+      const x = gx + dx, y = gy + dy;
       if(grid[y] && grid[y][x] && isInvaderType(grid[y][x].type)) c++;
     }
   }
   return c;
 }
-function isEngaged(u){ return countAdjacentInvaders(u.x, u.y) > 0; }
 
-function tryMove(u, dx, dy){
-  const tx=u.x+dx, ty=u.y+dy;
-  if(!inBounds(tx,ty)) return;
-
-  if(u.type==='yours'){
-    const engaged = isEngaged(u);
-    if(engaged){
-      if(PRESSURE.blockDiagonalWhenEngaged && dx!==0 && dy!==0) return;
-      const herePress = countAdjacentInvaders(u.x, u.y);
-      const therePress = countAdjacentInvaders(tx, ty);
-      if(grid[ty][tx]) return;
-      if(therePress >= PRESSURE.blockIntoPressAdj) return;
-      if(PRESSURE.blockWorseningContact && therePress > herePress) return;
-      if(Math.random() < PRESSURE.shoveChance) return;
+function countAdjacentFriendlies(gx, gy){
+  let c = 0;
+  for(let dy = -1; dy <= 1; dy++){
+    for(let dx = -1; dx <= 1; dx++){
+      if(dx === 0 && dy === 0) continue;
+      const x = gx + dx, y = gy + dy;
+      if(grid[y] && grid[y][x] && !isInvaderType(grid[y][x].type)) c++;
     }
   }
-  if(grid[ty][tx]) return;
+  return c;
+}
 
-  grid[u.y][u.x]=null;
-  u.x=tx; u.y=ty;
-  grid[ty][tx]=u;
+function countAllAdjacent(gx, gy){
+  let c = 0;
+  for(let dy = -1; dy <= 1; dy++){
+    for(let dx = -1; dx <= 1; dx++){
+      if(dx === 0 && dy === 0) continue;
+      const x = gx + dx, y = gy + dy;
+      if(grid[y] && grid[y][x]) c++;
+    }
+  }
+  return c;
 }
 
 // =========================
 //  COMBAT
 // =========================
 function attack(atk, def){
-  let mult = 1.0;
-  if(atk.type === 'yours') mult = 0.25;
-  if(atk.type === 'cavalry') mult = 1.5;
-  let dmg = 1 * mult;
+  let dmg = 1;
+  if(atk.type === 'yours') dmg = 2;
+  if(atk.type === 'cavalry') dmg = 3;
 
   def.hp -= dmg;
   spawnBlood(def.x, def.y);
-  spawnFloat("-"+formatDmg(dmg), def.x, def.y, "#ef4444");
 
-  // no shove for player
-  if(atk.type === 'yours'){
-    if(def.hp<=0){
-      grid[def.y][def.x]=null;
-      spawnFloat("KILL", def.x, def.y, P.gold);
-    }
-    return;
-  }
+  // Shove mechanic for AI attackers
+  if(atk.type !== 'yours' && def.hp > 0){
+    const dx = Math.sign(def.x - atk.x);
+    const dy = Math.sign(def.y - atk.y);
+    const tx = def.x + dx;
+    const ty = def.y + dy;
 
-  // shove calc (AI only)
-  let dx = def.x - atk.x;
-  let dy = def.y - atk.y;
-  if(Math.abs(dx) > Math.abs(dy)) { dx = Math.sign(dx); dy = 0; }
-  else { dx = 0; dy = Math.sign(dy); }
-
-  let tx = def.x + dx;
-  let ty = def.y + dy;
-
-  if(!inBounds(tx,ty)){
-     const crush = 3 * mult;
-     def.hp -= crush;
-     spawnFloat("CRUSH", def.x, def.y, "#f00");
-     spawnFloat("-"+formatDmg(crush), def.x, def.y, "#f00");
-     if(def.hp<=0){
-       grid[def.y][def.x]=null;
-       spawnFloat("KILL", def.x, def.y, P.gold);
-     }
-     return;
-  }
-
-  if(!grid[ty][tx]){
-    grid[def.y][def.x] = null;
-    def.x = tx; def.y = ty;
-    grid[def.y][def.x] = def;
-    spawnFloat("SHOVE", def.x, def.y, "#fff");
-  } else {
-    let behind = grid[ty][tx];
-    let tx2 = tx + dx;
-    let ty2 = ty + dy;
-    if(inBounds(tx2, ty2) && !grid[ty2][tx2]){
-       grid[ty][tx] = null;
-       behind.x = tx2; behind.y = ty2;
-       grid[ty2][tx2] = behind;
-
-       grid[def.y][def.x] = null;
-       def.x = tx; def.y = ty;
-       grid[ty][tx] = def;
-       spawnFloat("DOMINO", def.x, def.y, "#fff");
+    if(inBounds(tx, ty)){
+      if(!grid[ty][tx]){
+        // Open space - shove into it
+        grid[def.y][def.x] = null;
+        def.x = tx; def.y = ty;
+        grid[ty][tx] = def;
+        spawnFloat("SHOVE", def.x, def.y, "#fff");
+      } else {
+        // No space - CRUSH damage
+        def.hp -= 2;
+        spawnFloat("CRUSH", def.x, def.y, "#ef4444");
+      }
     } else {
-       const crush = 3 * mult;
-       def.hp -= crush;
-       spawnFloat("CRUSH", def.x, def.y, "#f00");
-       spawnFloat("-"+formatDmg(crush), def.x, def.y, "#f00");
-       spawnBlood(def.x, def.y);
+      // Edge of map - CRUSH
+      def.hp -= 3;
+      spawnFloat("CRUSH", def.x, def.y, "#ef4444");
     }
   }
 
-  if(def.hp<=0){
-    grid[def.y][def.x]=null;
+  if(def.hp <= 0){
+    grid[def.y][def.x] = null;
     spawnFloat("KILL", def.x, def.y, P.gold);
   }
 }
-function formatDmg(n){
-  return (Math.abs(n - Math.round(n)) < 1e-6) ? String(Math.round(n)) : n.toFixed(2);
-}
 
 // =========================
-//  INPUT (TOUCH STICK) + ATTACK BUTTON
+//  PLAYER ATTACK
 // =========================
-const stickEl = document.getElementById('stick');
-const stickZone = document.getElementById('stick-zone');
-
-if(stickZone){
-  stickZone.addEventListener('touchstart', e=>{
-    stick.active=true;
-    stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
-    stick.curX=stick.startX; stick.curY=stick.startY;
-  }, {passive:false});
-
-  stickZone.addEventListener('touchmove', e=>{
-    if(!stick.active) return;
-    e.preventDefault();
-    stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY;
-    updateStick();
-  }, {passive:false});
-
-  const endStick=()=>{
-    stick.active=false;
-    stickEl.style.transform=`translate(0px,0px)`;
-    // after stick ends, fall back to keyboard/dpad state
-    recomputeInputFromKeys();
-  };
-  stickZone.addEventListener('touchend', endStick);
-  stickZone.addEventListener('touchcancel', endStick);
-
-  function updateStick(){
-    const max=45;
-    let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY;
-    const d=Math.sqrt(dx*dx+dy*dy);
-    if(d>max){ dx=(dx/d)*max; dy=(dy/d)*max; }
-    stickEl.style.transform=`translate(${dx}px, ${dy}px)`;
-
-    input.dx=0; input.dy=0;
-    if(d>10){
-      if(Math.abs(dx)>Math.abs(dy)) input.dx=Math.sign(dx);
-      else input.dy=Math.sign(dy);
-    }
-  }
-}
-
 window.handleAttack = function(e){
   e.stopPropagation?.(); e.preventDefault?.();
-  if(!gameActive || !player || player.hp<=0) return;
+  if(!gameActive || !player || player.hp <= 0) return;
   if(atkCD > 0) return;
 
   atkCD = PLAYER_ATTACK.cooldownFrames;
 
-  const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
-  let targets=[];
+  const dirs = [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+  let targets = [];
   for(const d of dirs){
-    const tx=player.x+d[0], ty=player.y+d[1];
+    const tx = player.x + d[0], ty = player.y + d[1];
     const u = (grid[ty] && grid[ty][tx]) ? grid[ty][tx] : null;
     if(u && isInvaderType(u.type)) targets.push(u);
   }
-  if(!targets.length) return;
 
-  targets.sort((a,b)=>dist(player,a)-dist(player,b));
+  if(!targets.length){
+    spawnFloat("SWING", player.x, player.y, "#888");
+    return;
+  }
+
+  // Sort by distance, attack closest
+  targets.sort((a,b) => dist(player, a) - dist(player, b));
   for(const t of targets.slice(0, PLAYER_ATTACK.maxHits)){
     attack(player, t);
   }
@@ -950,41 +1016,158 @@ window.handleAttack = function(e){
 };
 
 // =========================
+//  INPUT (Touch Joystick)
+// =========================
+const stickEl = document.getElementById('stick');
+const stickZone = document.getElementById('stick-zone');
+
+if(stickZone){
+  stickZone.addEventListener('touchstart', e=>{
+    stick.active = true;
+    stick.startX = e.touches[0].clientX;
+    stick.startY = e.touches[0].clientY;
+    stick.curX = stick.startX;
+    stick.curY = stick.startY;
+  }, {passive:false});
+
+  stickZone.addEventListener('touchmove', e=>{
+    if(!stick.active) return;
+    e.preventDefault();
+    stick.curX = e.touches[0].clientX;
+    stick.curY = e.touches[0].clientY;
+    updateStick();
+  }, {passive:false});
+
+  const endStick = ()=>{
+    stick.active = false;
+    stickEl.style.transform = `translate(0px,0px)`;
+    recomputeInputFromKeys();
+  };
+  stickZone.addEventListener('touchend', endStick);
+  stickZone.addEventListener('touchcancel', endStick);
+
+  function updateStick(){
+    const max = 45;
+    let dx = stick.curX - stick.startX;
+    let dy = stick.curY - stick.startY;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if(d > max){ dx = (dx/d)*max; dy = (dy/d)*max; }
+    stickEl.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    input.dx = 0; input.dy = 0;
+    if(d > 10){
+      if(Math.abs(dx) > Math.abs(dy)) input.dx = Math.sign(dx);
+      else input.dy = Math.sign(dy);
+    }
+  }
+}
+
+// =========================
 //  FX + UI
 // =========================
 function spawnBlood(gx, gy){
-  for(let i=0;i<3;i++){
+  for(let i = 0; i < 3; i++){
     particles.push({
-      x:gx*TILE+TILE/2, y:gy*TILE+TILE/2,
-      vx:(Math.random()-.5)*2.2, vy:(Math.random()-.5)*2.2,
-      life:1, color:P.roman
+      x: gx*TILE + TILE/2,
+      y: gy*TILE + TILE/2,
+      vx: (Math.random() - 0.5) * 2.5,
+      vy: (Math.random() - 0.5) * 2.5,
+      life: 1,
+      color: P.roman
     });
   }
 }
-function spawnFloat(txt,gx,gy,col){
-  floats.push({x:gx*TILE, y:gy*TILE, text:txt, life:1, color:col});
+
+function spawnFloat(txt, gx, gy, col){
+  floats.push({x: gx*TILE, y: gy*TILE, text: txt, life: 1, color: col});
 }
+
 function updateFX(){
-  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life-=0.05; });
-  particles = particles.filter(p=>p.life>0);
-  floats.forEach(f=>{ f.y-=0.25; f.life-=0.02; });
-  floats = floats.filter(f=>f.life>0);
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.05; });
+  particles = particles.filter(p => p.life > 0);
+  floats.forEach(f => { f.y -= 0.3; f.life -= 0.025; });
+  floats = floats.filter(f => f.life > 0);
 }
+
 function showMsg(txt, col){
-  const el=document.getElementById('battle-text');
-  el.innerText=txt; el.style.color=col; el.style.opacity=1;
-  setTimeout(()=>el.style.opacity=0, 2500);
+  const el = document.getElementById('battle-text');
+  el.innerText = txt;
+  el.style.color = col;
+  el.style.opacity = 1;
+  setTimeout(() => el.style.opacity = 0, 2800);
 }
+
+function updatePressureUI(){
+  const fill = document.getElementById('pressure-fill');
+  const label = document.getElementById('pressure-label');
+
+  const pct = Math.min(100, (currentPressure / 8) * 100);
+  fill.style.width = pct + '%';
+
+  if(currentPressure <= 2){
+    label.innerText = "FORMATION SOLID";
+    label.style.color = "#22c55e";
+  } else if(currentPressure <= 4){
+    label.innerText = "RANKS TIGHT";
+    label.style.color = "#a3e635";
+  } else if(currentPressure <= 5){
+    label.innerText = "PRESSED";
+    label.style.color = "#fbbf24";
+  } else if(currentPressure <= 6){
+    label.innerText = "SQUEEZED";
+    label.style.color = "#f97316";
+  } else {
+    label.innerText = "CRUSHING";
+    label.style.color = "#ef4444";
+  }
+}
+
 function gameOver(t){
-  gameActive=false;
+  gameActive = false;
   const ov = document.getElementById('overlay');
-  ov.style.display='flex';
+  ov.style.display = 'flex';
   ov.innerHTML = `
     <h1>DEFEAT</h1>
-    <p><b>${t}</b></p>
+    <p><b>${escapeHtml(t)}</b></p>
     <p>Your shield wall collapsed.</p>
+    <p style="font-size:13px; color:#888;">You traded space for kills. That's what Cannae was.</p>
     <button class="btn-start" onclick="location.reload()" style="margin-top:10px;">LEAD THE CHARGE</button>
     <button class="btn-start" onclick="window.location.href='map.html'" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">RETURN TO MAP</button>
+    <button class="btn-start" onclick="showHistory()" style="margin-top:10px; background:#1e3a8a; box-shadow:0 4px 0 #172554;">HISTORY</button>
+  `;
+}
+
+function escapeHtml(text){
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// =========================
+//  HISTORY
+// =========================
+function showHistory(){
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = `
+    <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF CANNAE (216 BC)</h2>
+    <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:400px;">
+      <p><strong style="color:#fff">FORCES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~86,000 (Varro &amp; Paullus)<br>
+      <span style="color:#60a5fa">Carthage:</span> ~50,000 (Hannibal)</p>
+
+      <p><strong style="color:#fff">CASUALTIES:</strong><br>
+      <span style="color:#ef4444">Rome:</span> ~50,000-70,000 killed<br>
+      <span style="color:#60a5fa">Carthage:</span> ~6,000</p>
+
+      <p><strong style="color:#fff">THE TRAP:</strong><br>
+      Hannibal's center <em>intentionally gave ground</em>, drawing the Romans deeper. Meanwhile, his wings curved inward. When his cavalry closed the rear, the Romans were packed so tight they couldn't raise their weapons. Most died from crushing, not combat.</p>
+
+      <p><strong style="color:#fff">THE LESSON:</strong><br>
+      Space is survival. The Romans won every duel but lost the geometry.</p>
+    </div>
+    <button class="btn-start" onclick="location.reload()" style="margin-top:20px;">TRY AGAIN</button>
+    <button class="btn-start" onclick="window.location.href='map.html'" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">BACK TO MAP</button>
   `;
 }
 
@@ -992,46 +1175,61 @@ function gameOver(t){
 //  DRAW
 // =========================
 function draw(){
-  CTX.fillStyle='#2d332d';
-  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
+  CTX.fillStyle = '#2d332d';
+  CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
 
   CTX.save();
   const cx = CANVAS.width/2 - cam.x;
   const cy = CANVAS.height/2 - cam.y;
   CTX.translate(Math.round(cx), Math.round(cy));
 
-  CTX.strokeStyle='rgba(255,255,255,0.05)';
-  CTX.lineWidth=1;
+  // Grid (very subtle)
+  CTX.strokeStyle = 'rgba(255,255,255,0.03)';
+  CTX.lineWidth = 1;
   CTX.beginPath();
-  for(let i=0;i<GRID_W;i++){ CTX.moveTo(i*TILE,0); CTX.lineTo(i*TILE,GRID_H*TILE); }
-  for(let i=0;i<GRID_H;i++){ CTX.moveTo(0,i*TILE); CTX.lineTo(GRID_W*TILE,i*TILE); }
+  for(let i = 0; i < GRID_W; i++){ CTX.moveTo(i*TILE, 0); CTX.lineTo(i*TILE, GRID_H*TILE); }
+  for(let i = 0; i < GRID_H; i++){ CTX.moveTo(0, i*TILE); CTX.lineTo(GRID_W*TILE, i*TILE); }
   CTX.stroke();
 
+  // Draw pressure zone around player (visual feedback for squeeze)
+  if(player && player.hp > 0 && currentPressure >= 4){
+    const alpha = Math.min(0.3, (currentPressure - 3) * 0.05);
+    CTX.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+    CTX.beginPath();
+    CTX.arc(player.x * TILE + TILE/2, player.y * TILE + TILE/2, TILE * 3, 0, Math.PI * 2);
+    CTX.fill();
+  }
+
+  // Units
   for(const u of units){
     drawSprite(u.type, u.x*TILE - 4, u.y*TILE - 8, SCALE);
+
+    // Health bars for damaged units
     if(u.hp < u.maxHp){
-      const sx=u.x*TILE - 4, sy=u.y*TILE - 8;
-      CTX.fillStyle='#000'; CTX.fillRect(sx, sy-6, 24, 4);
-      CTX.fillStyle =
-        (u.type==='yours') ? '#1f9d55' :
-        (isInvaderType(u.type)) ? '#60a5fa' : '#ef4444';
-      CTX.fillRect(sx+1, sy-5, Math.max(0,(u.hp/u.maxHp)*22), 2);
+      const sx = u.x*TILE - 4, sy = u.y*TILE - 8;
+      CTX.fillStyle = '#000';
+      CTX.fillRect(sx, sy - 6, 24, 4);
+      CTX.fillStyle = (u.type === 'yours') ? '#1f9d55' :
+                      isInvaderType(u.type) ? '#60a5fa' : '#ef4444';
+      CTX.fillRect(sx + 1, sy - 5, Math.max(0, (u.hp/u.maxHp) * 22), 2);
     }
   }
 
+  // Particles
   for(const p of particles){
-    CTX.fillStyle=p.color;
+    CTX.fillStyle = p.color;
     CTX.fillRect(p.x, p.y, SCALE, SCALE);
   }
 
-  CTX.font="bold 12px monospace";
-  CTX.textAlign="center";
+  // Floating text
+  CTX.font = "bold 12px monospace";
+  CTX.textAlign = "center";
   for(const f of floats){
-    CTX.fillStyle=f.color;
-    CTX.globalAlpha=f.life;
-    CTX.fillText(f.text, f.x+TILE/2, f.y);
+    CTX.fillStyle = f.color;
+    CTX.globalAlpha = f.life;
+    CTX.fillText(f.text, f.x + TILE/2, f.y);
   }
-  CTX.globalAlpha=1;
+  CTX.globalAlpha = 1;
 
   CTX.restore();
 }
@@ -1039,76 +1237,20 @@ function draw(){
 // =========================
 //  UTILS
 // =========================
-function inBounds(x,y){ return !(x<0||x>=GRID_W||y<0||y>=GRID_H); }
-function dist(a,b){ return Math.sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y)); }
+function inBounds(x, y){ return !(x < 0 || x >= GRID_W || y < 0 || y >= GRID_H); }
+function dist(a, b){ return Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2); }
 function getStep(u, t){
-  const dx=t.x-u.x, dy=t.y-u.y;
-  if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
-  return {x:0, y:Math.sign(dy)};
+  const dx = t.x - u.x, dy = t.y - u.y;
+  if(Math.abs(dx) > Math.abs(dy)) return {x: Math.sign(dx), y: 0};
+  return {x: 0, y: Math.sign(dy)};
 }
-function ringTargets(px,py){
-  return [
-    {x:px, y:py-1},{x:px, y:py+1},{x:px-1,y:py},{x:px+1,y:py},
-    {x:px-1,y:py-1},{x:px+1,y:py-1},{x:px-1,y:py+1},{x:px+1,y:py+1},
-  ];
-}
-function orbitAround(u, cx, cy){
-  const dx = u.x - cx, dy = u.y - cy;
-  if(Math.abs(dx)+Math.abs(dy) === 0) return {x:0,y:0};
-  if(Math.abs(dx) > Math.abs(dy)){
-    return {x:0, y:(dx>0 ? 1 : -1)};
-  } else {
-    return {x:(dy>0 ? -1 : 1), y:0};
-  }
-}
+
 function resize(){
   CANVAS.width = BOX.clientWidth;
   CANVAS.height = BOX.clientHeight;
-  CTX.imageSmoothingEnabled=false;
+  CTX.imageSmoothingEnabled = false;
 }
 window.addEventListener('resize', resize);
 </script>
-
-<script>
-// --- HISTORICAL CONTEXT MODULE (redirects to map.html when exiting) ---
-(function addHistoryModule(){
-  const historyData = `
-    <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF CANNAE (216 BC)</h2>
-    <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
-      <p><strong style="color:#fff">FORCES:</strong><br>
-      <span style="color:#ef4444">Rome:</span> ~86,000 (Varro &amp; Paullus)<br>
-      <span style="color:#60a5fa">Carthage:</span> ~50,000 (Hannibal)</p>
-
-      <p><strong style="color:#fff">CASUALTIES:</strong><br>
-      <span style="color:#ef4444">Rome:</span> ~50,000-75,000 killed<br>
-      <span style="color:#60a5fa">Carthage:</span> ~6,000</p>
-
-      <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
-      The "Perfect Battle." Hannibal allowed his weak center to retreat, drawing the Romans in. His elite infantry on the wings then turned inward, and his cavalry hit the rear. The Roman army was packed so tight (the "Crush" mechanic) they could not raise their weapons. It remains the deadliest single day of combat in Western history.</p>
-    </div>
-
-    <button class="btn-start" onclick="window.location.href='map.html'" style="margin-top:20px;">
-      BACK TO MAP
-    </button>
-  `;
-
-  const introBox = document.querySelector('.intro-box') || document.querySelector('#overlay');
-
-  const btn = document.createElement('button');
-  btn.innerText = "HISTORY";
-  btn.className = "btn-start";
-  btn.style.backgroundColor = "#475569";
-  btn.style.marginTop = "10px";
-  btn.style.boxShadow = "0 4px 0 #334155";
-  btn.onclick = () => {
-    if(document.querySelector('.intro-box')) document.querySelector('.intro-box').innerHTML = historyData;
-    else introBox.innerHTML = historyData;
-  };
-
-  if(document.querySelector('.intro-box')) document.querySelector('.intro-box').appendChild(btn);
-  else introBox.appendChild(btn);
-})();
-</script>
-
 </body>
 </html>
