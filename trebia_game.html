@@ -460,9 +460,19 @@ function update(){
   updateFX();
 
   if(player.hp<=0) gameOver("Died in the Trebia.");
+
+  const enemyCount = units.filter(u=>u.type==='invader'||u.type==='elephant').length;
   document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman').length;
-  document.getElementById('ui-han').innerText  = units.filter(u=>u.type==='invader'||u.type==='elephant').length;
+  document.getElementById('ui-han').innerText = enemyCount;
+
+  // Win condition: all enemies defeated
+  if(battlePhase >= 2 && enemyCount === 0){
+    gameOver("Against all odds, you survived Trebia!", true);
+  }
 }
+
+// Increment frame counter once per frame (at end of update)
+frameC++;
 
 function handleAI(u){
   if(u.cooldown>0){ u.cooldown--; return; }
@@ -600,7 +610,7 @@ function draw(){
 // =========================
 //  UTILS & INPUT
 // =========================
-let frameC=0; function frameStep(n){ return (frameC++%n)===0; }
+let frameC=0; function frameStep(n){ return (frameC%n)===0; }
 function dist(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
 function getStep(u,t){
   let dx=t.x-u.x, dy=t.y-u.y;
@@ -636,13 +646,13 @@ function showMsg(txt, col){
   el.innerText=txt; el.style.color=col; el.style.opacity=1;
   setTimeout(()=>el.style.opacity=0, 2500);
 }
-function gameOver(reason){
+function gameOver(reason, isWin = false){
   gameActive = false;
 
   const overlay = document.getElementById('overlay');
   overlay.style.display = 'flex';
   overlay.innerHTML = `
-    <h1>DEFEAT</h1>
+    <h1>${isWin ? 'SURVIVED' : 'DEFEAT'}</h1>
     <p><b>${reason}</b></p>
     <p style="margin-bottom:10px;">The battle is over.</p>
     ${HISTORY_HTML}

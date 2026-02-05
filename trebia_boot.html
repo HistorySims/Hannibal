@@ -73,6 +73,7 @@
         <h1>TREBIA</h1>
         <h2>Winter, 218 BC</h2>
         <button onclick="window.location.href='trebia_game.html'">Start Battle</button>
+        <button onclick="window.location.href='map.html'" style="margin-top:15px; background:#475569; box-shadow:0 4px 0 #334155;">Back to Map</button>
     </div>
 </div>
 
@@ -237,14 +238,17 @@ function drawFace(mood){
         rect(cx-10, cy+25, 20, 2, '#5c4033');
     } else if (mood === 'angry'){
         rect(cx-10, cy+25, 20, 4, '#5c4033');
-        rect(cx-10, cy+26, 20, 2, '#fff'); 
+        rect(cx-10, cy+26, 20, 2, '#fff');
     } else if (mood === 'yell'){
-        rect(cx-12, cy+25, 24, 12, '#330000'); 
-        rect(cx-10, cy+25, 20, 4, '#fff'); 
-        rect(cx-10, cy+33, 20, 4, '#fff'); 
-        
+        rect(cx-12, cy+25, 24, 12, '#330000');
+        rect(cx-10, cy+25, 20, 4, '#fff');
+        rect(cx-10, cy+33, 20, 4, '#fff');
+    }
+
+    // Screen shake for yell (applied at end of face draw, reset per loop)
+    if(mood === 'yell'){
         if(frame%4===0) CTX.translate(1, 1);
-        if(frame%4===2) CTX.translate(-1, -1);
+        else if(frame%4===2) CTX.translate(-1, -1);
     }
 }
 

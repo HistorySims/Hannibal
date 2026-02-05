@@ -130,7 +130,13 @@ let mapImg = new Image();
 mapImg.src = MAP_SRC;
 
 // Load progress or start fresh
-let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+let state = {};
+try {
+  state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+} catch(e) {
+  console.warn("Failed to parse campaign progress, resetting:", e);
+  state = {};
+}
 
 function resize(){
   canvas.width  = window.innerWidth;
