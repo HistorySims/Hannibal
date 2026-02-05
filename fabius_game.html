@@ -733,9 +733,6 @@ function finishRun(title, line){
   `;
   document.getElementById('btn-map').onclick = goToMap;
   document.getElementById('btn-replay').onclick = ()=> { gameActive=false; renderIntro(); };
-
-  // Auto return after a beat (keeps pacing)
-  setTimeout(goToMap, 2000);
 }
 
 // ===================================================

@@ -129,7 +129,7 @@
 //  ADJUST THESE
 // ===================================================
 // adjust (MAP_URL) here
-const MAP_URL = "index.html"; // <- set this to your map/launcher page (e.g. "map.html" or "../index.html")
+const MAP_URL = "map.html";
 
 // ===================================================
 //  ASSETS & SPRITES
@@ -343,6 +343,7 @@ function loop(){
 
 function update(){
   phaseTimer++;
+  setInputFromKeyboard();
 
   // PHASES (unchanged)
   if(battlePhase === 0){
@@ -683,7 +684,7 @@ function updateStick(){
 }
 
 window.handleAttack = function(e){
-  e.stopPropagation(); e.preventDefault();
+  if(e){ e.stopPropagation(); e.preventDefault(); }
   if(!gameActive||!player||player.hp<=0)return;
   const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
   let hit = false;
@@ -698,6 +699,52 @@ window.handleAttack = function(e){
   if(hit) spawnFloat("HIT", player.x, player.y, "#fff");
   else spawnFloat("SWING", player.x, player.y, "#aaa");
 };
+
+// Keyboard controls (desktop)
+const keysDown = new Set();
+let lastKeyDir = {dx:0, dy:0};
+function computeKeyboardDir(){
+  const up = keysDown.has('ArrowUp') || keysDown.has('KeyW');
+  const down = keysDown.has('ArrowDown') || keysDown.has('KeyS');
+  const left = keysDown.has('ArrowLeft') || keysDown.has('KeyA');
+  const right = keysDown.has('ArrowRight') || keysDown.has('KeyD');
+
+  let dx=0, dy=0;
+  if(left && !right) dx=-1;
+  if(right && !left) dx=1;
+  if(up && !down) dy=-1;
+  if(down && !up) dy=1;
+
+  if(dx!==0 && dy!==0){
+    if(lastKeyDir.dx !== 0) dy=0;
+    else dx=0;
+  }
+  if(dx!==0 || dy!==0) lastKeyDir = {dx,dy};
+  return {dx,dy};
+}
+function setInputFromKeyboard(){
+  if(stick.active) return;
+  const k = computeKeyboardDir();
+  input.dx = k.dx;
+  input.dy = k.dy;
+}
+
+window.addEventListener('keydown', (e)=>{
+  const relevant = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'];
+  if(relevant.includes(e.code)) e.preventDefault();
+
+  if(e.code === 'Space' || e.code === 'Enter'){
+    handleAttack(e);
+    return;
+  }
+  keysDown.add(e.code);
+  setInputFromKeyboard();
+}, {passive:false});
+
+window.addEventListener('keyup', (e)=>{
+  keysDown.delete(e.code);
+  setInputFromKeyboard();
+}, {passive:true});
 
 // ===================================================
 //  DRAW

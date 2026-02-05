@@ -977,11 +977,15 @@ function showMsg(txt, col){
 }
 function gameOver(t){
   gameActive=false;
-  document.getElementById('overlay').style.display='flex';
-  document.querySelector('#overlay h1').innerText="DEFEAT";
-  document.querySelectorAll('#overlay p')[0].innerHTML=t;
-  document.querySelectorAll('#overlay p')[1].innerHTML="Your shield wall collapsed.";
-  document.querySelectorAll('#overlay p')[2].innerHTML="Tap Lead the Charge to try again.";
+  const ov = document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = `
+    <h1>DEFEAT</h1>
+    <p><b>${t}</b></p>
+    <p>Your shield wall collapsed.</p>
+    <button class="btn-start" onclick="location.reload()" style="margin-top:10px;">LEAD THE CHARGE</button>
+    <button class="btn-start" onclick="window.location.href='map.html'" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">RETURN TO MAP</button>
+  `;
 }
 
 // =========================
