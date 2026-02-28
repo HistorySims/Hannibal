@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>Cannae</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;}
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
 html,body{
   background:#1a1a1a;
   height:100dvh;width:100%;
@@ -358,10 +358,12 @@ function movePlayer(u){
 function moveAI(u){
   const cx = Math.floor(W/2);
 
-  // Find target
+  // Find target - enemies target Romans, Romans target enemies
   let target = null, minD = 999;
+  const isEnemy = u.type === 'enemy';
   for(const o of units){
-    if(o.type === 'enemy') continue;
+    if(isEnemy && o.type === 'enemy') continue; // enemies target non-enemies
+    if(!isEnemy && o.type !== 'enemy') continue; // Romans target enemies
     const d = Math.abs(o.x-u.x) + Math.abs(o.y-u.y);
     if(d < minD){ minD = d; target = o; }
   }
@@ -376,23 +378,24 @@ function moveAI(u){
   let mx = 0, my = 0;
 
   if(u.type === 'enemy'){
-    // CENTER: Fight, then GIVE GROUND when breaking
+    // CENTER: Advance, fight, then GIVE GROUND when breaking
     if(u.role === 'center'){
       if(u.retreating && phase >= PHASE.BREAKING){
         // Retreat! But fight back sometimes
         if(Math.random() < 0.4){
           my = 1; // step back
-        } else if(target && minD < 4){
+        } else if(target){
           mx = Math.sign(target.x - u.x);
           my = Math.sign(target.y - u.y);
         }
-      } else if(target && minD < 5){
+      } else if(target){
+        // Always advance toward Romans
         mx = Math.sign(target.x - u.x);
         my = Math.sign(target.y - u.y);
       }
     }
 
-    // WINGS: Hold, then FLANK
+    // WINGS: Hold position, then FLANK after breaking
     else if(u.role === 'wing'){
       if(phase >= PHASE.BREAKING){
         // Advance south to get behind Romans
@@ -402,20 +405,18 @@ function moveAI(u){
           // Curve inward
           mx = u.x < cx ? 1 : -1;
         }
-      } else if(target && minD < 3){
-        mx = Math.sign(target.x - u.x);
-        my = Math.sign(target.y - u.y);
       }
+      // Wings HOLD before breaking - they don't chase
     }
   }
 
-  // Romans: advance with player
+  // Romans: chase enemies or follow player
   else if(u.type === 'roman'){
-    if(target && minD < 6){
+    if(target){
       mx = Math.sign(target.x - u.x);
       my = Math.sign(target.y - u.y);
     } else {
-      // Follow player
+      // Follow player if no enemies nearby
       mx = Math.sign(player.x - u.x);
       my = Math.sign(player.y - u.y);
     }
