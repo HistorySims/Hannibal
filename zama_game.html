@@ -115,6 +115,7 @@
   </div>
 
   <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <div id="kbd-hint">ARROWS / WASD MOVE · SPACE STRIKE</div>
   <canvas id="cv"></canvas>
 
   <div class="controls-layer">
@@ -128,6 +129,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="controls.js"></script>
 <script src="pixel.js"></script>
 <script>
 // ===================================================
@@ -273,10 +275,14 @@ function removeUnit(u){
 // ===================================================
 //  MAIN LOOP
 // ===================================================
-function loop(){
+function loop(now){
   if(!gameActive) return;
-  update();
-  if(gameActive) draw();
+  // a fixed 60 game steps a second, whatever the screen's refresh rate (pixel.js)
+  let n = PX.steps(now);
+  if(n > 0){
+    while(n-- > 0 && gameActive) update();
+    if(gameActive) draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -574,21 +580,25 @@ function attack(atk, def){
 const stickZone=document.getElementById('stick-zone');
 const stickEl=document.getElementById('stick');
 
-stickZone.addEventListener('touchstart',e=>{
-  stick.active=true; stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
+stickZone.addEventListener('pointerdown', e=>{
+  if(stick.active) return;
+  stick.pid = e.pointerId;
+  try { stickZone.setPointerCapture(e.pointerId); } catch(err){}
+  stick.active=true; stick.startX=e.clientX; stick.startY=e.clientY;
   stick.curX=stick.startX; stick.curY=stick.startY;
 }, {passive:false});
 
-stickZone.addEventListener('touchmove',e=>{
-  if(!stick.active)return; e.preventDefault();
-  stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY; updateStick();
+stickZone.addEventListener('pointermove', e=>{
+  if(!stick.active || e.pointerId !== stick.pid) return;
+  e.preventDefault();
+  stick.curX=e.clientX; stick.curY=e.clientY; updateStick();
 }, {passive:false});
 
 const endStick=()=>{
   stick.active=false; stickEl.style.transform='translate(0,0)'; input.dx=0; input.dy=0;
 };
-stickZone.addEventListener('touchend', endStick);
-stickZone.addEventListener('touchcancel', endStick);
+stickZone.addEventListener('pointerup', e=>{ if(e.pointerId === stick.pid) endStick(); });
+stickZone.addEventListener('pointercancel', e=>{ if(e.pointerId === stick.pid) endStick(); });
 
 function updateStick(){
   let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY, d=Math.sqrt(dx*dx+dy*dy);
@@ -647,7 +657,7 @@ window.addEventListener('keydown', (e)=>{
   const relevant = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'];
   if(relevant.includes(e.code)) e.preventDefault();
 
-  if(e.code === 'Space' || e.code === 'Enter'){
+  if(e.code === 'Space'){
     handleAttack(e);
     return;
   }
@@ -679,7 +689,7 @@ function unitKind(u){
 }
 
 function draw(){
-  PX.begin(cam.x/TILE + 0.5, cam.y/TILE + 0.5, '#b08968');
+  PX.begin(cam.x/TILE + 0.5, cam.y/TILE + 0.5, '#b08968', { w: GRID_W, h: GRID_H });
   // the lanes, worn into the dust behind the velites
   PX.ground(GRID_W, GRID_H, (x,y) => (y >= 32 && inLane(x)) ? 'sandLane' : 'sand');
   // where Scipio wants the new line

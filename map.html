@@ -4,6 +4,9 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>Second Punic War – Campaign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
 <style>
 html,body{
@@ -68,6 +71,38 @@ canvas{
   font-size:18px;
 }
 
+/* On a landscape screen (a laptop or Chromebook) the map keeps its shape
+   and this campaign panel sits beside it. */
+#panel{
+  position:fixed; display:none; box-sizing:border-box;
+  width:300px; padding:22px 20px 20px;
+  font-family:"Press Start 2P", ui-monospace, Menlo, Consolas, monospace;
+  color:#f4ecd8; background:#161210;
+  border:4px solid #1a1410; box-shadow:inset 0 0 0 3px rgba(244,236,216,0.85);
+}
+body.wide #panel{ display:block; }
+body.wide #hud, body.wide #progress{ display:none; }
+#panel .p-title{ color:#fbbf24; font-size:12px; line-height:1.6; letter-spacing:1px; }
+#panel .p-sub{ color:#a89c88; font-size:8px; margin:6px 0 18px; }
+#panel ol{ list-style:none; margin:0 0 18px; padding:0; }
+#panel li{ display:flex; align-items:center; gap:10px; font-size:9px; line-height:1.4; padding:7px 0; color:#f4ecd8; }
+#panel li .yr{ margin-left:auto; color:#a89c88; font-size:7px; white-space:nowrap; }
+#panel li .mk{ flex:0 0 auto; width:8px; height:8px; background:#fbbf24; box-shadow:0 0 0 2px #1a1410; }
+#panel li.done{ color:#a89c88; }
+#panel li.done .mk{ background:rgba(251,191,36,0.5); }
+#panel li.next .mk{ animation:p-blink 1s steps(2) infinite; }
+#panel li.locked{ color:#5a5248; }
+#panel li.locked .mk{ background:#3a342e; }
+@keyframes p-blink{ 50%{ opacity:0; } }
+#panel .p-go{
+  display:block; width:100%; margin:0; padding:14px 10px;
+  font-family:inherit; font-size:10px; line-height:1.5; color:#fff; text-transform:uppercase;
+  background:#b83a24; border:3px solid #1a1410; border-radius:0; cursor:pointer;
+  box-shadow:inset -3px -3px 0 rgba(0,0,0,0.35), inset 3px 3px 0 rgba(255,255,255,0.25), 0 4px 0 #000;
+}
+#panel .p-go:active{ transform:translateY(3px); box-shadow:inset -3px -3px 0 rgba(0,0,0,0.35), 0 1px 0 #000; }
+#panel .p-hint{ margin-top:14px; font-size:7px; line-height:1.8; color:#a89c88; text-align:center; }
+
 button{
   font-family:inherit;
   margin-top:12px;
@@ -91,6 +126,14 @@ button{
 
 <div id="progress"></div>
 
+<div id="panel">
+  <div class="p-title">SECOND PUNIC WAR</div>
+  <div class="p-sub">218 - 202 BC</div>
+  <ol id="p-list"></ol>
+  <button class="p-go" id="p-go"></button>
+  <div class="p-hint" id="p-hint">ENTER to march · or click a marker</div>
+</div>
+
 <div id="modal">
   <div id="card">
     <h1 id="mTitle"></h1>
@@ -107,11 +150,11 @@ const MAP_SRC = "IMG_4198.jpeg";
 
 /* Updated Coordinates */
 const battles = [
-  { id:"trebia",  name:"Trebia",         x:0.34, y:0.30 , url:"trebia_boot.html"},
-  { id:"tras",    name:"Lake Trasimene", x:0.49, y:0.41 , url:"tresimene_boot.html"},
-  { id:"fabian",  name:"Fabian Tactics", x:0.53, y:0.53 , url:"fabius_boot.html"},
-  { id:"cannae",  name:"Cannae",         x:0.75, y:0.55 , url:"cannae_boot.html"},
-  { id:"zama",    name:"Zama",           x:0.18, y:0.83 , url:"zama_boot.html"} 
+  { id:"trebia",  name:"Trebia",         x:0.34, y:0.30 , url:"trebia_boot.html",   year:"218 BC"},
+  { id:"tras",    name:"Lake Trasimene", x:0.49, y:0.41 , url:"tresimene_boot.html", year:"217 BC"},
+  { id:"fabian",  name:"Fabian Tactics", x:0.53, y:0.53 , url:"fabius_boot.html",   year:"217 BC"},
+  { id:"cannae",  name:"Cannae",         x:0.75, y:0.55 , url:"cannae_boot.html",   year:"216 BC"},
+  { id:"zama",    name:"Zama",           x:0.18, y:0.83 , url:"zama_boot.html",     year:"202 BC"} 
 ];
 
 /* ===================== HANNIBAL'S ROUTE ===================== */
@@ -243,8 +286,7 @@ function walkTo(routeIdx, onArrive){
 function isWalking(){ return Math.abs(walker.pos - walker.target) > 1e-6; }
 
 function routePoint(i){
-  const p = ROUTE[i];
-  return { x: p.x*canvas.width, y: p.y*canvas.height };
+  return toScreen(ROUTE[i]);
 }
 function walkerXY(){
   const i = Math.floor(walker.pos), f = walker.pos - i;
@@ -310,9 +352,32 @@ mapImg.src = MAP_SRC;
 // Progress is written by each battle when it is fought to its end (campaign.js)
 let state = spwLoad();
 
+// Where the map picture sits on screen. On a phone it fills the screen
+// (a little stretch is fine); on a landscape screen it keeps its shape,
+// full height, with the campaign panel beside it.
+const MAP_ASPECT = 295/480;
+const PANEL_W = 300, PANEL_GAP = 28;
+let M = { x:0, y:0, w:1, h:1 };
+function toScreen(p){ return { x: M.x + p.x*M.w, y: M.y + p.y*M.h }; }
+function layoutMap(){
+  const W = canvas.width, H = canvas.height;
+  const stretch = (W/H) / MAP_ASPECT;
+  const wide = stretch > 1.25;
+  document.body.classList.toggle('wide', wide);
+  if(!wide){ M = { x:0, y:0, w:W, h:H }; return; }
+  const pad = 14;
+  let h = H - pad*2, w = Math.round(h*MAP_ASPECT);
+  const total = w + PANEL_GAP + PANEL_W;
+  const x = Math.max(pad, Math.round((W - total)/2));
+  M = { x, y: pad, w, h };
+  const panel = document.getElementById('panel');
+  panel.style.left = (x + w + PANEL_GAP) + 'px';
+  panel.style.top = Math.max(pad, Math.round(H/2 - panel.offsetHeight/2)) + 'px';
+}
 function resize(){
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
+  layoutMap();
   if(mapImg.complete) draw();
 }
 window.addEventListener("resize", resize);
@@ -350,8 +415,14 @@ function drawArrow(ax,ay,bx,by){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 1. Map
-  ctx.drawImage(mapImg, 0,0, canvas.width, canvas.height);
+  // 1. Map (framed like the cutscene text boxes when it doesn't fill the screen)
+  if(document.body.classList.contains('wide')){
+    ctx.fillStyle = "#0b0b0c"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#1a1410"; ctx.fillRect(M.x-7, M.y-7, M.w+14, M.h+14);
+    ctx.fillStyle = "rgba(244,236,216,0.85)"; ctx.fillRect(M.x-4, M.y-4, M.w+8, M.h+8);
+    ctx.fillStyle = "#1a1410"; ctx.fillRect(M.x-1, M.y-1, M.w+2, M.h+2);
+  }
+  ctx.drawImage(mapImg, M.x, M.y, M.w, M.h);
 
   const unlocked = nextIndex();
 
@@ -375,13 +446,12 @@ function draw(){
     // Don't draw future locked battles
     if(i > unlocked) return;
 
-    const x = b.x*canvas.width;
-    const y = b.y*canvas.height;
+    const { x, y } = toScreen(b);
     drawMarker(x,y,i===unlocked);
   });
 
   // 4. Hannibal and his elephant
-  const S = Math.max(2, Math.round(Math.min(canvas.width, canvas.height) / 260));
+  const S = Math.max(2, Math.round(Math.min(M.w, M.h) / 260));
   const wp = walkerXY();
   drawWalker(wp.x, wp.y, S, walker.frame, walker.flip, walkerAtSea(), performance.now()/1000);
 
@@ -390,7 +460,7 @@ function draw(){
   ctx.textAlign="center";
   battles.forEach((b,i)=>{
     if(i > unlocked) return;
-    const x = b.x*canvas.width, y = b.y*canvas.height;
+    const { x, y } = toScreen(b);
     ctx.fillStyle="#000"; ctx.fillText(b.name, x+1, y+33);
     ctx.fillStyle="#fff"; ctx.fillText(b.name, x, y+32);
   });
@@ -418,42 +488,65 @@ function frame(now){
   const to = Math.min(nextIndex(), battles.length-1);
   walker.pos = walker.target = routeIndexOfStop(from);
   if(to !== from){
-    setTimeout(()=>walkTo(routeIndexOfStop(to), ()=>saveWalkerStop(to)), 600);
+    // (unless a battle was already chosen and he is on his way)
+    setTimeout(()=>{ if(!isWalking()) walkTo(routeIndexOfStop(to), ()=>saveWalkerStop(to)); }, 600);
   }
 })();
 requestAnimationFrame(frame);
 
 /* ===================== INTERACTION ===================== */
 
-canvas.addEventListener("pointerup", e=>{
+// Which battle marker (if any) is under the pointer
+function markerAt(e){
   const r = canvas.getBoundingClientRect();
-  const mx = (e.clientX-r.left)/r.width;
-  const my = (e.clientY-r.top)/r.height;
-
-  // Since the image aspect ratio changes on phones vs desktop,
-  // we need a generous click radius.
-  
-  // Adjust aspect ratio for click detection
-  const aspect = canvas.width / canvas.height;
-  
+  const sx = (e.clientX-r.left) * canvas.width / r.width, sy = (e.clientY-r.top) * canvas.height / r.height;
+  const mx = (sx - M.x)/M.w, my = (sy - M.y)/M.h;
+  const aspect = M.w / M.h;   // a round radius on screen, whatever the map's shape
   const unlocked = nextIndex();
-
   for(let i=0;i<=Math.min(unlocked, battles.length-1);i++){
-    const b = battles[i];
-    const dx = (mx - b.x);
-    const dy = (my - b.y) / aspect; // normalize Y distance
-    
-    // Distance check (approx 5% radius)
-    if((dx*dx + dy*dy) < 0.003){
-      openBattle(i);
-      break;
-    }
+    const dx = mx - battles[i].x, dy = (my - battles[i].y) / aspect;
+    if(dx*dx + dy*dy < 0.003) return i;   // about 5% of the map's width
   }
+  return -1;
+}
+canvas.addEventListener("pointerup", e=>{ const i = markerAt(e); if(i >= 0) openBattle(i); });
+// a hand over the markers, for a mouse or touchpad
+canvas.addEventListener("pointermove", e=>{ canvas.style.cursor = markerAt(e) >= 0 ? "pointer" : "default"; });
+
+// March to the next battle (the panel's button and the Enter key)
+function marchOn(){
+  const i = nextIndex();
+  if(i >= battles.length){ window.location.href = "victory.html"; return; }
+  openBattle(i);
+}
+document.getElementById('p-go').addEventListener('click', marchOn);
+window.addEventListener('keydown', e=>{
+  if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); if(modal.style.display !== 'flex') marchOn(); }
 });
 
+function buildPanel(){
+  const next = nextIndex();
+  document.getElementById('p-list').innerHTML = battles.map((b,i)=>{
+    if(i > next) return `<li class="locked"><span class="mk"></span>? ? ?</li>`;
+    const cls = state[b.id] ? 'done' : (i === next ? 'next' : '');
+    return `<li class="${cls}"><span class="mk"></span>${b.name}<span class="yr">${b.year}</span></li>`;
+  }).join('');
+  const go = document.getElementById('p-go');
+  if(next >= battles.length){
+    go.textContent = 'Epilogue';
+    document.getElementById('p-hint').textContent = 'ENTER for the epilogue';
+  } else {
+    go.textContent = 'March to ' + battles[next].name;
+  }
+}
+
 function openBattle(i){
-  if(isWalking()) return;
   const dest = routeIndexOfStop(i);
+  if(isWalking()){
+    // already on his way there: go straight in when he arrives
+    if(Math.abs(walker.target - dest) < 1e-6) walker.onArrive = ()=>{ saveWalkerStop(i); enterBattle(i); };
+    return;
+  }
   if(Math.abs(walker.pos - dest) > 1e-6){
     walkTo(dest, ()=>{ saveWalkerStop(i); enterBattle(i); });
     return;
@@ -482,7 +575,10 @@ closeBtn.onclick = ()=>{
 };
 
 /* Initial resize to set it up */
+buildPanel();
 resize();
+// the pixel font changes the panel's height once it arrives
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ layoutMap(); });
 
 </script>
 </body>

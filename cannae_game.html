@@ -52,40 +52,6 @@
     box-shadow:0 2px 5px rgba(0,0,0,0.5);
   }
 
-  /* --- Desktop D-pad (clickable) --- */
-  #dpad{
-    position:absolute; bottom:20px; left:20px;
-    width:140px; height:140px;
-    pointer-events:auto;
-    display:grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap:8px;
-    align-items:center;
-    justify-items:center;
-  }
-  .dpad-btn{
-    width:44px; height:44px;
-    border-radius:12px;
-    background:rgba(255,255,255,0.16);
-    border:1px solid rgba(255,255,255,0.28);
-    display:grid; place-items:center;
-    color:#fff; font-size:18px; font-weight:900;
-    box-shadow:0 3px 10px rgba(0,0,0,0.35);
-    user-select:none;
-    touch-action:none;
-  }
-  .dpad-btn:active{ transform:scale(0.96); background:rgba(255,255,255,0.22); }
-  .dpad-spacer{ width:44px; height:44px; opacity:0; }
-
-  /* show stick on touch devices, dpad on non-touch */
-  .touch-only{ display:none; }
-  .no-touch-only{ display:none; }
-  body.is-touch .touch-only{ display:block; }
-  body.is-touch .no-touch-only{ display:none; }
-  body.is-no-touch .touch-only{ display:none; }
-  body.is-no-touch .no-touch-only{ display:grid; } /* dpad is a grid */
-
   .btn-wrapper{
     position:absolute; bottom:30px; right:30px;
     display:flex; flex-direction:column; gap:12px;
@@ -159,27 +125,13 @@
   </div>
 
   <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <div id="kbd-hint">ARROWS / WASD MOVE · SPACE STRIKE · Z ZOOM</div>
   <canvas id="cv"></canvas>
 
   <div class="controls-layer">
     <!-- Touch joystick -->
-    <div id="stick-zone" class="touch-only">
+    <div id="stick-zone">
       <div class="stick-bg"><div class="stick-nub" id="stick"></div></div>
-    </div>
-
-    <!-- Desktop D-pad -->
-    <div id="dpad" class="no-touch-only" aria-label="D-pad controls">
-      <div class="dpad-spacer"></div>
-      <div class="dpad-btn" data-dir="up">▲</div>
-      <div class="dpad-spacer"></div>
-
-      <div class="dpad-btn" data-dir="left">◀</div>
-      <div class="dpad-spacer"></div>
-      <div class="dpad-btn" data-dir="right">▶</div>
-
-      <div class="dpad-spacer"></div>
-      <div class="dpad-btn" data-dir="down">▼</div>
-      <div class="dpad-spacer"></div>
     </div>
 
     <div class="btn-wrapper">
@@ -193,16 +145,9 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="controls.js"></script>
 <script src="pixel.js"></script>
 <script>
-// =========================
-//  TOUCH vs DESKTOP UI TOGGLE
-// =========================
-(function initInputMode(){
-  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  document.body.classList.add(isTouch ? 'is-touch' : 'is-no-touch');
-})();
-
 // =========================
 //  SPRITES
 // =========================
@@ -445,10 +390,14 @@ function spawnUnit(gx, gy, type){
 // =========================
 //  LOOP
 // =========================
-function loop(){
+function loop(now){
   if(!gameActive) return;
-  update();
-  draw();
+  // a fixed 60 game steps a second, whatever the screen's refresh rate (pixel.js)
+  let n = PX.steps(now);
+  if(n > 0){
+    while(n-- > 0 && gameActive) update();
+    draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -495,6 +444,8 @@ window.addEventListener('keydown', (e)=>{
   if(k === "a" || e.key === "ArrowLeft") keysDown.left = true;
   if(k === "d" || e.key === "ArrowRight") keysDown.right = true;
 
+  if(e.code === "KeyZ" && !e.repeat){ toggleZoom(); return; }
+
   // spacebar to slash
   if(e.code === "Space"){
     // call the same attack handler; fabricate a minimal event-like object
@@ -513,51 +464,6 @@ window.addEventListener('keyup', (e)=>{
   recomputeInputFromKeys();
 }, {passive:false});
 
-// clickable dpad (mouse or touch)
-(function initDpad(){
-  const dpad = document.getElementById('dpad');
-  if(!dpad) return;
-
-  const dirToKeys = (dir)=>({
-    up: dir==="up",
-    down: dir==="down",
-    left: dir==="left",
-    right: dir==="right"
-  });
-
-  const clearKeys = ()=>{
-    keysDown.up = keysDown.down = keysDown.left = keysDown.right = false;
-    recomputeInputFromKeys();
-  };
-
-  const pressDir = (dir)=>{
-    clearKeys();
-    const k = dirToKeys(dir);
-    keysDown.up = k.up; keysDown.down = k.down; keysDown.left = k.left; keysDown.right = k.right;
-    recomputeInputFromKeys();
-  };
-
-  dpad.querySelectorAll('.dpad-btn').forEach(btn=>{
-    const dir = btn.dataset.dir;
-
-    const onDown = (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      pressDir(dir);
-    };
-    const onUp = (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      clearKeys();
-    };
-
-    btn.addEventListener('mousedown', onDown);
-    window.addEventListener('mouseup', onUp);
-
-    btn.addEventListener('touchstart', onDown, {passive:false});
-    btn.addEventListener('touchend', onUp, {passive:false});
-    btn.addEventListener('touchcancel', onUp, {passive:false});
-    btn.addEventListener('mouseleave', onUp);
-  });
-})();
 
 // =========================
 //  UPDATE
@@ -939,16 +845,19 @@ const stickEl = document.getElementById('stick');
 const stickZone = document.getElementById('stick-zone');
 
 if(stickZone){
-  stickZone.addEventListener('touchstart', e=>{
+  stickZone.addEventListener('pointerdown', e=>{
+    if(stick.active) return;
+    stick.pid = e.pointerId;
+    try { stickZone.setPointerCapture(e.pointerId); } catch(err){}
     stick.active=true;
-    stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
+    stick.startX=e.clientX; stick.startY=e.clientY;
     stick.curX=stick.startX; stick.curY=stick.startY;
   }, {passive:false});
 
-  stickZone.addEventListener('touchmove', e=>{
-    if(!stick.active) return;
+  stickZone.addEventListener('pointermove', e=>{
+    if(!stick.active || e.pointerId !== stick.pid) return;
     e.preventDefault();
-    stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY;
+    stick.curX=e.clientX; stick.curY=e.clientY;
     updateStick();
   }, {passive:false});
 
@@ -958,8 +867,8 @@ if(stickZone){
     // after stick ends, fall back to keyboard/dpad state
     recomputeInputFromKeys();
   };
-  stickZone.addEventListener('touchend', endStick);
-  stickZone.addEventListener('touchcancel', endStick);
+  stickZone.addEventListener('pointerup', e=>{ if(e.pointerId === stick.pid) endStick(); });
+  stickZone.addEventListener('pointercancel', e=>{ if(e.pointerId === stick.pid) endStick(); });
 
   function updateStick(){
     const max=45;
@@ -1051,7 +960,7 @@ function gameOver(t, escaped=false){
 //  DRAW
 // =========================
 function draw(){
-  PX.begin(cam.x/TILE - 0.5, cam.y/TILE - 0.5, '#6e5c34');
+  PX.begin(cam.x/TILE - 0.5, cam.y/TILE - 0.5, '#6e5c34', { w: GRID_W, h: GRID_H });
 
   // the Aufidus river on the Roman right, beyond the edge of the field
   PX.rectWorld(-6, -10, 6, GRID_H+20, '#8a7a4c');

@@ -146,7 +146,7 @@
   </div>
 
   <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
-  <div id="kbd-hint">Desktop: WASD / Arrows move · Space/Enter attack</div>
+  <div id="kbd-hint">ARROWS / WASD MOVE · SPACE STRIKE</div>
 
   <canvas id="cv"></canvas>
 
@@ -159,6 +159,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="controls.js"></script>
 <script src="pixel.js"></script>
 <script>
 // ===================================================
@@ -380,10 +381,14 @@ function spawnUnit(gx, gy, type){
 // ===================================================
 //  LOOP
 // ===================================================
-function loop(){
+function loop(now){
   if(!gameActive) return;
-  update();
-  if(gameActive) draw();
+  // a fixed 60 game steps a second, whatever the screen's refresh rate (pixel.js)
+  let n = PX.steps(now);
+  if(n > 0){
+    while(n-- > 0 && gameActive) update();
+    if(gameActive) draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -767,7 +772,7 @@ function drawVillage(v){
 }
 
 function draw(){
-  PX.begin(cam.x/TILE + 0.5, cam.y/TILE + 0.5, '#2a3a1a');
+  PX.begin(cam.x/TILE + 0.5, cam.y/TILE + 0.5, '#2a3a1a', { w: GRID_W, h: GRID_H });
   PX.ground(GRID_W, GRID_H, (x,y) => FAB_TILE[grid[y][x]]);
 
   const all = units.filter(u => u.hp > 0 || u.type==='village');
@@ -832,6 +837,8 @@ function updateStick(){
 }
 
 stickZone.addEventListener('pointerdown', (e)=>{
+  if(stick.active) return;
+  stick.pid = e.pointerId;
   stick.active=true;
   stick.startX=e.clientX; stick.startY=e.clientY;
   stick.curX=e.clientX; stick.curY=e.clientY;
@@ -839,14 +846,15 @@ stickZone.addEventListener('pointerdown', (e)=>{
   updateStick();
 }, {passive:false});
 stickZone.addEventListener('pointermove', (e)=>{
-  if(!stick.active) return;
+  if(!stick.active || e.pointerId !== stick.pid) return;
   e.preventDefault();
   stick.curX=e.clientX; stick.curY=e.clientY;
   updateStick();
 }, {passive:false});
-stickZone.addEventListener('pointerup', endStick, {passive:true});
-stickZone.addEventListener('pointercancel', endStick, {passive:true});
-stickZone.addEventListener('lostpointercapture', endStick, {passive:true});
+const endOwnStick = e => { if(e.pointerId === stick.pid) endStick(); };
+stickZone.addEventListener('pointerup', endOwnStick, {passive:true});
+stickZone.addEventListener('pointercancel', endOwnStick, {passive:true});
+stickZone.addEventListener('lostpointercapture', endOwnStick, {passive:true});
 
 document.getElementById('btn-attack').addEventListener('pointerdown', doAttack, {passive:false});
 
@@ -855,7 +863,7 @@ window.addEventListener('keydown', (e)=>{
   const relevant = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space','Enter'];
   if(relevant.includes(e.code)) e.preventDefault();
 
-  if(e.code === 'Space' || e.code === 'Enter'){ doAttack(e); return; }
+  if(e.code === 'Space'){ doAttack(e); return; }
   keysDown.add(e.code);
   setInputFromKeyboard();
 }, {passive:false});

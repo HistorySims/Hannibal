@@ -30,13 +30,34 @@ const SCENE = (() => {
       if(box) new ResizeObserver(fit).observe(box);
     }
   }
+  // Two layouts (boot.css): the text box under the picture (a phone held
+  // upright), or beside it (a laptop, a tablet, a phone held sideways).
+  // Whichever lets the picture be scaled up more wins.
+  const PAD = 16, GAP = 24;
   function fit(){
     if(!canvas) return;
     const stage = canvas.parentElement;
     const box = document.getElementById('dialogue-box');
-    const boxH = (box && getComputedStyle(box).display !== 'none') ? box.offsetHeight : 0;
-    const availW = stage.clientWidth, availH = Math.max(H, stage.clientHeight - boxH);
-    const k = Math.max(1, Math.min(Math.floor(availW / W), Math.floor(availH / H)));
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const boxW = Math.round(Math.min(440, Math.max(320, vw*0.3)));
+    const kCol = Math.min(Math.floor(Math.min(vw, 600) / W), Math.floor((vh - 158) / H));
+    const kRow = Math.min(Math.floor((vw - PAD*2 - GAP - boxW) / W), Math.floor((vh - PAD*2) / H));
+    const row = kRow > kCol;
+    stage.classList.toggle('row', row);
+    let k;
+    if(row){
+      k = kRow;
+      stage.style.setProperty('--boxw', boxW + 'px');
+      stage.style.setProperty('width', (W*k + GAP + boxW + PAD*2) + 'px', 'important');
+    } else {
+      stage.style.removeProperty('width');
+      const boxH = (box && getComputedStyle(box).display !== 'none') ? box.offsetHeight : 0;
+      const availW = stage.clientWidth, availH = Math.max(H, stage.clientHeight - boxH);
+      k = Math.min(Math.floor(availW / W), Math.floor(availH / H));
+    }
+    k = Math.max(1, k);
+    // beside a big picture, bigger text
+    stage.style.setProperty('--txt', (row && k >= 5 ? 14 : row && k >= 4 ? 12 : 11) + 'px');
     canvas.style.setProperty('--sw', (W*k)+'px');
     canvas.style.setProperty('--sh', (H*k)+'px');
   }
@@ -516,12 +537,13 @@ const SCENE = (() => {
     const TXT = document.getElementById('speech');
     const NAME = document.getElementById('speaker') || document.querySelector('.speaker-name');
     const TITLE = document.getElementById('title-screen');
-    let i = 0, ci = 0, cur = '', timer = null;
+    let i = 0, ci = 0, cur = '', timer = null, titleAt = 0;
     api.isTalking = () => ci < cur.length;
     function start(){
       if(i >= cfg.script.length){
         BOX.style.display = 'none';
         TITLE.style.display = 'flex';
+        titleAt = performance.now();
         requestAnimationFrame(() => { TITLE.style.opacity = 1; });
         fit();
         return;
@@ -530,19 +552,33 @@ const SCENE = (() => {
       BOX.style.display = 'block';
       const sp = cfg.speakers && cfg.speakers[L.speaker || cfg.speaker];
       if(sp && NAME){ NAME.innerText = sp.label; NAME.style.color = sp.color; BOX.style.borderTopColor = sp.color; }
-      cur = L.text; TXT.innerText = ''; ci = 0;
+      cur = L.text; TXT.textContent = ''; ci = 0;
       clearInterval(timer); timer = setInterval(type, 30);
     }
-    function type(){ if(ci < cur.length){ TXT.innerText += cur.charAt(ci); ci++; } else clearInterval(timer); }
+    // the line is rebuilt from the script each tick: reading innerText back drops a trailing space
+    function type(){ if(ci < cur.length){ ci++; TXT.textContent = cur.slice(0, ci); } else clearInterval(timer); }
     function next(){
-      if(ci < cur.length){ TXT.innerText = cur; ci = cur.length; clearInterval(timer); }
+      if(ci < cur.length){ TXT.textContent = cur; ci = cur.length; clearInterval(timer); }
       else { i++; start(); }
     }
     window.nextLine = next;
+    // Keys: Space, Enter or the right arrow for the next line; Enter on the
+    // title screen presses its first button (never a "start over" button).
+    window.addEventListener('keydown', e => {
+      if(e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
+      if(TITLE && getComputedStyle(TITLE).display !== 'none'){
+        if(e.key === 'Enter' && performance.now() - titleAt > 800){
+          const b = TITLE.querySelector('button:not(.restart-btn)');
+          if(b){ e.preventDefault(); b.click(); }
+        }
+        return;
+      }
+      if(e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
+    });
     init(document.getElementById('cv'));
     start();
-    (function loop(){
-      if(i < cfg.script.length){
+    (function loop(now){
+      if(PX.steps(now) > 0 && i < cfg.script.length){
         const L = cfg.script[i];
         frame(L.scene + '|' + (L.speaker || ''), () => cfg.draw(L));
       }
