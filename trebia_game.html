@@ -399,14 +399,14 @@ function setupMap(){
     for(const x of [8,9,10,29,30,31]){ const u=spawnUnit(x,y,'libyan'); if(u){u.role='line'; u.homeY=y;} }
   }
   for(const x of [6, 13, 25, 32]){ const e=spawnUnit(x, 17, 'elephant'); if(e) e.role='line'; }
-  for(let y=11; y<=15; y++){
+  for(let y=12; y<=14; y++){
     for(const x of [1,2,3,4,35,36,37,38]){ const c=spawnUnit(x,y,'cavalry'); if(c) c.role='wing'; }
   }
 
   // MAGO: 2,000 men lying in the streambed
   for(let y=18; y<=27; y++){
     for(let x=0; x<=4; x++){
-      if(terrain[y][x]===T.BRUSH && Math.random()<0.85){
+      if(terrain[y][x]===T.BRUSH && Math.random()<0.5){   // 2,000 picked men
         const m = spawnUnit(x, y, 'mago');
         if(m){ m.role='mago'; m.hidden=true; }
       }
@@ -654,7 +654,7 @@ function handleAI(u){
     // The Numidians who baited you never went back across the river. They wait on the flanks,
     // and when the army breaks they ride down whoever runs for the camp.
     if(battlePhase >= PH.ROUT){
-      const prey = southernmostFugitive();
+      const prey = fugitiveFor(u);
       if(prey){
         if(dist(u,prey) <= 1.5){ attack(u, prey); u.cooldown = PACE.combat*0.6; return; }
         md = getStep(u, prey);
@@ -668,9 +668,9 @@ function handleAI(u){
   }
   else if(u.role==='wing' || u.type==='cavalry'){
     if(battlePhase < PH.FLANKS){ u.cooldown = 20; return; }
-    // In the rout, half the horse become hunters: they ride down whoever has run furthest for home.
-    if(battlePhase >= PH.ROUT && u.f < 0.5){
-      const prey = southernmostFugitive();
+    // In the rout the horse become hunters: they ride down whoever has run furthest for home.
+    if(battlePhase >= PH.ROUT){
+      const prey = fugitiveFor(u);
       if(prey){
         if(dist(u,prey) <= 1.5){ attack(u, prey); u.cooldown = PACE.combat*0.6; return; }
         md = getStep(u, prey);
@@ -715,13 +715,9 @@ function isFordCol(x){ return Math.floor(x/3) % 2 === 0; }
 function raiderStation(u){
   return { x: u.f < 0.5 ? 1 + Math.floor(u.f2*3) : 36 + Math.floor(u.f2*3), y: 37 + Math.floor(u.f*12) % 8 };
 }
-function southernmostFugitive(){
-  let prey = null;
-  for(const o of units){
-    if(o.hp<=0 || isCarth(o) || o.y < RIVER_Y0-1) continue;
-    if(!prey || o.y > prey.y) prey = o;
-  }
-  return prey;
+// Each horseman rides down the nearest man fleeing for the river, so the pursuit fans out.
+function fugitiveFor(u){
+  return nearestOf(u, 40, o => !isCarth(o) && o.y >= RIVER_Y0 - 1 && !o.breaker);
 }
 
 // Advance north; near the river, file sideways to the nearest ford first

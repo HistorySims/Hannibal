@@ -387,7 +387,7 @@ function setupMap(){
 
   // Behind it, Hannibal and Mago with a second line of Gauls and Spaniards.
   for(let x=R_L+1; x<=R_R-1; x++){
-    for(const y of [14, 15]){
+    for(const y of [14]){
       const u = spawnUnit(x, y, 'invader');
       if(u){ u.role='center'; u.homeX=x; u.homeY=y; }
     }
@@ -395,9 +395,9 @@ function setupMap(){
 
   // AFRICAN VETERANS: deep columns out beyond both Roman flanks. Standing. Waiting.
   for(const side of [-1, 1]){
-    const x0 = side<0 ? 4 : 31;
-    for(let y=19; y<=28; y++){
-      for(let x=x0; x<x0+5; x++){
+    const x0 = side<0 ? 6 : 31;
+    for(let y=20; y<=26; y++){
+      for(let x=x0; x<x0+3; x++){
         const u = spawnUnit(x, y, 'libyan');
         if(u){ u.role='wing'; u.side=side; }
       }
@@ -418,7 +418,7 @@ function spawnUnit(gx, gy, type){
     yours:   {hp:80, speed:PACE.playerMove},
     roman:   {hp:8,  speed:PACE.romanMove},
     invader: {hp:9,  speed:PACE.centerMove},
-    libyan:  {hp:18, speed:PACE.libyanMove},
+    libyan:  {hp:22, speed:PACE.libyanMove},   // fewer, but Hannibal's best: veteran and heavily armed
     cavalry: {hp:15, speed:PACE.cavalryMove},
   }[type];
   const u = {
@@ -587,7 +587,7 @@ function advanceScript(){
 function spawnCavalry(){
   // Hasdrubal's horse, having routed the Roman cavalry, rides in from behind.
   for(const side of [-1, 1]){
-    const xs = side<0 ? [1,2,3,4] : [35,36,37,38];
+    const xs = side<0 ? [0,1,2,3,4] : [35,36,37,38,39];
     for(const x of xs){
       for(const y of [55,57]){
         const c = spawnUnit(x, y, 'cavalry');
