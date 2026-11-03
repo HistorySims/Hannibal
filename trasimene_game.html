@@ -114,6 +114,10 @@
     #kbd-hint{opacity:0.9;}
   }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 <div id="game-box">
@@ -140,6 +144,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="pixel.js"></script>
 <script>
 // ===================================================
 //  ROUTING / END FLOW
@@ -209,33 +214,7 @@ const P = {
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
-const CTX = CANVAS.getContext('2d', { alpha:false });
 const BOX = document.getElementById('game-box');
-let DPR = 1, VIEW_W = 0, VIEW_H = 0;
-
-function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-
-function drawSprite(u, scale){
-  if(u.hidden) return;
-  const x = u.x*TILE - 4, y = u.y*TILE - 8, s = scale;
-  if(u.type==='cavalry'){
-    CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+5*s, y+9*s, 6*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-    for(let dx=1; dx<=8; dx++){ px(x+dx*s, y+5*s, s, P.horse); px(x+dx*s, y+6*s, s, P.horse); }
-    px(x, y+4*s, s, P.horse); px(x, y+3*s, s, P.horse);
-    px(x+2*s, y+7*s, s, P.horse); px(x+2*s, y+8*s, s, P.black);
-    px(x+7*s, y+7*s, s, P.horse); px(x+7*s, y+8*s, s, P.black);
-    px(x+4*s, y+3*s, s, P.rider); px(x+4*s, y+4*s, s, P.rider); px(x+4*s, y+2*s, s, '#444');
-    return;
-  }
-  const coat = {roman:P.roman, yours:P.you, libyan:P.libyan}[u.type] || P.inv;
-  CTX.fillStyle=P.shadow;
-  CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-  px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
-  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
-  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-  const helm = u.type==='roman' ? P.gold : u.type==='yours' ? P.white : u.type==='libyan' ? P.metal : '#444';
-  px(x+3*s, y, s, helm); px(x+4*s, y, s, helm);
-}
 
 // ===================================================
 //  CONFIG
@@ -243,7 +222,6 @@ function drawSprite(u, scale){
 const TILE = 24;
 const GRID_W = 44;
 const GRID_H = 100;
-let SCALE = 2;
 
 const PACE = {
   playerMove: 22,
@@ -344,7 +322,7 @@ function startGame(){
   setupMap();
   requestAnimationFrame(loop);
 }
-function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
+function toggleZoom(){ PX.setScale(PX.getScale()===3 ? 4 : 3); }
 
 // ===================================================
 //  MAP
@@ -638,6 +616,8 @@ function tryMove(u, dx, dy){
 function attack(atk, def){
   let dmg = atk.type==='yours' ? PLAYER_ATTACK.dmg : (atk.type==='cavalry' ? 1.4 : 1);
   def.hp -= dmg;
+  def._hitT = PX.t; atk._atkT = PX.t;
+  if(def.type==='yours') PX.shake(4);
   spawnBlood(def.x, def.y);
   if(atk.type==='yours' || def.type==='yours') spawnFloat("-"+(+dmg.toFixed(1)), def.x, def.y, "#ef4444");
 
@@ -857,53 +837,35 @@ function finishRun(kind){
 // ===================================================
 //  DRAW
 // ===================================================
+function groundTile(x, y){
+  const t = terrain[y][x];
+  if(t===TERRAIN.LAKE) return 'lake';
+  if(t===TERRAIN.PATH) return 'road';
+  return elev[y][x] > 14 ? 'woodsHigh' : 'woods';   // darker, denser higher up the hill
+}
+function unitKind(u){
+  if(u.type==='yours') return 'yours';
+  if(u.type==='roman') return 'roman';
+  if(u.type==='libyan') return u.id < 0.5 ? 'libyan' : 'spaniard';
+  if(u.type==='cavalry') return 'carthGaul';
+  return 'gaul';
+}
+
 function draw(){
-  CTX.fillStyle='#1a1f22';
-  CTX.fillRect(0,0,VIEW_W,VIEW_H);
-
-  CTX.save();
-  const cx = VIEW_W/2 - cam.x;
-  const cy = VIEW_H/2 - cam.y;
-  CTX.translate(Math.round(cx), Math.round(cy));
-
-  // only draw tiles near the camera
-  const y0 = Math.max(0, Math.floor((cam.y - VIEW_H/2)/TILE) - 1), y1 = Math.min(GRID_H-1, Math.ceil((cam.y + VIEW_H/2)/TILE) + 1);
-  for(let y=y0;y<=y1;y++){
-    for(let x=0;x<GRID_W;x++){
-      const t = terrain[y][x];
-      const X = x*TILE, Y = y*TILE;
-      if(t===TERRAIN.LAKE){
-        CTX.fillStyle = '#0b2d52'; CTX.fillRect(X, Y, TILE, TILE);
-        if((x+y+((phaseTimer/8)|0))%19===0){ CTX.fillStyle='rgba(147,197,253,0.25)'; CTX.fillRect(X+6, Y+7, 3, 3); }
-      } else if(t===TERRAIN.PATH){
-        CTX.fillStyle = '#5b4a32'; CTX.fillRect(X, Y, TILE, TILE);
-        if((x*7+y*13)%5===0){ CTX.fillStyle='#4a3b26'; CTX.fillRect(X+5, Y+9, 4, 2); }
-      } else {
-        // wooded slope: darker and denser the higher up the hill
-        const e = elev[y][x];
-        CTX.fillStyle = e > 14 ? '#143022' : e > 6 ? '#183a2a' : '#1d4430';
-        CTX.fillRect(X, Y, TILE, TILE);
-        if((x*31+y*17)%3===0){ CTX.fillStyle='#0f2a1b'; CTX.fillRect(X+4+(x%3)*4, Y+3+(y%3)*4, 6, 8); }
-        if((x*13+y*7)%7===0){ CTX.fillStyle='#2a5a3e'; CTX.fillRect(X+12, Y+12, 3, 3); }
-      }
-    }
-  }
+  PX.begin(cam.x/TILE - 0.5, cam.y/TILE - 0.5, '#143022');
+  PX.ground(GRID_W, GRID_H, groundTile);
 
   // Hannibal's camp at the end of the road
-  for(const [tx,ty] of [[22,0],[24,1],[26,0],[20,2],[27,2]]){
-    const X = tx*TILE, Y = ty*TILE;
-    CTX.fillStyle='#d6c7a1'; CTX.beginPath(); CTX.moveTo(X, Y+18); CTX.lineTo(X+12, Y+2); CTX.lineTo(X+24, Y+18); CTX.fill();
-    CTX.fillStyle='#8a7a55'; CTX.fillRect(X+10, Y+10, 4, 8);
-  }
+  for(const [tx,ty] of [[22,0],[24,1],[26,0],[20,2],[27,2]]) PX.pic('tent', tx, ty);
 
   for(const u of units){
-    drawSprite(u, SCALE);
-    if(!u.hidden && (u.type==='yours' || u.hp < u.maxHp)){
-      const sx=u.x*TILE - 4, sy=u.y*TILE - 8;
-      CTX.fillStyle='#000'; CTX.fillRect(sx, sy-6, 24, 4);
-      CTX.fillStyle = (u.type==='yours') ? '#1f9d55' : isCarth(u) ? '#93c5fd' : '#ef4444';
-      CTX.fillRect(sx+1, sy-5, Math.max(0,(u.hp/u.maxHp)*22), 2);
-    }
+    if(u.hidden) continue;
+    const roman = !isCarth(u);
+    PX.unit(u, unitKind(u), {
+      defaultBack: roman,
+      bar: u.type==='yours', hp: u.hp, maxHp: u.maxHp, barCol: '#38a848',
+      marker: u.type==='yours',
+    });
   }
 
   // A glint of metal among the trees, for those paying attention
@@ -911,8 +873,7 @@ function draw(){
     for(const u of units){
       if(!u.hidden) continue;
       if(((phaseTimer + Math.floor(u.f*997)) % 233) < 5){
-        CTX.fillStyle = '#fde68a';
-        CTX.fillRect(u.x*TILE+10, u.y*TILE+8, 3, 3);
+        PX.dot(u.x + 0.4, u.y + 0.3, '#fde68a', 1);
         if(!glintShown && Math.abs(u.y-player.y) < 6 && Math.abs(u.x-player.x) < 12){
           glintShown = true;
           spawnFloat("...something moved in the trees?", player.x-3, player.y-1, "#fde68a");
@@ -921,29 +882,19 @@ function draw(){
     }
   }
 
-  for(const p of particles){
-    CTX.fillStyle=p.color;
-    CTX.fillRect(p.x, p.y, SCALE, SCALE);
-  }
+  for(const p of particles) PX.dot(p.x/TILE, p.y/TILE, p.color);
 
   // Mist off the lake, lying thickest over the road and the water
-  const mg = CTX.createLinearGradient(14*TILE, 0, GRID_W*TILE, 0);
+  const g = PX.ctx, T8 = PX.T;
+  const mg = g.createLinearGradient(14*T8, 0, GRID_W*T8, 0);
   mg.addColorStop(0, 'rgba(210,220,228,0)');
   mg.addColorStop(0.35, `rgba(210,220,228,${0.45*mist})`);
   mg.addColorStop(1, `rgba(210,220,228,${0.7*mist})`);
-  CTX.fillStyle = mg;
-  CTX.fillRect(0, y0*TILE, GRID_W*TILE, (y1-y0+1)*TILE);
+  g.fillStyle = mg;
+  g.fillRect(0, PX.camY, GRID_W*T8, PX.H);
 
-  CTX.font="bold 12px monospace";
-  CTX.textAlign="center";
-  for(const f of floats){
-    CTX.fillStyle=f.color;
-    CTX.globalAlpha=Math.max(0, f.life);
-    CTX.fillText(f.text, f.x+TILE/2, f.y);
-  }
-  CTX.globalAlpha=1;
-
-  CTX.restore();
+  // Hits show as a white flash; only words that matter get printed
+  for(const f of floats){ if(f.life > 0.15 && f.text[0] !== '-') PX.label(f.text, f.x/TILE, f.y/TILE, f.color); }
 }
 
 // ===================================================
@@ -959,17 +910,10 @@ function getStep(u,t){
 }
 function randInt(a,b){ return (Math.random()*(b-a+1) + a) | 0; }
 
+let pxReady = false;
 function resize(){
-  const rect = BOX.getBoundingClientRect();
-  VIEW_W = Math.max(1, Math.floor(rect.width));
-  VIEW_H = Math.max(1, Math.floor(rect.height));
-
-  DPR = Math.min(3, window.devicePixelRatio || 1);
-  CANVAS.width = Math.floor(VIEW_W * DPR);
-  CANVAS.height = Math.floor(VIEW_H * DPR);
-
-  CTX.setTransform(DPR,0,0,DPR,0,0); // draw in CSS px coords
-  CTX.imageSmoothingEnabled=false;
+  if(!pxReady){ PX.init(CANVAS, { scale: 3 }); pxReady = true; }
+  else PX.resize();
 }
 
 window.addEventListener('resize', resize, {passive:true});
