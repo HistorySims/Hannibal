@@ -153,6 +153,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // =========================
 //  ASSETS & SPRITES
@@ -459,7 +460,9 @@ function update(){
   units = units.filter(u=>u.hp>0);
   updateFX();
 
-  if(player.hp<=0) gameOver("Died in the Trebia.");
+  frameC++;
+
+  if(player.hp<=0){ gameOver("Died in the Trebia."); return; }
 
   const enemyCount = units.filter(u=>u.type==='invader'||u.type==='elephant').length;
   document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman').length;
@@ -471,8 +474,6 @@ function update(){
   }
 }
 
-// Increment frame counter once per frame (at end of update)
-frameC++;
 
 function handleAI(u){
   if(u.cooldown>0){ u.cooldown--; return; }
@@ -657,11 +658,12 @@ function gameOver(reason, isWin = false){
     <p style="margin-bottom:10px;">The battle is over.</p>
     ${HISTORY_HTML}
     <div class="btn-row" style="margin-top:18px;">
-      <button class="btn-start" id="btn-map">RETURN TO MAP</button>
+      <button class="btn-start" id="btn-map">CONTINUE CAMPAIGN</button>
       <button class="btn-muted" id="btn-restart">RESTART</button>
     </div>
   `;
 
+  spwMarkDone('trebia');
   document.getElementById('btn-map').onclick = () => { window.location.href = NEXT_PAGE; };
   document.getElementById('btn-restart').onclick = () => { location.reload(); };
 }
@@ -715,7 +717,8 @@ window.handleAttack = function(e){
   const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
   for(let d of dirs){
     let tx=player.x+d[0], ty=player.y+d[1];
-    if(grid[ty]&&grid[ty][tx]) attack(player, grid[ty][tx]);
+    const t = grid[ty] && grid[ty][tx];
+    if(t && (t.type==='invader' || t.type==='elephant')) attack(player, t);
   }
   spawnFloat("SWING", player.x, player.y, "#fff");
   player.attackCd = 18; // small throttle so holding space doesn’t melt everything

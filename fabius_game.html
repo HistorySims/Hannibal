@@ -154,6 +154,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // ===================================================
 //  ROUTING / END FLOW
@@ -307,7 +308,8 @@ const STATS = {
   moveSpeed: 10,
   hanBaseSpeed: 12,
   forestSpeed: 20,
-  combatCD: 30
+  combatCD: 30,
+  pokeCD: 45        // frames between pokes (stops hold-spacebar from killing Hannibal)
 };
 
 // ===================================================
@@ -394,6 +396,7 @@ function setupMap(){
   fabius.conf = STATS.fabConf;
   fabius.steps = 0;
   fabius.cooldown = 0;
+  fabius.pokeCd = 0;
   cam.x = fabius.x*TILE; cam.y = fabius.y*TILE;
 
   // Spawn Hannibal
@@ -455,6 +458,7 @@ function update(){
 
   // Fabius movement + confidence drain
   if(fabius.cooldown > 0) fabius.cooldown--;
+  if(fabius.pokeCd > 0) fabius.pokeCd--;
   if(fabius.cooldown <= 0 && (input.dx || input.dy)){
     if(tryMove(fabius, input.dx, input.dy)){
       fabius.steps++;
@@ -675,6 +679,8 @@ function doAttack(e){
   // Priority 1: poke Hannibal if close
   let d = dist(fabius, hannibal);
   if(d <= 2){
+    if(fabius.pokeCd > 0) return;
+    fabius.pokeCd = STATS.pokeCD;
     hannibal.hp -= 5;
     spawnBlood(hannibal.x, hannibal.y);
     spawnFloat("POKE", hannibal.x, hannibal.y, "#fff");
@@ -728,9 +734,10 @@ function finishRun(title, line){
     <h1>${title}</h1>
     <p><b>${line}</b></p>
     ${HISTORY_HTML}
-    <button class="btn-start" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+    <button class="btn-start" id="btn-map" style="margin-top:18px;">CONTINUE CAMPAIGN</button>
     <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
   `;
+  spwMarkDone('fabian');
   document.getElementById('btn-map').onclick = goToMap;
   document.getElementById('btn-replay').onclick = ()=> { gameActive=false; renderIntro(); };
 }

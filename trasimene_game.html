@@ -139,6 +139,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // ===================================================
 //  ROUTING / END FLOW
@@ -264,7 +265,9 @@ const MOVE_COST = {
   romanPathBoost: 0.75,
   invaderDownhillBoost: 0.62
 };
-const LAKE = { dmgPerTick: 2, splashDmgOnPush: 6 };
+// In the water you take damage every `dmgEvery` frames and wade slowly,
+// so a shove into the lake is deadly but can be fought out of.
+const LAKE = { dmg: 3, dmgEvery: 20, splashDmgOnPush: 6, wadeCost: 3.0 };
 const AMBUSH = {
   triggerY: Math.floor(GRID_H * 0.50),
   spawnBand: 10,
@@ -524,9 +527,14 @@ function update(){
     if(u.hp<=0) continue;
 
     if(terrain[u.y][u.x]===TERRAIN.LAKE){
-      u.hp -= LAKE.dmgPerTick;
-      if(u.type==='yours') spawnFloat("WATER!", u.x, u.y, "#93c5fd");
-      continue;
+      u.lakeT = (u.lakeT||0) + 1;
+      if(u.lakeT % LAKE.dmgEvery === 0){
+        u.hp -= LAKE.dmg;
+        if(u.type==='yours') spawnFloat("DROWNING!", u.x, u.y, "#93c5fd");
+      }
+      if(u.hp<=0) continue;
+    } else {
+      u.lakeT = 0;
     }
 
     if(u.type==='yours'){
@@ -703,9 +711,12 @@ function tryMove(u, dx, dy){
   if(grid[ty][tx]) return 1.0;
 
   const t = terrain[ty][tx];
-  if(t===TERRAIN.LAKE) return 1.0;
+  // You can't walk into the lake, but if you're already in it you can wade toward shore.
+  const wadingOut = terrain[u.y][u.x]===TERRAIN.LAKE && dx<0;
+  if(t===TERRAIN.LAKE && !wadingOut) return 1.0;
 
   let cost = (t===TERRAIN.WOODS) ? MOVE_COST.woods : MOVE_COST.path;
+  if(terrain[u.y][u.x]===TERRAIN.LAKE) cost *= LAKE.wadeCost;
   if(u.type==='roman' && t===TERRAIN.PATH) cost *= MOVE_COST.romanPathBoost;
   if(u.type==='invader' && terrain[u.y][u.x]===TERRAIN.WOODS && dx===1 && dy===0){
     cost *= MOVE_COST.invaderDownhillBoost;
@@ -926,9 +937,12 @@ function finishRun(title, line){
     <p><b>${line}</b></p>
     <p style="margin-top:-6px;">This battle is designed to punish the column.</p>
     ${HISTORY_HTML}
-    <button class="btn-start" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+    <button class="btn-start" id="btn-map" style="margin-top:18px;">CONTINUE CAMPAIGN</button>
+    <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
   `;
+  spwMarkDone('tras');
   document.getElementById('btn-map').onclick = goToMap;
+  document.getElementById('btn-replay').onclick = () => location.reload();
 }
 
 // ===================================================

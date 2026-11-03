@@ -99,6 +99,7 @@ button{
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 /* ===================== CONFIG ===================== */
 
@@ -129,14 +130,8 @@ const progressLine = document.getElementById("progress");
 let mapImg = new Image();
 mapImg.src = MAP_SRC;
 
-// Load progress or start fresh
-let state = {};
-try {
-  state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-} catch(e) {
-  console.warn("Failed to parse campaign progress, resetting:", e);
-  state = {};
-}
+// Progress is written by each battle when it is fought to its end (campaign.js)
+let state = spwLoad();
 
 function resize(){
   canvas.width  = window.innerWidth;
@@ -213,7 +208,12 @@ function draw(){
     ctx.fillText(b.name, x, y-22);
   });
 
-  progressLine.textContent = `Progress: ${Object.keys(state).length}/${battles.length}`;
+  const done = battles.filter(b=>state[b.id]).length;
+  if(done >= battles.length){
+    progressLine.innerHTML = `Campaign complete · <a href="victory.html" style="color:#fbbf24">Epilogue ▶</a>`;
+  } else {
+    progressLine.textContent = `Progress: ${done}/${battles.length}`;
+  }
 }
 
 mapImg.onload = draw;
@@ -233,7 +233,7 @@ canvas.addEventListener("pointerup", e=>{
   
   const unlocked = nextIndex();
 
-  for(let i=0;i<=unlocked;i++){
+  for(let i=0;i<=Math.min(unlocked, battles.length-1);i++){
     const b = battles[i];
     const dx = (mx - b.x);
     const dy = (my - b.y) / aspect; // normalize Y distance
@@ -249,28 +249,16 @@ canvas.addEventListener("pointerup", e=>{
 function openBattle(i){
   const b = battles[i];
   
-  // 1. If we have a dedicated boot file, go there!
+  // Battles are marked done by the battle itself when it ends (win or lose).
   if(b.url){
-    // Mark as visited immediately (optional, or do this after winning)
-    if(i === nextIndex()){
-      state[b.id]=true;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
     window.location.href = b.url;
     return;
   }
 
-  // 2. Otherwise, show the placeholder modal (for future levels)
   mTitle.textContent = b.name;
   mText.textContent = `${b.name} placeholder screen. Click below to return.`;
   modal.style.display="flex";
-
-  if(i === nextIndex()){
-    state[b.id]=true;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
 }
-
 
 closeBtn.onclick = ()=>{
   modal.style.display="none";

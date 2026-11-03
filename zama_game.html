@@ -124,12 +124,14 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // ===================================================
 //  ADJUST THESE
 // ===================================================
 // adjust (MAP_URL) here
 const MAP_URL = "map.html";
+const EPILOGUE_URL = "victory.html"; // Zama is the last battle
 
 // ===================================================
 //  ASSETS & SPRITES
@@ -270,7 +272,9 @@ function setupMap(){
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
   battlePhase = 0; phaseTimer = 0; cavalryArrived = false; romVetsCalled = false;
 
-  player = spawnUnit(20, 48, 'yours');
+  // Start beside (not inside) the centre elephant lane
+  player = spawnUnit(23, 48, 'yours');
+  player.attackCd = 0;
   cam.x = player.x*TILE; cam.y = player.y*TILE;
 
   // ROMAN ARMY (Strong Density)
@@ -343,6 +347,7 @@ function loop(){
 
 function update(){
   phaseTimer++;
+  if(player && player.attackCd > 0) player.attackCd--;
   setInputFromKeyboard();
 
   // PHASES (unchanged)
@@ -522,7 +527,20 @@ function handleAI(u){
     let tx = u.x; let ty = u.y+1;
     if(grid[ty] && grid[ty][tx]){
       let vic = grid[ty][tx];
-      if(!['mercenary','libyan','veteran','elephant'].includes(vic.type)){
+      if(vic === player){
+        // Heavy blow + thrown aside, so standing in the lane hurts but doesn't end the battle
+        vic.hp -= 35;
+        spawnBlood(vic.x, vic.y);
+        spawnFloat("TRAMPLED", vic.x, vic.y, "#f00");
+        const side = (vic.x <= u.x) ? -1 : 1;
+        for(const dx of [side*2, side, -side*2, -side]){
+          const nx = vic.x + dx;
+          if(inBounds(nx, vic.y) && !grid[vic.y][nx]){
+            grid[vic.y][vic.x] = null; vic.x = nx; grid[vic.y][nx] = vic; break;
+          }
+        }
+        if(vic.hp <= 0) grid[vic.y][vic.x] = null;
+      } else if(!['mercenary','libyan','veteran','elephant'].includes(vic.type)){
         vic.hp = -10;
         spawnBlood(vic.x, vic.y);
         spawnFloat("TRAMPLE", vic.x, vic.y, "#f00");
@@ -686,6 +704,8 @@ function updateStick(){
 window.handleAttack = function(e){
   if(e){ e.stopPropagation(); e.preventDefault(); }
   if(!gameActive||!player||player.hp<=0)return;
+  if(player.attackCd > 0) return;
+  player.attackCd = 18; // throttle so holding space doesn't melt everything
   const dirs=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
   let hit = false;
   for(let d of dirs){
@@ -840,6 +860,7 @@ window.addEventListener('resize', resize);
 // ===================================================
 function endToMap(msg, win){
   gameActive=false;
+  spwMarkDone('zama');
   const ov=document.getElementById('overlay');
   ov.style.display='flex';
 
@@ -850,11 +871,11 @@ function endToMap(msg, win){
     <h1 style="color:${titleColor}">${title}</h1>
     <p>${msg}</p>
     <button class="btn-start btn-secondary" id="btn-history">HISTORY</button>
-    <button class="btn-start" id="btn-map">BACK TO MAP</button>
+    <button class="btn-start" id="btn-map">CONTINUE</button>
     <button class="btn-start btn-secondary" id="btn-retry">RETRY</button>
   `;
 
-  document.getElementById('btn-map').onclick = () => { window.location.href = MAP_URL; };
+  document.getElementById('btn-map').onclick = () => { window.location.href = EPILOGUE_URL; };
   document.getElementById('btn-retry').onclick = () => { location.reload(); };
   document.getElementById('btn-history').onclick = () => { showHistoryScreen(); };
 }
@@ -880,10 +901,10 @@ function showHistoryScreen(){
       <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
       Scipio turned Hannibal’s tactics against him. He opened lanes to let elephants pass harmlessly and used Numidian cavalry (now allied to Rome) to strike the rear. Zama ended the Second Punic War and broke Carthage as a major power.</p>
     </div>
-    <button class="btn-start" id="btn-map2">BACK TO MAP</button>
+    <button class="btn-start" id="btn-map2">CONTINUE</button>
     <button class="btn-start btn-secondary" id="btn-retry2">RETRY</button>
   `;
-  document.getElementById('btn-map2').onclick = () => { window.location.href = MAP_URL; };
+  document.getElementById('btn-map2').onclick = () => { window.location.href = EPILOGUE_URL; };
   document.getElementById('btn-retry2').onclick = () => { location.reload(); };
 }
 </script>

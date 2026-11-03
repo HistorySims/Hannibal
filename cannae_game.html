@@ -186,6 +186,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // =========================
 //  TOUCH vs DESKTOP UI TOGGLE
@@ -645,7 +646,12 @@ function update(){
   document.getElementById('ui-rome').innerText = units.filter(u=>!isInvaderType(u.type)).length;
   document.getElementById('ui-han').innerText  = units.filter(u=>isInvaderType(u.type)).length;
 
-  if(player && player.hp<=0) gameOver("Crushed in the press.");
+  if(player && player.hp<=0){ gameOver("Crushed in the press."); return; }
+  // Rare outcome: cutting your way to the edge of the field means you escaped the ring.
+  if(player && (player.x<=0 || player.y<=0 || player.x>=GRID_W-1 || player.y>=GRID_H-1)){
+    gameOver("You broke out of the ring.", true);
+    return;
+  }
 }
 
 // =========================
@@ -975,13 +981,23 @@ function showMsg(txt, col){
   el.innerText=txt; el.style.color=col; el.style.opacity=1;
   setTimeout(()=>el.style.opacity=0, 2500);
 }
-function gameOver(t){
+function gameOver(t, escaped=false){
   gameActive=false;
-  document.getElementById('overlay').style.display='flex';
-  document.querySelector('#overlay h1').innerText="DEFEAT";
-  document.querySelectorAll('#overlay p')[0].innerHTML=t;
-  document.querySelectorAll('#overlay p')[1].innerHTML="Your shield wall collapsed.";
-  document.querySelectorAll('#overlay p')[2].innerHTML="Tap Lead the Charge to try again.";
+  spwMarkDone('cannae');
+  const epilogue = escaped
+    ? "You are one of the few. About 10,000 Romans cut their way out and fled to Canusium. Behind you, some 50,000 lay dead on the plain, among them the consul Paullus."
+    : "Packed shoulder to shoulder, the legions could not raise their swords. By nightfall some 50,000 Romans lay dead on the plain, among them the consul Paullus.";
+  const ov = document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = `
+    <h1 style="color:${escaped ? '#fbbf24' : '#ef4444'}">${escaped ? 'ESCAPED' : 'CANNAE'}</h1>
+    <p><b>${t}</b></p>
+    <p>${epilogue}</p>
+    <button class="btn-start" id="btn-map">CONTINUE CAMPAIGN</button>
+    <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
+  `;
+  document.getElementById('btn-map').onclick = () => { window.location.href = 'map.html'; };
+  document.getElementById('btn-replay').onclick = () => location.reload();
 }
 
 // =========================
