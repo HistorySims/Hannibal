@@ -189,6 +189,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="pixel.js"></script>
 <script>
 // =========================
 //  TOUCH vs DESKTOP UI TOGGLE
@@ -354,7 +355,7 @@ function startGame(){
   setupMap();
   requestAnimationFrame(loop);
 }
-function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
+function toggleZoom(){ PX.setScale(PX.getScale()===3 ? 4 : 3); }
 
 function setupMap(){
   units = []; particles = []; floats = [];
@@ -885,6 +886,8 @@ function attack(atk, def){
   if(atk.type === 'cavalry') dmg = 1.5;
 
   def.hp -= dmg;
+  def._hitT = PX.t; atk._atkT = PX.t;
+  if(def.type==='yours') PX.shake(4);
   spawnBlood(def.x, def.y);
   if(def.type==='yours' || atk.type==='yours') spawnFloat("-"+formatDmg(dmg), def.x, def.y, "#ef4444");
 
@@ -1044,48 +1047,32 @@ function gameOver(t, escaped=false){
 //  DRAW
 // =========================
 function draw(){
-  CTX.fillStyle='#2d332d';
-  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
+  PX.begin(cam.x/TILE - 0.5, cam.y/TILE - 0.5, '#6e5c34');
 
-  CTX.save();
-  const cx = CANVAS.width/2 - cam.x;
-  const cy = CANVAS.height/2 - cam.y;
-  CTX.translate(Math.round(cx), Math.round(cy));
-
-  CTX.strokeStyle='rgba(255,255,255,0.05)';
-  CTX.lineWidth=1;
-  CTX.beginPath();
-  for(let i=0;i<GRID_W;i++){ CTX.moveTo(i*TILE,0); CTX.lineTo(i*TILE,GRID_H*TILE); }
-  for(let i=0;i<GRID_H;i++){ CTX.moveTo(0,i*TILE); CTX.lineTo(GRID_W*TILE,i*TILE); }
-  CTX.stroke();
+  // the Aufidus river on the Roman right, beyond the edge of the field
+  PX.rectWorld(-6, -10, 6, GRID_H+20, '#8a7a4c');
+  PX.rectWorld(-4, -10, 3, GRID_H+20, '#284c8c');
+  PX.ground(GRID_W, GRID_H, () => 'plain');
 
   for(const u of units){
-    drawSprite(u.type, u.x*TILE - 4, u.y*TILE - 8, SCALE);
-    if(u.hp < u.maxHp){
-      const sx=u.x*TILE - 4, sy=u.y*TILE - 8;
-      CTX.fillStyle='#000'; CTX.fillRect(sx, sy-6, 24, 4);
-      CTX.fillStyle =
-        (u.type==='yours') ? '#1f9d55' :
-        (isInvaderType(u.type)) ? '#60a5fa' : '#ef4444';
-      CTX.fillRect(sx+1, sy-5, Math.max(0,(u.hp/u.maxHp)*22), 2);
-    }
+    const roman = !isInvaderType(u.type);
+    let kind;
+    if(u.type==='yours') kind = 'yours';
+    else if(u.type==='roman') kind = u.role==='reserve' ? 'triarii' : 'roman';
+    else if(u.type==='libyan') kind = 'libyan';
+    else if(u.type==='cavalry') kind = 'carthGaul';
+    else kind = (u.id < 0.5) ? 'gaul' : 'spaniard';
+    PX.unit(u, kind, {
+      back: roman,
+      face: roman ? 1 : -1,
+      bar: u.type==='yours', hp: u.hp, maxHp: u.maxHp, barCol: '#38a848',
+      marker: u.type==='yours',
+    });
   }
 
-  for(const p of particles){
-    CTX.fillStyle=p.color;
-    CTX.fillRect(p.x, p.y, SCALE, SCALE);
-  }
-
-  CTX.font="bold 12px monospace";
-  CTX.textAlign="center";
-  for(const f of floats){
-    CTX.fillStyle=f.color;
-    CTX.globalAlpha=f.life;
-    CTX.fillText(f.text, f.x+TILE/2, f.y);
-  }
-  CTX.globalAlpha=1;
-
-  CTX.restore();
+  for(const p of particles) PX.dot(p.x/TILE, p.y/TILE, p.color);
+  // Hits show as a white flash; only words that matter get printed
+  for(const f of floats){ if(f.life > 0.15 && f.text[0] !== '-') PX.label(f.text, f.x/TILE, f.y/TILE, f.color); }
 }
 
 // =========================
@@ -1113,10 +1100,10 @@ function orbitAround(u, cx, cy){
     return {x:(dy>0 ? -1 : 1), y:0};
   }
 }
+let pxReady = false;
 function resize(){
-  CANVAS.width = BOX.clientWidth;
-  CANVAS.height = BOX.clientHeight;
-  CTX.imageSmoothingEnabled=false;
+  if(!pxReady){ PX.init(CANVAS, { scale: 3 }); pxReady = true; }
+  else PX.resize();
 }
 window.addEventListener('resize', resize);
 </script>
