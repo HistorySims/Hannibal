@@ -81,3 +81,11 @@ body{
 }
 #title-screen button + button{ background: #4a5568 !important; margin-top: 14px !important; }
 #title-screen button:active{ transform: translateY(3px); box-shadow: inset -3px -3px 0 rgba(0,0,0,0.35), 0 1px 0 #000 !important; }
+
+/* Cutscenes drawn by scene.js: a fixed pixel picture scaled by a whole
+   number (scene.js sets --sw/--sh) and centred above the text box. */
+#stage > canvas.px-scene{
+  flex: 0 0 auto !important;
+  width: var(--sw, 384px) !important; height: var(--sh, 480px) !important;
+  margin: auto !important; object-fit: fill;
+}

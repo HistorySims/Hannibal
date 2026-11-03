@@ -81,273 +81,55 @@
     </div>
 </div>
 
+<script src="pixel.js"></script>
+<script src="scene.js"></script>
 <script>
-const C = document.getElementById('cv');
-const CTX = C.getContext('2d');
-const BOX = document.getElementById('dialogue-box');
-const TXT = document.getElementById('speech');
-
-// Resolution
-const W = 320;
-const H = 420;
-
-// ASSETS
-const P = {
-  metal:'#b7bcc5', black:'#111114',
-  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
-  gold:'#fbbf24', white:'#e7e7ea', skin:'#d4a373',
-  ice: '#a5f3fc', deep: '#172554', reeds: '#22d3ee'
-};
-
-// SCRIPT
 const SCRIPT = [
-    {
-        scene: 'face', mood: 'neutral',
-        text: "Scipio lies wounded in his tent. He begs me to wait."
-    },
-    {
-        scene: 'face', mood: 'angry',
-        text: "\"Wait for reinforcements!\" he says. \"Wait for spring!\""
-    },
-    {
-        scene: 'face', mood: 'angry',
-        text: "But my consulship ends in a month! I will not leave this glory for the next man."
-    },
-    {
-        scene: 'face', mood: 'neutral',
-        text: "Hannibal is right there. Just across that river."
-    },
-    {
-        scene: 'face', mood: 'angry',
-        text: "What is that noise? Numidian horsemen, raiding our camp at dawn!"
-    },
-    {
-        scene: 'face', mood: 'yell',
-        text: "They mock us! Every man out after them. Now!"
-    },
-    {
-        scene: 'river', mood: 'action',
-        text: "The river is freezing, they say. The men have not even eaten, they say..."
-    },
-    {
-        scene: 'face', mood: 'yell',
-        text: "But we are ROMANS! We never wait for glory!"
-    },
-    {
-        scene: 'river', mood: 'action',
-        text: "Legions! Forward! Across the Trebia, after them!"
-    }
+    { scene: 'tent',  mood: 'neutral', text: "Scipio lies wounded in his tent. He begs me to wait." },
+    { scene: 'tent',  mood: 'angry',   text: "\"Wait for reinforcements!\" he says. \"Wait for spring!\"" },
+    { scene: 'tent',  mood: 'angry',   text: "But my consulship ends in a month! I will not leave this glory for the next man." },
+    { scene: 'tent',  mood: 'smug',    text: "Hannibal is right there. Just across that river." },
+    { scene: 'alarm', mood: 'angry',   text: "What is that noise? Numidian horsemen, raiding our camp at dawn!" },
+    { scene: 'alarm', mood: 'yell',    text: "They mock us! Every man out after them. Now!" },
+    { scene: 'river', mood: 'action',  text: "The river is freezing, they say. The men have not even eaten, they say..." },
+    { scene: 'alarm', mood: 'yell',    text: "But we are ROMANS! We never wait for glory!" },
+    { scene: 'river', mood: 'action',  text: "Legions! Forward! Across the Trebia, after them!" }
 ];
 
-// STATE
-let lineIdx = 0;
-let charIdx = 0;
-let currentLine = "";
-let typeTimer = null;
-let frame = 0;
-let snow = [];
-
-function init(){
-    C.width = W;
-    C.height = H;
-    
-    // Init Snow
-    for(let i=0; i<150; i++){
-        snow.push({
-            x: Math.random()*W, 
-            y: Math.random()*H, 
-            s: Math.random()*1.5 + 0.5
-        });
-    }
-
-    startLine();
-    loop();
+// Sempronius in his command tent, by lantern light
+function drawTent(mood){
+    SCENE.tent();
+    SCENE.portrait('sempronius', mood);
 }
 
-function startLine(){
-    if(lineIdx >= SCRIPT.length){
-        endSequence();
-        return;
+// Dawn: Numidian horsemen raiding the snowy camp
+function drawAlarm(mood){
+    SCENE.camp([[0,'#141a34'],[26,'#2c2a52'],[46,'#6a3a62'],[62,'#c0645a'],[74,'#f0a060']],
+               { groundTile:'snowGround', hill:'#283034', hillTop:'#c8ccd0', ground:'#c2c6c4' });
+    SCENE.smoke(22, 78, 56); SCENE.fire(22, 80, 1.4);
+    SCENE.smoke(104, 84, 40); SCENE.fire(104, 86, 1);
+    const t = PX.t;
+    for(let i=0; i<5; i++){
+        const x = ((t*0.9 + i*36) % 180) - 26;
+        PX.figure('numid', x, 88 + (i%2)*5, { face:1, frame: Math.floor((t + i*3)/5) % 2 });
     }
-    
-    BOX.style.display = 'block';
-    currentLine = SCRIPT[lineIdx].text;
-    TXT.innerText = "";
-    charIdx = 0;
-    
-    if(typeTimer) clearInterval(typeTimer);
-    typeTimer = setInterval(typeWriter, 30);
+    SCENE.snow(70);
+    SCENE.portrait('sempronius', mood);
 }
 
-function typeWriter(){
-    if(charIdx < currentLine.length){
-        TXT.innerText += currentLine.charAt(charIdx);
-        charIdx++;
-    } else {
-        clearInterval(typeTimer);
+// The legions wade the freezing Trebia; the far bank is lost in fog
+function drawRiver(){ SCENE.riverCrossing(); }
+
+SCENE.run({
+    script: SCRIPT,
+    speakers: { sempronius: { label: 'Sempronius Longus', color: '#ef4444' } },
+    speaker: 'sempronius',
+    draw: (L) => {
+        if(L.scene === 'tent') drawTent(L.mood);
+        else if(L.scene === 'alarm') drawAlarm(L.mood);
+        else drawRiver();
     }
-}
-
-function nextLine(){
-    if(charIdx < currentLine.length){
-        TXT.innerText = currentLine;
-        charIdx = currentLine.length;
-        clearInterval(typeTimer);
-    } else {
-        lineIdx++;
-        startLine();
-    }
-}
-
-function endSequence(){
-    BOX.style.display = 'none';
-    document.getElementById('title-screen').style.display = 'flex';
-}
-
-// DRAWING HELPERS
-function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
-
-function drawFace(mood){
-    rect(0,0,W,H, '#111');
-    const cx = W/2;
-    const cy = H - 190;   // bust anchored to the bottom of the picture
-
-    // Shoulders, down to the bottom edge
-    rect(cx-60, cy+40, 120, H-(cy+40), P.roman); 
-    rect(cx-50, cy+40, 100, H-(cy+40), '#991b1b'); 
-    rect(cx+30, cy+50, 10, 10, P.gold); 
-
-    // Head
-    rect(cx-20, cy+20, 40, 30, P.skin);
-    rect(cx-35, cy-40, 70, 70, P.skin);
-    
-    // Helmet
-    rect(cx-38, cy-60, 76, 30, P.gold); 
-    rect(cx-30, cy-80, 60, 40, P.gold); 
-    rect(cx-5, cy-90, 10, 20, P.gold); 
-    rect(cx-38, cy-30, 10, 40, P.gold);
-    rect(cx+28, cy-30, 10, 40, P.gold);
-    
-    // Plume
-    for(let i=0; i<3; i++){
-        let sway = Math.sin(frame/10 + i)*2;
-        rect(cx-10 + sway, cy-110, 20, 20, P.roman);
-    }
-
-    // Features
-    const eyeH = mood === 'yell' ? 6 : 4;
-    rect(cx-20, cy-15, 10, eyeH, '#000'); 
-    rect(cx+10, cy-15, 10, eyeH, '#000'); 
-    
-    rect(cx-22, cy-20, 14, 4, '#5c4033'); 
-    rect(cx+8, cy-20, 14, 4, '#5c4033'); 
-    rect(cx-10, cy-18, 2, 2, '#5c4033'); 
-    rect(cx+8, cy-18, 2, 2, '#5c4033');
-
-    rect(cx-5, cy-10, 10, 20, '#c29568');
-
-    if(mood === 'neutral'){
-        rect(cx-10, cy+25, 20, 2, '#5c4033');
-    } else if (mood === 'angry'){
-        rect(cx-10, cy+25, 20, 4, '#5c4033');
-        rect(cx-10, cy+26, 20, 2, '#fff');
-    } else if (mood === 'yell'){
-        rect(cx-12, cy+25, 24, 12, '#330000');
-        rect(cx-10, cy+25, 20, 4, '#fff');
-        rect(cx-10, cy+33, 20, 4, '#fff');
-    }
-
-    // Screen shake for yell (applied at end of face draw, reset per loop)
-    if(mood === 'yell'){
-        if(frame%4===0) CTX.translate(1, 1);
-        else if(frame%4===2) CTX.translate(-1, -1);
-    }
-}
-
-function drawRiverScene(){
-    rect(0,0,W,H, '#2e2e30'); // Ground
-    
-    const riverY = 70; // Water line
-    rect(0, riverY, W, H-riverY, P.deep); // Water fills bottom
-    
-    // Water Flow
-    for(let i=0; i<15; i++){
-        let flowX = (frame + i*40) % W;
-        rect(flowX, riverY+10 + (i%5)*10, 10, 2, 'rgba(255,255,255,0.2)');
-    }
-
-    // MARCHING LEGION
-    const rows = 8; // More rows for density
-    const cols = 8;
-    const startX = W/2 - (cols*18)/2;
-    
-    const spacing = 30; // Vertical space between rows
-    const speed = 0.5;  // Marching speed
-    
-    for(let r=0; r<rows; r++){
-        // Continuous march logic:
-        // Position based on frame time so they don't bounce back
-        // Modulo by a large height so they wrap around seamlessly
-        let marchY = (frame * speed + r * spacing) % (H + 50) - 30;
-        
-        for(let c=0; c<cols; c++){
-            let x = startX + c*20;
-            let y = marchY;
-
-            // Don't draw if too far off screen
-            if(y < -30 || y > H) continue;
-            
-            // Random bobbing per unit
-            let bob = Math.sin(frame/5 + c + r)*1;
-            
-            // Default color (Red/Roman)
-            let coat = P.roman;
-            
-            // FREEZING LOGIC: If feet (y+12) cross river line (riverY)
-            if(y + 12 > riverY){
-                 coat = '#06b6d4'; // Turn Blue/Cyan
-            }
-
-            // Draw Unit
-            rect(x, y+bob, 12, 12, coat); // Body
-            rect(x+2, y+bob-4, 8, 8, P.black); // Head base
-            rect(x+3, y+bob-5, 6, 2, P.gold); // Helm rim
-            rect(x+10, y+bob-8, 2, 10, P.metal); // Spear
-
-            // Splash effect if strictly "in" the water
-            if(y > riverY && Math.random()>0.95){
-                rect(x-2, y+10, 2, 2, '#fff');
-            }
-        }
-    }
-}
-
-function drawSnow(){
-    CTX.fillStyle = P.white;
-    for(let s of snow){
-        CTX.fillRect(s.x, s.y, s.s, s.s);
-        s.y += s.s; 
-        s.x += Math.sin(frame/20 + s.s);
-        if(s.y > H) { s.y = 0; s.x = Math.random()*W; }
-    }
-}
-
-function loop(){
-    frame++;
-    CTX.setTransform(1, 0, 0, 1, 0, 0);
-
-    if(lineIdx < SCRIPT.length){
-        const current = SCRIPT[lineIdx];
-        if(current.scene === 'face') drawFace(current.mood);
-        else if(current.scene === 'river') drawRiverScene();
-        drawSnow();
-    }
-
-    requestAnimationFrame(loop);
-}
-
-init();
-
+});
 </script>
 </body>
 </html>

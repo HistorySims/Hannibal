@@ -91,265 +91,88 @@
     </div>
 </div>
 
+<script src="pixel.js"></script>
+<script src="scene.js"></script>
 <script>
-const C = document.getElementById('cv');
-const CTX = C.getContext('2d');
-const BOX = document.getElementById('dialogue-box');
-const TXT = document.getElementById('speech');
-const NAME = document.getElementById('speaker');
-
-// CHANGED: Increased height to 420 (from 240) to match 3:4 ratio
-const W = 320;
-const H = 420;
-
-const P = {
-  marble: '#e5e5e5', shadow: '#a3a3a3', dark: '#111',
-  toga: '#f3f4f6', purple: '#7e22ce', 
-  fabius: '#f59e0b', skin: '#d4a373',
-  grass: '#4d7c0f', forest: '#14532d'
-};
-
 const SCRIPT = [
-    {
-        scene: 'senate', speaker: 'Senator',
-        text: "Flaminius is dead, his army destroyed at Lake Trasimene. The Republic bleeds."
-    },
-    {
-        scene: 'senate', speaker: 'Senator',
-        text: "The people are in panic, Fabius. They demand action. They demand a Dictator."
-    },
-    {
-        scene: 'face', speaker: 'Fabius',
-        text: "I will accept the burden. But hear me: I will not give you the battle you seek."
-    },
-    {
-        scene: 'face', speaker: 'Fabius',
-        text: "Hannibal cannot be beaten on the field. I will burn the crops. I will starve him. I will wait."
-    },
-    {
-        scene: 'senate', speaker: 'Senator',
-        text: "Cowardice? You would have Rome hide behind walls while Italy burns?"
-    },
-    {
-        scene: 'face', speaker: 'Fabius',
-        text: "I would have Rome survive."
-    },
-    {
-        scene: 'senate', speaker: 'Senator',
-        text: "Very well. Take the legions..."
-    },
-    {
-        scene: 'game_preview', speaker: 'Senator',
-        text: "Six months, Fabius. Rome's patience will not last forever."
-    }
+    { scene: 'senate',  speaker: 'senator', mood: 'worry', text: "Flaminius is dead, his army destroyed at Lake Trasimene. The Republic bleeds." },
+    { scene: 'senate',  speaker: 'senator', mood: 'angry', text: "The people are in panic, Fabius. They demand action. They demand a Dictator." },
+    { scene: 'rome',    speaker: 'fabius',  mood: 'grim',  text: "I will accept the burden. But hear me: I will not give you the battle you seek." },
+    { scene: 'rome',    speaker: 'fabius',  mood: 'grim',  text: "Hannibal cannot be beaten on the field. I will burn the crops. I will starve him. I will wait." },
+    { scene: 'senate',  speaker: 'senator', mood: 'angry', text: "Cowardice? You would have Rome hide behind walls while Italy burns?" },
+    { scene: 'rome',    speaker: 'fabius',  mood: 'tired', text: "I would have Rome survive." },
+    { scene: 'senate',  speaker: 'senator', mood: 'worry', text: "Very well. Take the legions..." },
+    { scene: 'campania',speaker: 'senator', mood: 'neutral', text: "Six months, Fabius. Rome's patience will not last forever." }
 ];
 
-let lineIdx = 0;
-let charIdx = 0;
-let currentLine = "";
-let typeTimer = null;
-let frame = 0;
-
-function init(){
-    C.width = W;
-    C.height = H;
-    startLine();
-    loop();
-}
-
-function startLine(){
-    if(lineIdx >= SCRIPT.length){
-        endSequence();
-        return;
+// The Curia: marble columns, benches of senators, light from high windows
+function drawSenate(mood){
+    SCENE.rect(0, 0, 128, 160, '#5a4e40');
+    SCENE.rect(0, 0, 128, 70, '#8a7e6a');
+    SCENE.columns(4, 4, 66, 5, 28);
+    const g = SCENE.ctx;
+    for(const x of [18, 46, 74, 102]){                       // sun through the high windows
+        SCENE.rect(x, 6, 6, 10, '#f4e8c0');
+        g.fillStyle = 'rgba(255,240,200,0.12)';
+        g.beginPath(); g.moveTo(x, 16); g.lineTo(x + 6, 16); g.lineTo(x + 26, 150); g.lineTo(x + 10, 150); g.closePath(); g.fill();
     }
-    
-    const line = SCRIPT[lineIdx];
-    BOX.style.display = 'block';
-    NAME.innerText = line.speaker;
-    
-    if(line.speaker === 'Fabius') NAME.style.color = '#f59e0b';
-    else NAME.style.color = '#a855f7'; 
-
-    currentLine = line.text;
-    TXT.innerText = "";
-    charIdx = 0;
-    
-    if(typeTimer) clearInterval(typeTimer);
-    typeTimer = setInterval(typeWriter, 30);
-}
-
-function typeWriter(){
-    if(charIdx < currentLine.length){
-        TXT.innerText += currentLine.charAt(charIdx);
-        charIdx++;
-    } else {
-        clearInterval(typeTimer);
-    }
-}
-
-function nextLine(){
-    if(charIdx < currentLine.length){
-        TXT.innerText = currentLine;
-        charIdx = currentLine.length;
-        clearInterval(typeTimer);
-    } else {
-        lineIdx++;
-        startLine();
-    }
-}
-
-function endSequence(){
-    BOX.style.display = 'none';
-    const ts = document.getElementById('title-screen');
-    ts.style.display = 'flex';
-    setTimeout(()=> ts.style.opacity = 1, 50);
-}
-
-function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
-
-// ==============================
-// SCENE 1: THE SENATE FLOOR
-// ==============================
-function drawSenate(){
-    rect(0,0,W,H, P.dark);
-    
-    // SHIFTED EVERYTHING DOWN so it centers in the taller canvas
-    // Canvas is now 420px high. Center is 210.
-    const Y_OFFSET = 80; 
-
-    // Perspective Floor
-    for(let y=80; y<200; y+=5){ 
-        let drawY = y + Y_OFFSET;
-        let brightness = 1 - (y-80)/120; 
-        CTX.fillStyle = (Math.floor(y/10)%2===0) ? P.marble : P.shadow;
-        
-        let width = W * (y/240); // Adjusted persp calculation
-        let x = (W - width)/2;
-        rect(x, drawY, width, 5);
-    }
-
-    // Columns
-    for(let i=0; i<6; i++){
-        let x = i * 60 + 10;
-        let y = 20 + Y_OFFSET;
-        rect(x, y, 40, 180, P.shadow);
-        rect(x+5, y, 10, 180, P.marble);
-        rect(x+20, y, 10, 180, P.marble);
-    }
-
-    // The Crowd
-    for(let r=0; r<3; r++){
-        for(let c=0; c<10; c++){
-            let x = c * 30 + 20 + (r*15);
-            let y = 140 + r*20 + Y_OFFSET;
-            let bob = (Math.random() > 0.95) ? -1 : 0;
-            rect(x, y+bob, 14, 20, P.toga);
-            rect(x+4, y+bob, 4, 20, P.purple);
-            rect(x+2, y+bob-6, 10, 8, P.skin);
+    for(let tier=0; tier<3; tier++){                           // benches of senators
+        const y = 68 + tier*14;
+        SCENE.rect(0, y + 8, 128, 4, '#6a4a2a'); SCENE.rect(0, y + 8, 128, 1, '#8a6a42');
+        for(let i=0; i<16; i++){
+            const x = 4 + i*8 + (tier%2)*4;
+            const nod = ((PX.t + i*31 + tier*17) % 160) < 6 ? 1 : 0;
+            SCENE.tiny(x, y + nod, '#ece6d4', '#e0a878', i%3 ? null : '#7a2a8a');
         }
     }
-
-    // Fabius (Back to camera)
-    let fx = W/2 - 10;
-    let fy = H - 140; // Raised from bottom
-    rect(fx, fy, 20, 30, P.fabius); 
-    rect(fx+5, fy-8, 10, 10, '#aaa'); 
+    SCENE.dither(0, 112, 128, 48, '#6a5e4c', '#625644');      // mosaic floor
+    SCENE.portrait('senator', mood);
 }
 
-// ==============================
-// SCENE 2: FABIUS PORTRAIT
-// ==============================
-function drawFace(){
-    rect(0,0,W,H, '#1c1917'); 
-    const cx = W/2;
-    // CHANGED: Shifted face UP (H * 0.4) so text box doesn't cover chin
-    const cy = H * 0.4; 
-
-    // Toga
-    rect(cx-60, cy+50, 120, 100, P.fabius); 
-    rect(cx-50, cy+50, 100, 100, '#b45309'); 
-
-    // Neck
-    rect(cx-20, cy+30, 40, 20, P.skin);
-
-    // Head
-    rect(cx-35, cy-35, 70, 70, P.skin);
-    
-    // Hair
-    rect(cx-36, cy-35, 72, 8, '#9ca3af');
-    rect(cx-38, cy-25, 6, 15, '#9ca3af'); 
-    rect(cx+32, cy-25, 6, 15, '#9ca3af');
-
-    // Wrinkles
-    CTX.fillStyle = 'rgba(0,0,0,0.2)';
-    rect(cx-20, cy-25, 40, 2); 
-    rect(cx-25, cy+10, 10, 2); 
-    rect(cx+15, cy+10, 10, 2); 
-
-    // Eyes
-    rect(cx-20, cy-10, 12, 4, '#000');
-    rect(cx+8, cy-10, 12, 4, '#000');
-    rect(cx-20, cy-5, 12, 2, '#d6c0b0'); 
-    rect(cx+8, cy-5, 12, 2, '#d6c0b0');
-
-    // Mouth
-    rect(cx-10, cy+30, 20, 2, '#854d0e');
+// Fabius before Rome at dusk; smoke from burning farms on the horizon
+function drawRome(mood){
+    SCENE.sky([[0,'#2a2040'],[24,'#4a2e52'],[44,'#8a4a5a'],[60,'#d07a50'],[72,'#f0b060']]);
+    for(const x of [10, 112]) SCENE.smoke(x, 82, 50);
+    SCENE.rome(108);
+    SCENE.rect(0, 108, 128, 52, '#1e1a26');
+    SCENE.portrait('fabius', mood);
 }
 
-// ==============================
-// SCENE 3: GAME PREVIEW
-// ==============================
-function drawGamePreview(){
-    rect(0,0,W,H, P.grass);
-    
-    // FILL SCREEN
-    for(let y=0; y<H; y+=24){
-        for(let x=0; x<W; x+=24){
-            let n = Math.sin(x/50) * Math.cos(y/50);
-            if(n < -0.3){
-                rect(x, y, 24, 24, P.forest);
-                rect(x+8, y+4, 8, 12, '#0f3d20');
-            }
-        }
+// Campania as you will see it: Fabius on the high ground, Hannibal plundering the plain
+function drawCampania(){
+    PX.ground(16, 20, (x, y) => {
+        if(y < 6 && x < 7 && (x + y) < 9) return 'hill';
+        if((x > 10 && y < 5) || (x < 3 && y > 13)) return 'forest';
+        return 'grass';
+    });
+    const farms = [[9, 7, 'ruin'], [13, 10, 'house'], [5, 13, 'ruin'], [11, 15, 'house'], [2, 9, 'house']];
+    for(const [x, y, k] of farms){
+        PX.pic(k, x, y);
+        if(k === 'ruin'){ SCENE.fire(x*8 + 4, y*8 + 4, 1.2); SCENE.smoke(x*8 + 4, y*8, 46); }
     }
-    
-    // Fabius Sprite (Centered)
-    let fx = W/2 - 4;
-    let fy = H/2 - 20; 
-    
-    const s = 2; 
-    CTX.fillStyle='rgba(0,0,0,0.3)'; 
-    CTX.beginPath(); CTX.ellipse(fx+8, fy+14, 8, 4, 0, 0, Math.PI*2); CTX.fill(); 
-
-    const coat = P.fabius;
-    const metal = '#94a3b8';
-    
-    function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-    
-    px(fx+2, fy+12, s, '#111'); px(fx+12, fy+12, s, '#111'); 
-    px(fx+4, fy+10, s, metal); px(fx+10, fy+10, s, metal); 
-    for(let dx=2; dx<=5; dx++) px(fx+dx*2, fy+6, s, coat); 
-    px(fx+6,fy,s,'#fff'); px(fx+8,fy,s,'#fff'); 
+    // Fabius' army on the ridge
+    const t = PX.t;
+    for(const [dx, dy, k] of [[-6,-3,'roman'],[6,-3,'roman'],[0,0,'yours'],[-6,4,'roman'],[6,4,'roman']]) PX.figure(k, 22 + dx, 22 + dy, {});
+    PX.pic('standard', 1.6, 1.2);
+    // Hannibal's army on the plain, with his elephant
+    const hx = 84 + Math.round(Math.sin(t/120) * 6), hy = 92;
+    PX.figure('elephant', hx + 10, hy - 4, { face: -1 });
+    for(const [dx, dy, k] of [[-6,-3,'libyan'],[6,-3,'gaul'],[0,0,'hannibal'],[-6,4,'spaniard'],[6,4,'libyan']]) PX.figure(k, hx + dx, hy + dy, { face: -1 });
+    PX.label('HIGH GROUND', 3, 4.3, '#fde68a');
 }
 
-function loop(){
-    frame++;
-    CTX.setTransform(1, 0, 0, 1, 0, 0); 
-
-    if(lineIdx < SCRIPT.length){
-        const current = SCRIPT[lineIdx];
-        if(current.scene === 'senate') drawSenate();
-        else if(current.scene === 'face') drawFace();
-        else if(current.scene === 'game_preview') drawGamePreview();
-    } else {
-        drawGamePreview();
+SCENE.run({
+    script: SCRIPT,
+    speakers: {
+        senator: { label: 'Senator', color: '#c084fc' },
+        fabius:  { label: 'Fabius',  color: '#f59e0b' },
+    },
+    draw: (L) => {
+        if(L.scene === 'senate') drawSenate(L.mood);
+        else if(L.scene === 'rome') drawRome(L.mood);
+        else drawCampania();
     }
-
-    requestAnimationFrame(loop);
-}
-
-init();
-
+});
 </script>
 </body>
 </html>

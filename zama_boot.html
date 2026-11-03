@@ -102,308 +102,150 @@
     </div>
 </div>
 
+<script src="pixel.js"></script>
+<script src="scene.js"></script>
 <script>
-const C = document.getElementById('cv');
-const CTX = C.getContext('2d');
-const BOX = document.getElementById('dialogue-box');
-const TXT = document.getElementById('speech');
-
-const W = 320;
-const H = 420;
-
-const P = {
-  metal:'#b7bcc5', black:'#111114',
-  roman:'#c53030', you:'#1f9d55', 
-  gold:'#fbbf24', white:'#e7e7ea', shadow:'rgba(0,0,0,0.35)',
-  sand: '#d4a373', sea: '#1e3a8a',
-  trasimene: '#0f172a', cannae: '#450a0a'
-};
-
 const SCRIPT = [
-    {
-        scene: 'face', mood: 'neutral',
-        text: "The elephant is a weapon of terror. Soldiers break ranks because they are afraid."
-    },
-    {
-        scene: 'face', mood: 'neutral',
-        text: "But Rome's problem has never been a lack of courage."
-    },
-    {
-        scene: 'flashback_trasimene', mood: 'dead',
-        text: "At the Trebia... we stood our ground in the freezing river. We did not run."
-    },
-    {
-        scene: 'flashback_cannae', mood: 'dead',
-        text: "At Cannae... we held the circle tight. We died shoulder to shoulder, facing the enemy."
-    },
-    {
-        scene: 'tactic_fail', mood: 'crush',
-        text: "It is brave to stand before a charging beast. But courage alone just gets you trampled."
-    },
-    {
-        scene: 'tactic_win', mood: 'lanes',
-        text: "To defeat the charge, you must not be a wall. You must be a path."
-    },
-    {
-        scene: 'tactic_win', mood: 'stab',
-        text: "You step aside. You let it go exactly where it wants to go. Then... you strike."
-    },
-    {
-        scene: 'boat', mood: 'sail',
-        text: "That is why we came here, to Africa. We did not chase Hannibal."
-    },
-    {
-        scene: 'battlefield', mood: 'ready',
-        text: "We gave him a path to where we wanted him to be. And now..."
-    },
-    {
-        scene: 'battlefield', mood: 'ready',
-        text: "And this time, Masinissa's Numidian horse ride with Rome."
-    },
-    {
-        scene: 'battlefield', mood: 'ready',
-        text: "We end him."
-    }
+    { scene: 'scipio',       mood: 'neutral', text: "The elephant is a weapon of terror. Soldiers break ranks because they are afraid." },
+    { scene: 'scipio',       mood: 'grim',    text: "But Rome's problem has never been a lack of courage." },
+    { scene: 'flash_trebia', mood: 'grim',    text: "At the Trebia... we stood our ground in the freezing river. We did not run." },
+    { scene: 'flash_cannae', mood: 'grim',    text: "At Cannae... we held the circle tight. We died shoulder to shoulder, facing the enemy." },
+    { scene: 'wall',         mood: 'grim',    text: "It is brave to stand before a charging beast. But courage alone just gets you trampled." },
+    { scene: 'lane',         mood: 'neutral', text: "To defeat the charge, you must not be a wall. You must be a path." },
+    { scene: 'lane',         mood: 'neutral', text: "You step aside. You let it go exactly where it wants to go. Then... you strike." },
+    { scene: 'fleet',        mood: 'neutral', text: "That is why we came here, to Africa. We did not chase Hannibal." },
+    { scene: 'zama',         mood: 'grim',    text: "We gave him a path to where we wanted him to be. And now..." },
+    { scene: 'zama_horse',   mood: 'grim',    text: "And this time, Masinissa's Numidian horse ride with Rome." },
+    { scene: 'zama_scipio',  mood: 'grim',    text: "We end him." }
 ];
 
-let lineIdx = 0;
-let charIdx = 0;
-let currentLine = "";
-let typeTimer = null;
-let frame = 0;
-
-// ANIMATION STATE
-let elephantY = -30;
-
-function init(){
-    C.width = W;
-    C.height = H;
-    startLine();
-    loop();
-}
-
-function startLine(){
-    if(lineIdx >= SCRIPT.length){
-        endSequence();
-        return;
-    }
-    
-    const line = SCRIPT[lineIdx];
-    BOX.style.display = 'block';
-    currentLine = line.text;
-    TXT.innerText = "";
-    charIdx = 0;
-    
-    // Reset animation vars per scene
-    if(line.scene.includes('tactic')) elephantY = -30;
-    
-    if(typeTimer) clearInterval(typeTimer);
-    typeTimer = setInterval(typeWriter, 25);
-}
-
-function typeWriter(){
-    if(charIdx < currentLine.length){
-        TXT.innerText += currentLine.charAt(charIdx);
-        charIdx++;
-    } else {
-        clearInterval(typeTimer);
+function palm(x, y){
+    for(let i=0; i<26; i++) SCENE.rect(x + Math.round(Math.sin(i/9)*3), y - i, 3, 1, i%3 ? '#7a5434' : '#5a3a20');
+    const tx = x + Math.round(Math.sin(25/9)*3) + 1, ty = y - 26, sway = Math.round(Math.sin(PX.t/40));
+    for(const [dx, dy] of [[-10,4],[-7,2],[-4,0],[4,0],[7,2],[10,4],[0,-3]]){
+        for(let k=0; k<6; k++) SCENE.rect(tx + Math.round(dx*k/6) + sway, ty + Math.round(dy*k/6) + Math.floor(k*k/10), 2, 1, k > 3 ? '#4a7a2a' : '#5a9a34');
     }
 }
 
-function nextLine(){
-    if(charIdx < currentLine.length){
-        TXT.innerText = currentLine;
-        charIdx = currentLine.length;
-        clearInterval(typeTimer);
-    } else {
-        lineIdx++;
-        startLine();
+// Scipio's camp in Africa
+function drawScipio(mood){
+    SCENE.sky([[0,'#3a6ab0'],[30,'#6a94c8'],[56,'#c8c8b8'],[70,'#e8c890']]);
+    SCENE.hills(84, [6,8,12,10,8,6,4,6,8,10,8,6,4,4,6,8,6], '#c89a60', '#dab07a');
+    PX.ground(16, 20, (x, y) => y*8 >= 84 ? 'sand' : null);
+    for(let i=0; i<5; i++) PX.pic('tent', (8 + i*26)/8 - 0.5, (88 + (i%2)*4)/8 - 1);
+    palm(14, 108); palm(112, 104);
+    PX.pic('standard', 32/8 - 0.5, 100/8 - 1); PX.pic('standard', 92/8 - 0.5, 100/8 - 1);
+    SCENE.portrait('scipio', mood);
+}
+
+// Memory of the Trebia, in icy blue
+function drawFlashTrebia(){
+    SCENE.riverCrossing();
+    SCENE.tint('rgba(18,40,96,0.45)');
+}
+
+// Memory of Cannae: the legions crushed inside a ring of enemies, in red
+function drawFlashCannae(){
+    PX.ground(16, 20, () => 'plain');
+    const t = PX.t, pts = [];
+    const squeeze = 1 + Math.sin(t/40) * 0.04;
+    for(let a=0; a<26; a++){
+        const ang = a/26 * Math.PI*2;
+        pts.push({ x: 60 + Math.cos(ang)*48*squeeze, y: 76 + Math.sin(ang)*44*squeeze, k: a%3 === 0 ? 'libyan' : 'gaul', back: Math.sin(ang) > 0 });
+    }
+    for(let r=0; r<7; r++) for(let c=0; c<7; c++){
+        const x = 32 + c*9 + (r%2)*4, y = 50 + r*8;
+        if(((x - 60)**2)/(34*34) + ((y - 76)**2)/(30*30) < 1) pts.push({ x, y, k:'roman', back: r < 3 });
+    }
+    pts.sort((a, b) => a.y - b.y);
+    for(const p of pts) PX.figure(p.k, p.x, p.y, { back: p.back });
+    SCENE.tint('rgba(110,8,8,0.45)');
+}
+
+// An elephant charge into a solid line: the line is smashed
+function drawWall(){
+    PX.ground(16, 20, () => 'sand');
+    const t = SCENE.since() % 160;
+    const ey = 18 + Math.min(t, 70) * 1.0;
+    const hit = t > 64;
+    for(let r=0; r<2; r++) for(let c=0; c<13; c++){
+        const x = 2 + c*10, y = 104 + r*9;
+        if(hit && r === 0 && Math.abs(x - 58) < 20){
+            const fly = Math.min(1, (t - 64)/20);
+            PX.figure('roman', x + Math.sign(x - 58)*fly*22, y - Math.sin(fly*Math.PI)*16, { back:true, flash: t < 72 });
+        } else PX.figure('roman', x, y, { back:true });
+    }
+    PX.figure('elephant', 58, ey, { face: 1, frame: Math.floor(t/6) % 2 });
+    if(hit && t < 76) SCENE.rect(0, 0, 128, 160, 'rgba(255,255,255,0.25)');
+    if(hit) PX.label('TRAMPLED', 7.6, 11, '#ef4444');
+}
+
+// The same charge into a line with a lane: it passes harmlessly, and is struck from the side
+function drawLane(){
+    PX.ground(16, 20, (x) => (x >= 6 && x <= 8) ? 'sandLane' : 'sand');
+    const t = SCENE.since() % 170;
+    const ey = 18 + t * 0.9;
+    const passing = ey > 88 && ey < 124;
+    for(let r=0; r<2; r++) for(let c=0; c<13; c++){
+        const x = 2 + c*10, y = 104 + r*9;
+        if(x >= 46 && x <= 66) continue;                              // the lane
+        const near = passing && (x === 42 || x === 72);
+        PX.figure('roman', x + (near ? (x < 64 ? 3 : -3) : 0), y, { back:true, lunge: near });
+    }
+    PX.figure('elephant', 54, ey, { face: 1, frame: Math.floor(t/6) % 2, flash: passing && t % 12 < 3 });
+}
+
+// The fleet sails for Africa
+function drawFleet(){
+    SCENE.sky([[0,'#4a86c8'],[40,'#7aa8d8'],[60,'#b8d0e4']]);
+    for(const [x, y, w] of [[10,14,24],[60,8,30],[96,22,20]]){ const cx = (x + PX.t*0.05) % 150 - 10; SCENE.rect(cx, y, w, 4, '#eef4fa'); SCENE.rect(cx + 4, y - 3, w - 8, 3, '#eef4fa'); }
+    SCENE.water(64, 96, '#1e4a8a', '#6a98d0');
+    SCENE.rect(112, 58, 16, 8, '#d8b07a');                           // the coast of Africa
+    for(const [x, y] of [[0, 70], [40, 92], [8, 118], [56, 132]]){
+        SCENE.ship((x + PX.t*0.12) % 150 - 20, y, { stripe:'#c03028' });
     }
 }
 
-function endSequence(){
-    BOX.style.display = 'none';
-    const ts = document.getElementById('title-screen');
-    ts.style.display = 'flex';
-    setTimeout(()=> ts.style.opacity = 1, 50);
-}
-
-function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor(y),Math.floor(w),Math.floor(h)); }
-function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-
-// ==============================
-// DRAWING UTILS
-// ==============================
-function drawSprite(kind, x, y, scale, rotation=0){
-    CTX.save();
-    
-    // Handle Rotation for "Dead" sprites
-    if(rotation !== 0){
-        CTX.translate(x + 12, y + 12);
-        CTX.rotate(rotation);
-        CTX.translate(-(x + 12), -(y + 12));
+// The field at Zama: elephants and three lines facing Scipio's maniples, lanes open
+function drawZama(horse){
+    PX.ground(16, 20, (x, y) => (y >= 10 && (x === 3 || x === 8 || x === 13)) ? 'sandLane' : 'sand');
+    for(let c=0; c<14; c++) PX.figure('veteran', 2 + c*9, 2, {});
+    for(let c=0; c<14; c++) PX.figure(c%2 ? 'levy' : 'merc', 6 + c*9, 14, {});
+    for(const x of [10, 34, 58, 82, 106]) PX.figure('elephant', x, 34 + (x%3)*2, { face: x < 64 ? 1 : -1, frame: Math.floor(PX.t/12)%2 });
+    for(let r=0; r<4; r++) for(let c=0; c<16; c++){
+        if(c === 3 || c === 8 || c === 13) continue;                  // Scipio's lanes
+        PX.figure(r === 3 ? 'triarii' : 'roman', c*8, 96 + r*12, { back:true });
     }
-  
-    const s = scale;
-    const coat = kind==='roman' ? P.roman : P.you;
-    const helm = kind==='roman' ? P.gold : P.white;
-  
-    CTX.fillStyle=P.shadow;
-    CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-    
-    px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
-    px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
-    for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-    px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
-    
-    CTX.restore();
+    for(let i=0; i<3; i++) PX.figure('velite', 3*8 + 0, 84 - i*4, { back:true });
+    if(horse){
+        const t = SCENE.since();
+        for(let i=0; i<6; i++) PX.figure('numid', 138 - Math.min(t, 90)*0.4 - i*9 + (i%2)*4, 64 + (i%3)*9, { face:-1, frame: Math.floor((PX.t + i*3)/5) % 2 });
+    }
+}
+function drawZamaScipio(mood){
+    drawZama(true);
+    SCENE.rect(0, 0, 128, 160, 'rgba(0,0,0,0.3)');
+    SCENE.portrait('scipio', mood);
 }
 
-function drawElephant(x,y,s){
-    CTX.fillStyle = 'rgba(0,0,0,0.3)';
-    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill(); 
-    CTX.fillStyle = '#777'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
-    CTX.fillStyle = '#b91c1c'; CTX.fillRect(x+4*s, y-5*s, 8*s, 4*s); 
-    CTX.fillStyle = '#999'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
-    CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 8*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 8*s);
-    CTX.fillStyle = '#666'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
-}
-
-// ==============================
-// SCENES
-// ==============================
-
-function drawFace(mood){
-    rect(0,0,W,H, '#1c1917'); 
-    const cx = W/2;
-    const cy = H - 190;   // bust anchored to the bottom of the picture
-
-    // Scipio, shoulders down to the bottom edge
-    rect(cx-60, cy+50, 120, H-(cy+50), P.you);
-    rect(cx-50, cy+50, 100, H-(cy+50), 'rgba(0,0,0,0.2)');
-
-    // Head
-    rect(cx-35, cy-35, 70, 70, '#d4a373');
-    // Helmet
-    rect(cx-36, cy-60, 72, 30, '#fff'); 
-    rect(cx-30, cy-80, 60, 40, '#fff'); 
-    for(let i=0; i<3; i++) rect(cx-10 + (Math.sin(frame/10+i)*2), cy-110, 20, 20, P.you);
-
-    // Eyes
-    rect(cx-20, cy-12, 12, 4, '#000');
-    rect(cx+8, cy-12, 12, 4, '#000');
-    // Mouth
-    rect(cx-10, cy+25, 20, 2, '#854d0e');
-}
-
-function drawFlashback(battle){
-    let bg = (battle==='trasimene') ? P.trasimene : P.cannae;
-    rect(0,0,W,H, bg);
-    
-    if(battle === 'trasimene'){
-        rect(0, 100, W, H-100, '#1e3a8a'); // Water
-        for(let i=0; i<10; i++) rect((frame + i*50)%W, 50 + i*15, 40, 5, 'rgba(255,255,255,0.1)');
-        for(let i=0; i<6; i++){
-            drawSprite('roman', 50 + i*40, 120 + Math.sin(i)*20, 2, Math.PI/2);
+SCENE.run({
+    script: SCRIPT,
+    speakers: { scipio: { label: 'Scipio Africanus', color: '#4ade80' } },
+    speaker: 'scipio',
+    draw: (L) => {
+        switch(L.scene){
+            case 'scipio': return drawScipio(L.mood);
+            case 'flash_trebia': return drawFlashTrebia();
+            case 'flash_cannae': return drawFlashCannae();
+            case 'wall': return drawWall();
+            case 'lane': return drawLane();
+            case 'fleet': return drawFleet();
+            case 'zama': return drawZama(false);
+            case 'zama_horse': return drawZama(true);
+            default: return drawZamaScipio(L.mood);
         }
-    } 
-    else if(battle === 'cannae'){
-        rect(0,0,W,H, '#450a0a');
-        const cx = W/2; const cy = H/2;
-        const radius = 60; const count = 10;
-        for(let i=0; i<count; i++){
-            let angle = (i / count) * Math.PI * 2;
-            let x = cx + Math.cos(angle) * radius;
-            let y = cy + Math.sin(angle) * radius;
-            drawSprite('roman', x-12, y-12, 2, angle + Math.PI/2);
-        }
-        rect(0,0,W,H, 'rgba(200,100,0,0.1)');
     }
-}
-
-function drawTactics(mode){
-    rect(0,0,W,H, P.sand);
-
-    let gap = (mode === 'lanes' || mode === 'stab') ? 30 : 0;
-    
-    for(let r=0; r<4; r++){
-        drawSprite('roman', W/2 - 40 - gap, 100 + r*25, 2);
-        drawSprite('roman', W/2 + 20 + gap, 100 + r*25, 2);
-    }
-    
-    elephantY += 3;
-    if(elephantY > H) elephantY = -50;
-    
-    let ex = W/2 - 20;
-    if(mode === 'crush'){
-         if(elephantY > 100) elephantY = 100; 
-         if(frame%10 < 5) rect(0,0,W,H, 'rgba(255,0,0,0.1)'); 
-    }
-    
-    drawElephant(ex, elephantY, 2);
-    
-    if(mode === 'stab' && elephantY > 100 && elephantY < 200){
-        rect(ex-10, elephantY+10, 20, 4, '#fff'); 
-        rect(ex+30, elephantY+10, 20, 4, '#fff'); 
-        rect(ex+10, elephantY+10, 20, 20, 'rgba(255,0,0,0.5)'); 
-    }
-}
-
-function drawBoat(){
-    rect(0,0,W,H, P.sea);
-    for(let i=0; i<20; i++){
-        rect((frame*2 + i*40)%W, (i*15 + frame)%H, 20, 2, 'rgba(255,255,255,0.2)');
-    }
-    let bx = W/2 - 40;
-    let by = H/2 - 20 + Math.sin(frame/10)*5;
-    CTX.fillStyle = '#3e2723'; 
-    CTX.beginPath(); CTX.moveTo(bx, by); CTX.lineTo(bx+80, by); CTX.lineTo(bx+60, by+30); CTX.lineTo(bx+20, by+30); CTX.fill();
-    rect(bx+38, by-40, 4, 40, '#5d4037'); 
-    CTX.fillStyle = P.white; CTX.beginPath(); CTX.moveTo(bx+40, by-35); CTX.lineTo(bx+70, by-10); CTX.lineTo(bx+40, by-10); CTX.fill();
-    drawSprite('yours', bx+30, by-15, 2);
-}
-
-function drawBattlefield(){
-    rect(0,0,W,H, P.sand);
-    drawSprite('yours', W/2 - 12, H - 40, 2);
-    for(let x=20; x<W; x+=40){
-        drawSprite('roman', x, H - 40, 2);
-        drawSprite('roman', x, H - 70, 2);
-    }
-    for(let x=40; x<W; x+=50){
-        drawElephant(x, 40, 2);
-    }
-    for(let i=0; i<10; i++){
-        let dx = (frame*4 + i*50) % W;
-        let dy = (i*30) % H;
-        rect(dx, dy, 10, 2, 'rgba(255,255,255,0.1)');
-    }
-}
-
-function loop(){
-    frame++;
-    CTX.setTransform(1, 0, 0, 1, 0, 0); 
-
-    if(lineIdx < SCRIPT.length){
-        const current = SCRIPT[lineIdx];
-        const s = current.scene;
-        const m = current.mood;
-        
-        if(s === 'face') drawFace(m);
-        else if(s.includes('flashback')) drawFlashback(s.split('_')[1]);
-        else if(s.includes('tactic')) drawTactics(m);
-        else if(s === 'boat') drawBoat();
-        else if(s === 'battlefield') drawBattlefield();
-        
-    } else {
-        drawBattlefield();
-    }
-
-    requestAnimationFrame(loop);
-}
-
-init();
-
+});
 </script>
 </body>
 </html>
