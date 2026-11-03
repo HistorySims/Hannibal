@@ -34,47 +34,98 @@ const PX = (() => {
   };
 
   // ---------------------------------------------------------------
-  //  SPRITES (front view; back views are derived by mirroring)
-  //  Key: r crest, h helmet, H helmet dark, s skin, k eye, c coat, C coat dark,
-  //       m armour, M armour dark, b shield, B shield edge, y boss/trim,
-  //       g hair, l legs, f feet, w white
+  //  SPRITES
+  //  Each art has a front head, a back head (drawn, not derived, so the
+  //  back of a helmet never turns into a dark "visor" band) and body rows;
+  //  the back of the body is the front mirrored.
+  //  Key: r crest, R crest shade, h helmet/cap, H helmet shade, n highlight,
+  //       s skin, k eye, c coat, C coat dark, m armour, M armour dark,
+  //       b shield, B shield edge, y boss/trim, g hair, l legs, f feet, w white
+  //  Eyes always sit on a row of skin, never between helmet pixels.
   // ---------------------------------------------------------------
   const LEGS = [
     ["..l..l..", "..f..f.."],
     [".l...l..", ".f....f."],
   ];
   const ART = {
-    legionary: { head:3, rows:["..rrr...",".hhhhh..",".hkskh..","..sss.bB",".cmmmcbB",".cmmmcyB",".cmMmcbB","..CCC.bB"] },
-    centurion: { head:3, rows:["rrrrrrr.",".hhhhh..",".hkskh..","..sss.bB",".cmymcbB",".cmmmcyB",".cmymcbB","..CCC.bB"] },
-    velite:    { head:3, rows:[".hhhhh..","hhHHHhh.",".hkskh..","..sss...",".cccccbb",".cCcCcyb",".ccccc..","..CCC..."] },
-    gaul:      { head:3, rows:["..gg.g..",".ggggg..","gskskg..",".ssssbb.",".sssbbbB",".cyccbyB",".ccccbbB","..CCC.b."] },
-    spaniard:  { head:3, rows:["..hhh...",".hhhhh..",".hkskh..","..sss.bb",".cwwwcbB",".cwwwcyB",".ccccc.B","..CCC..."] },
-    libyan:    { head:3, rows:["..hhh...",".hhhhH..",".Hkskh..","..sss.bb",".mmmmmby",".mMmMmbb",".mmmmm.b","..ccc..."] },
-    levy:      { head:3, rows:["..hhh...",".hhhhH..",".hkskh..","..sss.bb",".wwwwwby",".cwcwcbb",".ccccc.b","..CCC..."] },
-    merc:      { head:3, rows:["..hhh...",".hhhhh..",".hkskh..","..sss.b.",".ccccbbb",".cCcCbyb",".ccccbbb","..CCC.b."] },
-    forager:   { head:3, rows:["........",".gggg...",".gksk...","..ss.ww.",".cccwwww",".cCcwwww",".ccc.ww.","..CC...."] },
+    // crested helmet: dome with a highlight, crest ridge front to back, cheek guards below the eyes
+    legionary: {
+      head: ["...r....","..rRr...",".hnhhH..",".sksks..",".HsssHbB"],
+      back: ["....r...","...rRr..","..HhRnh.","..hhRhh.","BbHhhhH."],
+      body: [".cmmmcbB",".cmmmcyB",".cmMmcbB","..CCC.bB"],
+    },
+    // a centurion's crest runs side to side
+    centurion: {
+      head: ["rrrrrr..",".RRRRR..",".hnhhH..",".sksks..",".HsssHbB"],
+      back: ["..rrrrrr","..RRRRR.","..Hhhnh.","..hhhhh.","BbHhhhH."],
+      body: [".cmymcbB",".cmmmcyB",".cmymcbB","..CCC.bB"],
+    },
+    // wolf-skin hood
+    velite: {
+      head: ["..H.H...",".hhhhh..",".hnhhH..",".sksks..","hhsssh.."],
+      back: ["...H.H..","..hhhhh.","..Hhhnh.","..hhhhh.",".hhhhhhh"],
+      body: [".cccccbb",".CCCCCyb",".ccccc..","..CCC..."],
+    },
+    // no helmet: wild hair all round
+    gaul: {
+      head: ["..gg.g..",".ggggg..","gskskg.."],
+      back: ["..g.gg..","..ggggg.","..ggggg."],
+      body: [".ssssbb.",".sssbbbB",".cyccbyB",".ccccbbB","..CCC.b."],
+    },
+    // sinew cap
+    spaniard: {
+      head: ["..hhh...",".hnhhH..",".sksks..","..sss.bb"],
+      back: ["...hhh..","..Hhhnh.","..hhhhh.","bb.sss.."],
+      body: [".cwwwcbB",".cwwwcyB",".ccccc.B","..CCC..."],
+    },
+    // bronze helmet with a knob on top
+    libyan: {
+      head: ["...h....","..hnh...",".hhhhH..",".sksks..",".HsssHbb"],
+      back: ["....h...","...hnh..","..Hhhhh.","..hhhhh.","bbHhhhH."],
+      body: [".mmmmmby",".MMMMMbb",".mmmmm.b","..ccc..."],
+    },
+    levy: {
+      head: ["...h....","..hnh...",".hhhhH..",".sksks..",".HsssHbb"],
+      back: ["....h...","...hnh..","..Hhhhh.","..hhhhh.","bbHhhhH."],
+      body: [".wwwwwby",".CCCCCbb",".ccccc.b","..CCC..."],
+    },
+    // leather cap
+    merc: {
+      head: ["..hhh...",".hnhhH..",".sksks..","..sss.b."],
+      back: ["...hhh..","..Hhhnh.","..hhhhh.",".b.sss.."],
+      body: [".ccccbbb",".CCCCbyb",".ccccbbb","..CCC.b."],
+    },
+    forager: {
+      head: ["........",".gggg...",".sksk...","..ss.ww."],
+      back: ["........","...gggg.","...gggg.",".ww.ss.."],
+      body: [".cccwwww",".cCcwwww",".ccc.ww.","..CC...."],
+    },
   };
+  for(const [name, A] of Object.entries(ART)){
+    if(A.head.length !== A.back.length) console.error('pixel.js: head/back rows differ', name);
+    for(const r of A.head.concat(A.back, A.body)) if(r.length !== 8) console.error('pixel.js: bad art row', name, r);
+  }
 
   // Colour maps per unit kind (what each art key means for that kind)
+  const ROMAN_CREST = '#c8303c', ROMAN_CREST_D = '#7a1a2a';
   const KINDS = {
-    roman:    { art:'legionary', map:{ r:C.plume, h:C.iron, H:C.ironD, c:C.rRed, C:C.rRedD, m:C.iron, M:C.ironD, b:C.rRed, B:C.rRedD, y:C.gold } },
-    triarii:  { art:'legionary', map:{ r:C.black, h:C.iron, H:C.ironD, c:C.rRedD, C:'#5a1810', m:C.iron, M:C.ironD, b:C.rRedD, B:'#5a1810', y:C.gold } },
-    yours:    { art:'centurion', map:{ r:C.white, h:C.iron, H:C.ironD, c:C.green, C:C.greenD, m:C.iron, M:C.ironD, b:C.green, B:C.greenD, y:C.gold } },
-    general:  { art:'centurion', map:{ r:C.plume, h:C.gold, H:C.bronzeD, c:C.purple, C:C.purpleD, m:C.gold, M:C.bronzeD, b:C.rRed, B:C.rRedD, y:C.gold } },
-    hannibal: { art:'libyan',    map:{ h:C.gold, H:C.bronzeD, m:C.bronze, M:C.bronzeD, c:C.black, b:C.rRedD, B:'#5a1810', y:C.gold } },
-    velite:   { art:'velite',    map:{ h:C.fur, H:C.leatherD, c:'#d8c090', C:'#a89060', b:C.leather, y:C.gold } },
+    roman:    { art:'legionary', map:{ r:ROMAN_CREST, R:ROMAN_CREST_D, h:C.iron, H:C.ironD, c:C.rRed, C:C.rRedD, m:C.iron, M:C.ironD, b:C.rRed, B:C.rRedD, y:C.gold } },
+    triarii:  { art:'legionary', map:{ r:'#3a2a3a', R:'#1a1014', h:C.iron, H:C.ironD, c:C.rRedD, C:'#5a1810', m:C.iron, M:C.ironD, b:C.rRedD, B:'#5a1810', y:C.gold } },
+    yours:    { art:'centurion', map:{ r:C.white, R:'#b8b0a0', h:C.iron, H:C.ironD, c:C.green, C:C.greenD, m:C.iron, M:C.ironD, b:C.green, B:C.greenD, y:C.gold } },
+    hannibal: { art:'libyan',    map:{ h:C.gold, H:C.bronzeD, n:'#fff4b0', m:C.bronze, M:C.bronzeD, c:C.black, b:C.rRedD, B:'#5a1810', y:C.gold } },
+    velite:   { art:'velite',    map:{ h:C.fur, H:C.leatherD, n:'#9a7a52', c:'#d8c090', C:'#a89060', b:C.leather, y:C.gold } },
     gaul:     { art:'gaul',      map:{ g:C.gaulHair, c:C.tartan, C:'#6a3018', y:C.gaulHair, b:C.gaulCloth, B:C.gaulClothD } },
-    spaniard: { art:'spaniard',  map:{ h:C.leatherD, H:C.black, c:C.spanRed, C:'#701828', b:C.leather, B:C.leatherD, y:C.bronze } },
-    libyan:   { art:'libyan',    map:{ h:C.bronze, H:C.bronzeD, m:C.iron, M:C.ironD, c:C.cBlue, b:C.bronze, B:C.bronzeD, y:C.gold } },
-    mago:     { art:'libyan',    map:{ h:C.leatherD, H:C.black, m:C.leather, M:C.leatherD, c:'#3a4a2a', b:'#4a5a32', B:'#2a3a1e', y:C.bronze } },
-    levy:     { art:'levy',      map:{ h:C.bronze, H:C.bronzeD, c:C.cBlue, C:C.cBlueD, b:C.cBlue, y:C.gold } },
-    veteran:  { art:'libyan',    map:{ h:C.gold, H:C.bronzeD, m:C.bronze, M:C.bronzeD, c:C.purple, b:C.purple, B:C.purpleD, y:C.gold } },
-    merc:     { art:'merc',      map:{ h:C.leather, c:C.merc, C:C.mercD, b:C.leather, y:C.gold } },
+    spaniard: { art:'spaniard',  map:{ h:C.leatherD, H:C.black, n:'#8a6a44', c:C.spanRed, C:'#701828', b:C.leather, B:C.leatherD, y:C.bronze } },
+    libyan:   { art:'libyan',    map:{ h:C.bronze, H:C.bronzeD, n:'#f4d890', m:C.iron, M:C.ironD, c:C.cBlue, b:C.bronze, B:C.bronzeD, y:C.gold } },
+    mago:     { art:'libyan',    map:{ h:C.leatherD, H:C.black, n:'#8a6a44', m:C.leather, M:C.leatherD, c:'#3a4a2a', b:'#4a5a32', B:'#2a3a1e', y:C.bronze } },
+    levy:     { art:'levy',      map:{ h:C.bronze, H:C.bronzeD, n:'#f4d890', c:C.cBlue, C:C.cBlueD, b:C.cBlue, B:C.cBlueD, y:C.gold } },
+    veteran:  { art:'libyan',    map:{ h:C.gold, H:C.bronzeD, n:'#fff4b0', m:C.bronze, M:C.bronzeD, c:C.purple, b:C.purple, B:C.purpleD, y:C.gold } },
+    merc:     { art:'merc',      map:{ h:C.leather, H:C.leatherD, n:'#b08050', c:C.merc, C:C.mercD, b:C.leather, y:C.gold } },
     forager:  { art:'forager',   map:{ g:C.black, c:C.leather, C:C.leatherD } },
   };
   // Defaults for every art key, so a kind that doesn't define one still gets a sensible colour
-  const BASE = { s:C.skin, k:C.eye, l:C.skinD, f:C.black, w:C.white,
-                 r:C.rRed, h:C.leather, H:C.leatherD, c:C.leather, C:C.leatherD, m:C.iron, M:C.ironD,
+  const BASE = { s:C.skin, k:C.eye, l:C.skinD, f:C.black, w:C.white, n:'#f0f4f8',
+                 r:C.rRed, R:C.rRedD, h:C.leather, H:C.leatherD, c:C.leather, C:C.leatherD, m:C.iron, M:C.ironD,
                  b:C.leather, B:C.leatherD, y:C.gold, g:C.black };
 
   // ---------------------------------------------------------------
@@ -104,15 +155,8 @@ const PX = (() => {
 
   function artGrid(kind, back, frame){
     const K = KINDS[kind] || KINDS.roman, A = ART[K.art];
-    let rows = A.rows.concat(LEGS[frame]);
-    if(back){
-      rows = rows.map((r, i) => {
-        let m = r.split('').reverse().join('');
-        if(i < A.head) m = m.replace(/[sk]/g, i===0 ? 'h' : 'H');
-        else m = m.replace(/m/g,'c').replace(/M/g,'C').replace(/y/g,'B');
-        return m;
-      });
-    }
+    const mirrorBody = r => r.split('').reverse().join('').replace(/m/g,'c').replace(/M/g,'C').replace(/y/g,'B');
+    const rows = (back ? A.back.concat(A.body.map(mirrorBody)) : A.head.concat(A.body)).concat(LEGS[frame]);
     return mapPic(rows, Object.assign({}, BASE, K.map));
   }
 
@@ -264,7 +308,7 @@ const PX = (() => {
     woods:    { base:'#2a5a30', canopy:['#1e4a26','#3a7040','#4a8048'] },
     woodsHigh:{ base:'#1e4426', canopy:['#163a1c','#2a5a30','#3a6a3a'] },
     forest:   { base:'#24502a', canopy:['#1a4020','#346a3a','#448a48'] },
-    hill:     { base:'#8a7a68', dots:['#7a6a58','#9a8a78'], rock:'#5e5246', light:'#b0a08a' },
+    hill:     { base:'#8c7c66', dots:['#7c6c58','#a0907a','#6e8a4a'], rock:'#5e5246', light:'#b8a890' },
   };
   function tileCanvas(name, v, frame){
     const key = 't|'+name+'|'+v+'|'+frame;
@@ -281,7 +325,12 @@ const PX = (() => {
     if(D.canopy){
       for(let i=0;i<3;i++){ g.fillStyle = D.canopy[i]; const cx=r(60+i)%6+1, cy=r(70+i)%6+1; g.fillRect(cx-1,cy-1,3,3); g.fillRect(cx,cy-2,1,1); }
     }
-    if(D.rock){ g.fillStyle = D.rock; g.fillRect(1,5,6,2); g.fillStyle = D.light; g.fillRect(2,4,3,1); }
+    if(D.rock && v%3 !== 1){
+      // a scattered boulder with a lit top edge, in a different place on each tile
+      const rx = r(80)%4, ry = r(81)%4 + 2, rw = 2 + r(82)%3;
+      g.fillStyle = D.rock; g.fillRect(rx, ry, rw, 2);
+      g.fillStyle = D.light; g.fillRect(rx, ry-1, rw-1, 1);
+    }
     cache.set(key, cv);
     return cv;
   }
