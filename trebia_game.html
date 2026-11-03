@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-<title>Trebia: Final</title>
+<title>Trebia</title>
 <style>
   :root{
     --bg:#1a1a1c;
@@ -33,7 +33,7 @@
   /* FOG */
   #fog-layer{
     position:absolute; inset:0; pointer-events:none; z-index:5;
-    background: linear-gradient(to bottom, rgba(200,210,220,0.95) 0%, rgba(200,210,220,0.85) 40%, rgba(200,210,220,0.6) 100%);
+    background: linear-gradient(to bottom, rgba(200,210,220,0.92) 0%, rgba(200,210,220,0.7) 35%, rgba(200,210,220,0.35) 100%);
     transition: opacity 2s ease-in-out;
   }
 
@@ -160,9 +160,11 @@
 // =========================
 const P = {
   metal:'#b7bcc5', black:'#111114',
-  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
-  gold:'#fbbf24', white:'#e7e7ea', elephant: '#555',
-  ice: '#a5f3fc', deep: '#172554', reeds: '#22d3ee',
+  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21', libyan:'#3567b5', mago:'#5b3a1a',
+  horse:'#7a4a21', numid:'#d6b26a',
+  gold:'#fbbf24', white:'#e7e7ea',
+  ice:'#a5f3fc', deep:'#172554', ford:'#1e4f7a', reeds:'#3f7f8a',
+  brush:'#2f4a22', brushDark:'#22361a',
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
@@ -170,7 +172,6 @@ const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
 const NEXT_PAGE = "map.html";
 
-// One history block only (no duplicate module)
 const HISTORY_HTML = `
   <h2 style="color:#ef4444; margin:0 0 10px 0;">BATTLE OF THE TREBIA (218 BC)</h2>
   <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6;">
@@ -183,19 +184,33 @@ const HISTORY_HTML = `
     <span style="color:#93c5fd">Carthage:</span> ~5,000 (mostly Celtic allies)</p>
 
     <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
-    Hannibal’s first major victory. The Romans were baited into crossing the freezing river before breakfast, leaving them cold, hungry, and exhausted. Mago’s hidden force struck their rear.</p>
+    Hannibal’s first great victory in Italy. At dawn on a freezing December day his Numidian horsemen raided the Roman camp. Sempronius sent his whole army after them, across the icy, swollen Trebia, before breakfast. Wet, numb and hungry, the Romans met a fresh, fed Carthaginian army. Hannibal’s brother Mago, hidden with 2,000 men in an overgrown streambed, struck their rear. About 10,000 Romans in the centre cut straight through the Carthaginian line and escaped to Placentia. Most of the rest were driven back into the river.</p>
   </div>
 `;
 
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+function isCarth(u){ return u.type!=='roman' && u.type!=='yours'; }
+function isVisible(u){
+  if(u.hidden) return false;
+  if(isCarth(u) && u.role!=='raider' && battlePhase < PH.BATTLE) return false;  // still in the fog
+  return true;
+}
+
+function drawHorse(x, y, s, coat, rider){
+  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+5*s, y+9*s, 6*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+  for(let dx=1; dx<=8; dx++){ px(x+dx*s, y+5*s, s, coat); px(x+dx*s, y+6*s, s, coat); }
+  px(x+0*s, y+4*s, s, coat); px(x+0*s, y+3*s, s, coat); px(x+1*s, y+4*s, s, P.black);
+  px(x+2*s, y+7*s, s, coat); px(x+2*s, y+8*s, s, P.black);
+  px(x+7*s, y+7*s, s, coat); px(x+7*s, y+8*s, s, P.black);
+  px(x+9*s, y+5*s, s, P.black);
+  px(x+4*s, y+3*s, s, rider); px(x+4*s, y+4*s, s, rider); px(x+4*s, y+2*s, s, '#3a2a1a');
+}
 
 function drawSprite(u, scale){
+  if(!isVisible(u)) return;
   const x = u.x * TILE - (u.type==='elephant'?0:4);
   const y = u.y * TILE - 8;
   const s = scale;
-  let coat = u.type==='roman'?P.roman:(u.type==='yours'?P.you:P.inv);
-
-  if(u.frozen > 0) coat = '#06b6d4';
 
   if(u.type === 'elephant'){
     CTX.fillStyle = 'rgba(0,0,0,0.4)';
@@ -206,31 +221,22 @@ function drawSprite(u, scale){
     CTX.fillStyle = '#555'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
     return;
   }
+  if(u.type === 'cavalry'){
+    drawHorse(x-2, y, s, P.horse, u.role==='raider' || u.numid ? P.numid : P.libyan);
+    return;
+  }
 
+  const coat = {roman:P.roman, yours:P.you, invader:P.inv, libyan:P.libyan, mago:P.mago}[u.type] || P.inv;
   CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
   px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
   px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
   for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
   if(u.type==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
   else if(u.type==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
-  else if(u.type==='invader'){ px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
-}
-
-function drawRiverTile(x, y, type){
-  const s = TILE;
-  const X = x*s; const Y = y*s;
-
-  if(type === 1){
-    CTX.fillStyle = P.deep;
-    CTX.fillRect(X,Y,s,s);
-    if((Math.floor(Date.now()/600) + x)%4 === 0){
-      CTX.fillStyle = 'rgba(0,0,0,0.3)'; CTX.fillRect(X, Y+s/2, s, 2);
-    }
-  } else {
-    CTX.fillStyle = P.reeds;
-    CTX.fillRect(X,Y,s,s);
-    px(X+4, Y+4, 2, '#155e75'); px(X+12, Y+10, 2, '#155e75'); px(X+18, Y+2, 2, '#155e75');
-  }
+  else if(u.type==='libyan'){ px(x+3*s,y,s,P.metal); px(x+4*s,y,s,P.metal); }
+  else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
+  // soaked and freezing: icy shoulders
+  if(u.frozen > 0){ px(x+1*s, y+3*s, s, P.ice); px(x+6*s, y+3*s, s, P.ice); }
 }
 
 // =========================
@@ -239,13 +245,36 @@ function drawRiverTile(x, y, type){
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
+const CX = 20;
 let SCALE = 2;
 
+const T = { GROUND:0, DEEP:1, FORD:2, BRUSH:3 };
+const RIVER_Y0 = 30, RIVER_Y1 = 33;
+
 const PACE = {
-  move: 15,
-  frozenMove: 40,
-  elephantSpeed: 25,
-  panicSpeed: 10
+  move: 15,            // player, dry
+  roman: 30,
+  infantry: 32,
+  cavalry: 12,
+  elephant: 26,
+  frozenMult: 2.2,     // soaked player moves this much slower
+  aiFrozenMult: 1.5,   // soaked legionaries (they march in step, so it shows less)
+  combat: 50,
+};
+const COLD = { soakFrames: 1350, drownEvery: 40, drownDmg: 2 };
+const PLAYER_ATTACK = { cooldown: 18, dmg: 1.5 };
+
+// Phases advance on what happens on the field; timers are only backstops.
+const PH = { DAWN:0, CROSS:1, BATTLE:2, FLANKS:3, MAGO:4, ROUT:5 };
+const SCRIPT = {
+  raidFor: 300,         // frames the Numidians harass the camp before riding off
+  flanksAcrossY: 26,    // once the army's leading ranks are this far across, cavalry & elephants hit the flanks
+  flanksLatest: 700,    // ...or this long after the fog lifts
+  magoFrontY: 20,       // once the Roman centre of mass is this far north, Mago strikes
+  magoLatest: 480,      // ...or this long after the flanks are hit
+  routLossFrac: 0.5,    // the army breaks when this fraction has fallen...
+  routLatest: 1000,     // ...or this long after Mago strikes
+  lingerRows: 3,        // how far behind the army's leading ranks you may hang back before being driven on
 };
 
 // =========================
@@ -261,30 +290,27 @@ let snow = [];
 let floats = [];
 let player = null;
 
-let battlePhase = 0; // 0=Cross, 1=Reveal, 2=Rout
+let battlePhase = PH.DAWN;
 let phaseTimer = 0;
+let phaseStartedAt = 0;
+let romansAtStart = 0;
+let lingerT = 0;
+let glintShown = false;
+let rbox = {minX:0,maxX:0,minY:0,maxY:0,cx:0,cy:0};
+let frameC = 0;
+function frameStep(n){ return (frameC%n)===0; }
 
 let input = {dx:0, dy:0};
 
 // Keyboard state (desktop)
 const keyState = {up:false, down:false, left:false, right:false};
 function recomputeKeyInput(){
-  // Resolve axis with simple priority: if both pressed, cancel that axis.
   const x = (keyState.left? -1:0) + (keyState.right? 1:0);
   const y = (keyState.up? -1:0) + (keyState.down? 1:0);
-
-  // If stick is active, it already sets input. Only apply keyboard when stick inactive.
   if(stick.active) return;
-
   input.dx = (x===0 ? 0 : (x>0 ? 1 : -1));
   input.dy = (y===0 ? 0 : (y>0 ? 1 : -1));
-
-  // Optional: avoid diagonal movement (keep your original “one axis” feel)
-  if(input.dx && input.dy){
-    // pick the most recently pressed axis by favoring horizontal when both
-    // (simple, consistent)
-    input.dy = 0;
-  }
+  if(input.dx && input.dy) input.dy = 0;
 }
 
 // Virtual stick
@@ -295,14 +321,14 @@ function buildIntro(){
   overlay.style.display = 'flex';
   overlay.innerHTML = `
     <h1>TREBIA</h1>
-    <p><b>Winter, 218 BC.</b></p>
-    <p>Cross the freezing river to ambush Hannibal.</p>
-    <p><b>Warning:</b> The river is freezing. If you get wet, you will be slow for the entire battle.</p>
+    <p><b>Dawn, December 218 BC.</b> Snow is falling.</p>
+    <p>Numidian horsemen are raiding the camp! Consul Sempronius orders the whole army after them, across the river. There is no time for breakfast.</p>
+    <p><b>Warning:</b> The Trebia is freezing. Get wet and you will be slow and numb for a long time. Deep water drowns.</p>
     <p style="margin-top:6px; color:#bbb; font-size:13px;">
-      <b>Desktop:</b> Arrow keys / WASD to move, <b>Space</b> to slash.
+      <b>Desktop:</b> Arrow keys / WASD to move, <b>Space</b> to strike.
     </p>
     <div class="btn-row">
-      <button class="btn-start" id="btn-start">CROSS THE RIVER</button>
+      <button class="btn-start" id="btn-start">AFTER THEM!</button>
       <button class="btn-muted" id="btn-history">HISTORY</button>
     </div>
   `;
@@ -334,45 +360,76 @@ function startGame(){
 }
 
 function setupMap(){
-  units = []; grid = []; particles = []; floats = []; snow = [];
+  units = []; particles = []; floats = []; snow = [];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
-  terrain = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
+  terrain = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(T.GROUND));
+  battlePhase = PH.DAWN; phaseTimer = 0; phaseStartedAt = 0; lingerT = 0; glintShown = false;
 
-  battlePhase = 0; phaseTimer = 0;
-
-  const CX = Math.floor(GRID_W/2);
-
-  // River: 4 tiles wide (y=30..33)
-  for(let y=30; y<34; y++){
+  // The Trebia: deep channels broken by shallow fords
+  for(let y=RIVER_Y0; y<=RIVER_Y1; y++){
     for(let x=0; x<GRID_W; x++){
-      let band = Math.floor(x / 3);
-      terrain[y][x] = (band % 2 === 0) ? 2 : 1; // Reeds vs Deep
+      terrain[y][x] = (Math.floor(x/3) % 2 === 0) ? T.FORD : T.DEEP;
+    }
+  }
+  // An overgrown streambed on the far bank, running down toward the river
+  for(let y=17; y<=28; y++){
+    const wob = (y%3===0) ? 1 : 0;
+    for(let x=0; x<=4+wob; x++) terrain[y][x] = T.BRUSH;
+  }
+
+  // ROME: the whole army, pouring out of camp
+  player = spawnUnit(CX, 46, 'yours');
+  player.attackCd = 0;
+  for(let y=45; y<=55; y++){
+    for(let x=9; x<=31; x++){
+      if(Math.random() < 0.82) spawnUnit(x, y, 'roman');
+    }
+  }
+  romansAtStart = units.filter(u=>u.type==='roman').length;
+
+  // The bait: Numidian raiders at the edge of the camp
+  for(let x=7; x<=33; x+=3){
+    const r = spawnUnit(x, 41 - (x%2), 'cavalry');
+    if(r){ r.role='raider'; r.numid=true; r.hp = r.maxHp = 16; }
+  }
+
+  // HANNIBAL'S ARMY, rested and fed, waiting beyond the fog
+  for(let y=13; y<=15; y++){
+    for(let x=11; x<=28; x++) if(Math.random()<0.85){ const u=spawnUnit(x,y,'invader'); if(u){u.role='line'; u.homeY=y;} }
+    for(const x of [8,9,10,29,30,31]){ const u=spawnUnit(x,y,'libyan'); if(u){u.role='line'; u.homeY=y;} }
+  }
+  for(const x of [6, 13, 25, 32]){ const e=spawnUnit(x, 17, 'elephant'); if(e) e.role='line'; }
+  for(let y=11; y<=15; y++){
+    for(const x of [1,2,3,4,35,36,37,38]){ const c=spawnUnit(x,y,'cavalry'); if(c) c.role='wing'; }
+  }
+
+  // MAGO: 2,000 men lying in the streambed
+  for(let y=18; y<=27; y++){
+    for(let x=0; x<=4; x++){
+      if(terrain[y][x]===T.BRUSH && Math.random()<0.85){
+        const m = spawnUnit(x, y, 'mago');
+        if(m){ m.role='mago'; m.hidden=true; }
+      }
     }
   }
 
-  player = spawnUnit(CX, 50, 'yours');
-  player.attackCd = 0;
+  for(let i=0; i<60; i++) snow.push({x:Math.random()*GRID_W*TILE, y:Math.random()*GRID_H*TILE, s:Math.random()*2+1});
 
   cam.x = player.x*TILE; cam.y = player.y*TILE;
-
-  for(let x=0; x<GRID_W; x++){
-    for(let y=48; y<55; y++){
-      if(Math.random()>0.2) spawnUnit(x,y,'roman');
-    }
-  }
-
-  for(let i=0; i<50; i++) snow.push({x:Math.random()*GRID_W*TILE, y:Math.random()*GRID_H*TILE, s:Math.random()*2+1});
-
-  showMsg("FOLLOW THE REEDS!", "#fff");
   document.getElementById('fog-layer').style.opacity = 1;
+  showMsg("NUMIDIANS IN THE CAMP!", "#fde68a");
 }
 
 function spawnUnit(gx, gy, type){
   if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H||grid[gy][gx]) return null;
-  let hp = type==='elephant' ? 80 : (type==='yours'?50:6);
-  let u = {
-    id:Math.random(), x:gx, y:gy, type, hp, maxHp:hp,
-    cooldown:Math.random()*20, frozen:0, state:'normal'
+  const S = {
+    yours:{hp:50, speed:PACE.move}, roman:{hp:6, speed:PACE.roman},
+    invader:{hp:7, speed:PACE.infantry}, libyan:{hp:10, speed:PACE.infantry}, mago:{hp:8, speed:PACE.infantry},
+    cavalry:{hp:10, speed:PACE.cavalry}, elephant:{hp:80, speed:PACE.elephant},
+  }[type];
+  const u = {
+    id:Math.random(), x:gx, y:gy, type, hp:S.hp, maxHp:S.hp, speed:S.speed,
+    cooldown:Math.random()*30, frozen:0, role:null, f:Math.random(), f2:Math.random()
   };
   units.push(u);
   grid[gy][gx] = u;
@@ -385,44 +442,76 @@ function spawnUnit(gx, gy, type){
 function loop(){
   if(!gameActive) return;
   update();
-  draw();
+  if(gameActive) draw();
   requestAnimationFrame(loop);
+}
+
+function setPhase(p, msg, col){
+  battlePhase = p; phaseStartedAt = phaseTimer;
+  if(msg) showMsg(msg, col);
+}
+
+function computeRomanBox(){
+  const xs=[], ys=[];
+  for(const u of units){ if(u.hp>0 && !isCarth(u)){ xs.push(u.x); ys.push(u.y); } }
+  if(!xs.length){ xs.push(player.x); ys.push(player.y); }
+  xs.sort((a,b)=>a-b); ys.sort((a,b)=>a-b);
+  const q=(a,t)=>a[Math.min(a.length-1, Math.max(0, Math.floor(t*(a.length-1))))];
+  rbox = { minX:q(xs,.06), maxX:q(xs,.94), minY:q(ys,.06), maxY:q(ys,.94), fy:q(ys,.3),
+           cx:xs.reduce((a,b)=>a+b,0)/xs.length, cy:ys.reduce((a,b)=>a+b,0)/ys.length };
+}
+
+function springMago(why){
+  if(battlePhase >= PH.MAGO) return;
+  for(const u of units) if(u.role==='mago') u.hidden = false;
+  if(battlePhase < PH.BATTLE) liftFog();  // stumbled on them early
+  setPhase(PH.MAGO, why || "MAGO! FROM THE STREAMBED, BEHIND US!", "#ef4444");
+}
+
+function liftFog(){
+  document.getElementById('fog-layer').style.opacity = 0;
+}
+
+function advanceScript(){
+  const since = phaseTimer - phaseStartedAt;
+  if(battlePhase===PH.DAWN && phaseTimer > SCRIPT.raidFor){
+    setPhase(PH.CROSS, "AFTER THEM! ACROSS THE RIVER!", "#fff");
+  }
+  if(battlePhase<=PH.CROSS && units.some(u=>!isCarth(u) && u.y < RIVER_Y0-2)){
+    liftFog();
+    setPhase(PH.BATTLE, "THE FOG LIFTS... HANNIBAL'S WHOLE ARMY!", "#fca5a5");
+  }
+  if(battlePhase===PH.BATTLE && (rbox.fy <= SCRIPT.flanksAcrossY || since > SCRIPT.flanksLatest)){
+    setPhase(PH.FLANKS, "THEIR CAVALRY AND ELEPHANTS ON OUR FLANKS!", "#fca5a5");
+  }
+  if(battlePhase===PH.FLANKS && (rbox.cy <= SCRIPT.magoFrontY || since > SCRIPT.magoLatest)){
+    springMago();
+  }
+  const romans = units.filter(u=>u.type==='roman').length;
+  if(battlePhase===PH.MAGO && (romans < romansAtStart*SCRIPT.routLossFrac || since > SCRIPT.routLatest)){
+    setPhase(PH.ROUT, "THE LINE BREAKS! BACK TO THE RIVER!", "#fde68a");
+    // Numidian horse sweep in along the near bank to cut down the fugitives.
+    for(let y=33; y<=57; y+=2){
+      for(const x of [0, GRID_W-1]){
+        const h = spawnUnit(x, y, 'cavalry');
+        if(h){ h.role='raider'; h.numid=true; h.struck=true; }
+      }
+    }
+    // The legions in the centre, already deep in the enemy line, keep going.
+    for(const u of units){
+      if(u.type==='roman') u.breaker = Math.abs(u.x-CX) <= 7 && u.y <= rbox.cy;
+    }
+  }
 }
 
 function update(){
   phaseTimer++;
-
+  frameC++;
   if(player && player.attackCd > 0) player.attackCd--;
 
-  // Ambush trigger
-  if(battlePhase === 0 && player.y < 28){
-    battlePhase = 1;
-    document.getElementById('fog-layer').style.opacity = 0;
-    showMsg("THE FOG LIFTS...", "#fff");
+  computeRomanBox();
+  advanceScript();
 
-    setTimeout(()=>{
-      showMsg("IT'S MAGO! BEHIND US!", "#ef4444");
-      battlePhase = 2;
-
-      spawnUnit(15, 12, 'elephant');
-      spawnUnit(20, 10, 'elephant');
-      spawnUnit(25, 12, 'elephant');
-
-      for(let x=0; x<40; x+=3){
-        for(let y=5; y<15; y+=3){
-          if(Math.random()>0.5) spawnUnit(x, y, 'invader');
-        }
-      }
-
-      for(let x=0; x<40; x+=4){
-        spawnUnit(x, 50, 'invader');
-        spawnUnit(x+1, 51, 'invader');
-      }
-
-    }, 2000);
-  }
-
-  // Camera
   let tx = player.x*TILE;
   let ty = player.y*TILE;
   cam.x += (tx - cam.x)*0.1;
@@ -430,147 +519,298 @@ function update(){
 
   units.sort((a,b)=>a.y-b.y);
 
-  for(let u of units){
+  for(const u of units){
     if(u.hp<=0) continue;
 
-    // Terrain effects
-    let t = terrain[u.y][u.x];
-    if(t === 1){
-      if(frameStep(30)){
-        u.hp -= 3;
-        spawnFloat("Drowning", u.x, u.y, "#3b82f6");
+    // The cold: any water soaks you; deep water drowns
+    const t = terrain[u.y][u.x];
+    if(t === T.DEEP){
+      u.frozen = COLD.soakFrames;
+      if(frameStep(COLD.drownEvery)){
+        u.hp -= COLD.drownDmg;
+        if(u.type==='yours') spawnFloat("DROWNING", u.x, u.y, "#60a5fa");
+        if(u.hp<=0){ grid[u.y][u.x]=null; continue; }
       }
-      u.frozen = 1350;
-    } else if (t === 2){
-      if(u.frozen <= 0) u.frozen = 1350;
+    } else if(t === T.FORD){
+      u.frozen = COLD.soakFrames;
     }
     if(u.frozen > 0) u.frozen--;
 
     if(u.type==='yours'){
       if(u.cooldown>0) u.cooldown--;
-      if(u.cooldown<=0 && (input.dx||input.dy)){
+      if(u.y < RIVER_Y0) u.crossed = true;
+      const holdBack = input.dy>0 && battlePhase < PH.ROUT && u.y+1 > rbox.fy + SCRIPT.lingerRows;
+      if(holdBack && u.cooldown<=0){ showMsgOnce("NO RETREAT! STAY WITH YOUR MEN!"); u.cooldown = PACE.move; }
+      else if(u.cooldown<=0 && (input.dx||input.dy)){
         tryMove(u, input.dx, input.dy);
-        u.cooldown = (u.frozen>0) ? PACE.frozenMove : PACE.move;
+        u.cooldown = (u.frozen>0) ? PACE.move*PACE.frozenMult : PACE.move;
       }
+      keepPlayerWithArmy();
     } else {
       handleAI(u);
     }
   }
 
+  // Stumbling onto Mago's men in the brush springs the ambush early
+  if(battlePhase < PH.MAGO && frameStep(10)){
+    const found = units.some(u => u.role==='mago' && nearestOf(u, 1.5, o=>!isCarth(o)));
+    if(found) springMago("AMBUSH IN THE BRUSH!");
+  }
+
   units = units.filter(u=>u.hp>0);
   updateFX();
 
-  frameC++;
+  if(player.hp<=0){ gameOver('dead'); return; }
+  if(player.y <= 0){ gameOver('north'); return; }
+  if(player.y >= GRID_H-1 && battlePhase >= PH.ROUT){ gameOver('south'); return; }
 
-  if(player.hp<=0){ gameOver("Died in the Trebia."); return; }
-
-  const enemyCount = units.filter(u=>u.type==='invader'||u.type==='elephant').length;
+  const visibleEnemies = units.filter(u=>isCarth(u) && isVisible(u)).length;
   document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman').length;
-  document.getElementById('ui-han').innerText = enemyCount;
+  document.getElementById('ui-han').innerText = battlePhase < PH.BATTLE ? '?' : visibleEnemies;
+}
 
-  // Win condition: all enemies defeated
-  if(battlePhase >= 2 && enemyCount === 0){
-    gameOver("Against all odds, you survived Trebia!", true);
+// Until the army breaks, your officers drive you on with the rest.
+function keepPlayerWithArmy(){
+  if(battlePhase >= PH.ROUT || player.y <= rbox.fy + SCRIPT.lingerRows){ lingerT = 0; return; }
+  lingerT++;
+  if(lingerT === 30) showMsgOnce("CENTURION! GET BACK IN LINE!");
+  if(lingerT > 60 && lingerT % 20 === 0){
+    spawnFloat("MOVE!", player.x, player.y, "#fca5a5");
+    tryMove(player, 0, -1);
   }
 }
 
+// =========================
+//  AI
+// =========================
+function nearestOf(u, range, pred){
+  let best=null, bd=1e9;
+  for(const o of units){
+    if(o===u || o.hp<=0 || o.hidden) continue;
+    if(Math.abs(o.x-u.x)>range || Math.abs(o.y-u.y)>range) continue;
+    if(!pred(o)) continue;
+    const d = dist(u,o);
+    if(d<bd){ bd=d; best=o; }
+  }
+  return best;
+}
+function enemyOf(u, range){
+  return nearestOf(u, range, o => isCarth(o) !== isCarth(u));
+}
 
 function handleAI(u){
   if(u.cooldown>0){ u.cooldown--; return; }
+  if(u.hidden){ u.cooldown = 20; return; }
 
-  let speed = PACE.move;
+  const target = enemyOf(u, 3);
+  const adj = target && dist(u,target) <= 1.5;
   let md = {x:0, y:0};
+  let speed = u.speed;
 
-  if(u.type === 'elephant'){
-    speed = PACE.elephantSpeed;
-    let target = findNearestEnemy(u);
-    if(target){
-      md = getStep(u, target);
-      let tx = u.x + md.x; let ty = u.y + md.y;
-      if(grid[ty] && grid[ty][tx] && grid[ty][tx].type !== 'invader' && grid[ty][tx].type !== 'elephant'){
-        let victim = grid[ty][tx];
-        victim.hp -= 20;
-        spawnBlood(victim.x, victim.y);
-        spawnFloat("CRUSH", victim.x, victim.y, "#f00");
-        let pushY = victim.y + 1;
-        if(pushY < GRID_H && !grid[pushY][victim.x]){
-           grid[victim.y][victim.x]=null; victim.y=pushY; grid[victim.y][victim.x]=victim;
-        }
-      }
-    }
-  }
-  else if(u.type === 'roman'){
-    if(battlePhase === 2){
-      speed = PACE.panicSpeed;
-      if(Math.random() > 0.2) md = {x: (Math.random()>0.5?1:-1), y: 1};
-      else md = {x: (Math.random()-0.5)*2 > 0 ? 1 : -1, y: (Math.random()-0.5)*2 > 0 ? 1 : -1};
-      spawnFloat("!", u.x, u.y, "#fff");
-    } else {
-      let nextY = u.y - 1;
-      let nextX = u.x;
-      if(isSafe(nextX, nextY)){
-        md = {x:0, y:-1};
-      } else if(isSafe(nextX-1, nextY) || isSafe(nextX-1, u.y)){
-        md = {x:-1, y:0};
-      } else if(isSafe(nextX+1, nextY) || isSafe(nextX+1, u.y)){
-        md = {x:1, y:0};
+  if(u.type==='roman'){
+    if(adj){ attack(u, target); u.cooldown = PACE.combat + Math.random()*15; return; }
+    if(battlePhase >= PH.ROUT){
+      if(u.breaker){
+        md = target ? getStep(u, target) : {x:0, y:-1};
       } else {
-        md = {x:0, y:-1};
+        // Panic: back toward the river and the camp beyond it
+        md = {x: Math.random()<0.25 ? (Math.random()<0.5?-1:1) : 0, y: 1};
+        speed = PACE.roman * 0.7;
+      }
+    } else if(target){
+      md = getStep(u, target);
+    } else {
+      md = marchNorth(u);
+    }
+  }
+  else if(u.type==='elephant'){
+    if(battlePhase < PH.FLANKS){ u.cooldown = 20; return; }
+    const t = enemyOf(u, 12);
+    if(t){
+      md = getStep(u, t);
+      const v = grid[u.y+md.y] && grid[u.y+md.y][u.x+md.x];
+      if(v && !isCarth(v)){
+        v.hp -= 20;
+        spawnBlood(v.x, v.y);
+        spawnFloat("TRAMPLED", v.x, v.y, "#f00");
+        if(v.hp<=0) grid[v.y][v.x]=null;
+        else if(inBounds(v.x, v.y+1) && !grid[v.y+1][v.x]){ grid[v.y][v.x]=null; v.y++; grid[v.y][v.x]=v; }
       }
     }
   }
-  else if(u.type === 'invader'){
-     let target = findNearestEnemy(u);
-     if(target){
-       if(dist(u,target)<=1.5){
-         attack(u, target);
-         u.cooldown = 45;
-         return;
-       }
-       md = getStep(u, target);
-     }
+  else if(u.role==='raider' && battlePhase===PH.DAWN){
+    // Hit and run: strike once, then ride off to the flanks
+    if(u.struck){
+      md = getStep(u, raiderStation(u));
+      tryMoveSmart(u, md.x, md.y);
+      u.cooldown = 8 + Math.random()*4;   // wheel away at a gallop
+      return;
+    }
+    const t = enemyOf(u, 6);
+    if(t && dist(u,t)<=1.5){ attack(u,t); u.struck = true; u.cooldown = 6; return; }
+    md = t ? getStep(u, t) : {x:0, y:1};
+  }
+  else if(u.role==='raider'){
+    // The Numidians who baited you never went back across the river. They wait on the flanks,
+    // and when the army breaks they ride down whoever runs for the camp.
+    if(battlePhase >= PH.ROUT){
+      const prey = southernmostFugitive();
+      if(prey){
+        if(dist(u,prey) <= 1.5){ attack(u, prey); u.cooldown = PACE.combat*0.6; return; }
+        md = getStep(u, prey);
+        tryMoveSmart(u, md.x, md.y);
+        u.cooldown = 7 + Math.random()*4;
+        return;
+      }
+    }
+    if(adj){ attack(u, target); u.cooldown = PACE.combat*0.7; return; }
+    md = getStep(u, raiderStation(u));
+  }
+  else if(u.role==='wing' || u.type==='cavalry'){
+    if(battlePhase < PH.FLANKS){ u.cooldown = 20; return; }
+    // In the rout, half the horse become hunters: they ride down whoever has run furthest for home.
+    if(battlePhase >= PH.ROUT && u.f < 0.5){
+      const prey = southernmostFugitive();
+      if(prey){
+        if(dist(u,prey) <= 1.5){ attack(u, prey); u.cooldown = PACE.combat*0.6; return; }
+        md = getStep(u, prey);
+        tryMoveSmart(u, md.x, md.y);
+        u.cooldown = 7 + Math.random()*4;   // light Numidian horse at full gallop
+        return;
+      }
+    }
+    if(adj){ attack(u, target); u.cooldown = PACE.combat*0.7; return; }
+    // In the rout the horsemen ride down whoever runs for the river; before it, they crush the flanks.
+    let t = null;
+    if(battlePhase >= PH.ROUT) t = nearestOf(u, 40, o => !isCarth(o) && o.y >= RIVER_Y0 - 1);
+    if(!t) t = enemyOf(u, battlePhase >= PH.ROUT ? 40 : 16);
+    if(t) md = getStep(u, t);
+  }
+  else if(u.role==='mago'){
+    // Seal the riverbank behind the Roman army: the way home is closed.
+    const slot = { x: Math.round(6 + u.f*27), y: RIVER_Y0 - 1 - (u.f2<0.4 ? 1 : 0) };
+    const atSlot = Math.abs(slot.x-u.x) + Math.abs(slot.y-u.y) <= 1;
+    if(adj && (atSlot || Math.random() < 0.35)){ attack(u, target); u.cooldown = PACE.combat; return; }
+    md = atSlot ? (target ? getStep(u, target) : {x:0,y:0}) : getStep(u, slot);
+  }
+  else {
+    // Hannibal's infantry line: wait for the Romans to come to them
+    if(battlePhase < PH.BATTLE){ u.cooldown = 20; return; }
+    if(adj){ attack(u, target); u.cooldown = PACE.combat + Math.random()*15; return; }
+    if(battlePhase >= PH.ROUT){
+      const t = enemyOf(u, 6);
+      if(t) md = getStep(u, t);
+    } else {
+      const t = target || enemyOf(u, 10);
+      if(t && (t===target || u.y < u.homeY + 8)) md = getStep(u, t);
+    }
   }
 
-  if(md.x||md.y) tryMove(u, md.x, md.y);
-  u.cooldown = (u.frozen>0) ? speed * 2.5 : speed;
-  u.cooldown += Math.random()*10;
+  if(md.x || md.y) tryMoveSmart(u, md.x, md.y);
+  u.cooldown = ((u.frozen>0) ? speed * PACE.aiFrozenMult : speed) + Math.random()*10;
 }
 
-function isSafe(x, y){
-  if(x<0 || x>=GRID_W || y<0 || y>=GRID_H) return false;
-  return terrain[y][x] !== 1;
+function isFordCol(x){ return Math.floor(x/3) % 2 === 0; }
+
+function raiderStation(u){
+  return { x: u.f < 0.5 ? 1 + Math.floor(u.f2*3) : 36 + Math.floor(u.f2*3), y: 37 + Math.floor(u.f*12) % 8 };
 }
+function southernmostFugitive(){
+  let prey = null;
+  for(const o of units){
+    if(o.hp<=0 || isCarth(o) || o.y < RIVER_Y0-1) continue;
+    if(!prey || o.y > prey.y) prey = o;
+  }
+  return prey;
+}
+
+// Advance north; near the river, file sideways to the nearest ford first
+function marchNorth(u){
+  if(u.y >= RIVER_Y0 && u.y <= RIVER_Y1 + 3 && !isFordCol(u.x)){
+    let best = u.x, bd = 99;
+    for(let x=0; x<GRID_W; x++) if(isFordCol(x) && Math.abs(x-u.x) < bd){ bd = Math.abs(x-u.x); best = x; }
+    if(best !== u.x) return {x:Math.sign(best-u.x), y:0};
+  }
+  const ny = u.y - 1;
+  if(isSafe(u.x, ny)) return {x:0, y:-1};
+  if(isSafe(u.x-1, ny) || isSafe(u.x-1, u.y)) return {x:-1, y:0};
+  if(isSafe(u.x+1, ny) || isSafe(u.x+1, u.y)) return {x:1, y:0};
+  return {x:0, y:-1};
+}
+function isSafe(x, y){
+  if(!inBounds(x,y)) return false;
+  return terrain[y][x] !== T.DEEP;
+}
+function inBounds(x,y){ return x>=0 && x<GRID_W && y>=0 && y<GRID_H; }
 
 function tryMove(u, dx, dy){
-  let tx=u.x+dx, ty=u.y+dy;
-  if(tx<0||tx>=GRID_W||ty<0||ty>=GRID_H || grid[ty][tx]) return;
+  const tx=u.x+dx, ty=u.y+dy;
+  if(!inBounds(tx,ty)) return false;
+  const occ = grid[ty][tx];
+  // You can shoulder past your own men (slowly)
+  if(occ && u.type==='yours' && occ.type==='roman'){
+    grid[u.y][u.x]=occ; occ.x=u.x; occ.y=u.y;
+    grid[ty][tx]=u; u.x=tx; u.y=ty;
+    u.cooldown += 8;
+    return true;
+  }
+  if(occ) return false;
   grid[u.y][u.x]=null; u.x=tx; u.y=ty; grid[ty][tx]=u;
+  return true;
+}
+function tryMoveSmart(u, dx, dy){
+  // Hannibal's men, dry and rested, know better than to wade into the deep channels.
+  const ok = (o) => !isCarth(u) || !inBounds(u.x+o.x, u.y+o.y) || terrain[u.y+o.y][u.x+o.x] !== T.DEEP;
+  for(const o of [{x:dx,y:dy},{x:dy,y:dx},{x:-dy,y:-dx},{x:dx,y:0},{x:0,y:dy}]){
+    if((o.x||o.y) && ok(o) && tryMove(u, o.x, o.y)) return true;
+  }
+  return false;
 }
 
 function attack(atk, def){
-  let dmg = 1;
+  let dmg = (atk.type==='yours') ? PLAYER_ATTACK.dmg : 1;
+  if(atk.type==='cavalry') dmg = 1.4;
+  // Numb hands: soaked, freezing men barely land a blow
+  if(atk.frozen > 0 && !isCarth(atk)) dmg *= 0.5;
+
   if(def.type === 'elephant'){
-    if(atk.y < def.y){
-       dmg = 80;
-       spawnFloat("BACKSTAB!", def.x, def.y, P.gold);
-    } else {
-       dmg = 0;
-       spawnFloat("TINK", def.x, def.y, "#ccc");
-    }
+    if(atk.y < def.y){ dmg = 40; spawnFloat("FROM BEHIND!", def.x, def.y, P.gold); }
+    else { dmg = 0; spawnFloat("TINK", def.x, def.y, "#ccc"); }
   }
   def.hp -= dmg;
   spawnBlood(def.x, def.y);
-  if(dmg > 0) spawnFloat("-"+dmg, def.x, def.y, "#ef4444");
+  if(dmg > 0 && (atk.type==='yours' || def.type==='yours')) spawnFloat("-"+(+dmg.toFixed(1)), def.x, def.y, "#ef4444");
 
   if(def.hp<=0){
     grid[def.y][def.x]=null;
-    spawnFloat("KILL", def.x, def.y, P.gold);
+    if(atk.type==='yours') spawnFloat("KILL", def.x, def.y, P.gold);
   }
 }
 
 // =========================
 //  VISUALS & FX
 // =========================
+function drawTerrain(){
+  for(let y=0; y<GRID_H; y++){
+    for(let x=0; x<GRID_W; x++){
+      const t = terrain[y][x], X = x*TILE, Y = y*TILE;
+      if(t===T.DEEP){
+        CTX.fillStyle = P.deep; CTX.fillRect(X,Y,TILE,TILE);
+        if((Math.floor(phaseTimer/40) + x + y)%5 === 0){ CTX.fillStyle='rgba(165,243,252,0.25)'; CTX.fillRect(X+4, Y+TILE/2, 10, 2); }
+      } else if(t===T.FORD){
+        CTX.fillStyle = P.ford; CTX.fillRect(X,Y,TILE,TILE);
+        px(X+4, Y+4, 2, P.reeds); px(X+12, Y+12, 2, P.reeds); px(X+18, Y+6, 2, P.reeds);
+        if((Math.floor(phaseTimer/30) + x)%4 === 0){ CTX.fillStyle='rgba(255,255,255,0.18)'; CTX.fillRect(X+2, Y+18, 8, 2); }
+      } else if(t===T.BRUSH){
+        CTX.fillStyle = P.brush; CTX.fillRect(X,Y,TILE,TILE);
+        CTX.fillStyle = P.brushDark;
+        CTX.fillRect(X+3, Y+6, 2, 12); CTX.fillRect(X+11, Y+2, 2, 14); CTX.fillRect(X+18, Y+8, 2, 12);
+        CTX.fillStyle = '#4c6b35'; CTX.fillRect(X+6, Y+4, 3, 3); CTX.fillRect(X+15, Y+14, 3, 3);
+      }
+    }
+  }
+}
+
 function draw(){
   CTX.fillStyle=P.black;
   CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
@@ -580,27 +820,41 @@ function draw(){
   let cy = CANVAS.height/2 - cam.y;
   CTX.translate(Math.round(cx), Math.round(cy));
 
-  CTX.fillStyle='#2e2e30';
+  // frozen winter ground
+  CTX.fillStyle='#3a3c3a';
   CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
+  CTX.fillStyle='#4a4d4a';
+  for(let i=0; i<160; i++) CTX.fillRect((i*47)%(GRID_W*TILE), (i*31)%(GRID_H*TILE), 3, 2);
+  CTX.fillStyle='rgba(230,236,240,0.35)';
+  for(let i=0; i<120; i++) CTX.fillRect((i*73)%(GRID_W*TILE), (i*53)%(GRID_H*TILE), 2, 2);
 
-  CTX.fillStyle='#555';
-  for(let i=0; i<100; i++) CTX.fillRect((i*47)% (GRID_W*TILE), (i*31)% (GRID_H*TILE), 2, 2);
+  drawTerrain();
 
-  for(let y=0; y<GRID_H; y++){
-    for(let x=0; x<GRID_W; x++){
-      if(terrain[y][x] > 0) drawRiverTile(x, y, terrain[y][x]);
+  for(const u of units) drawSprite(u, SCALE);
+
+  // A glint of bronze in the brush, for those paying attention
+  if(battlePhase < PH.MAGO){
+    for(const u of units){
+      if(!u.hidden) continue;
+      if(((phaseTimer + Math.floor(u.f*997)) % 211) < 5){
+        CTX.fillStyle = '#fde68a';
+        CTX.fillRect(u.x*TILE+10, u.y*TILE+8, 3, 3);
+        if(!glintShown && battlePhase>=PH.BATTLE && Math.abs(u.y-player.y)<8 && Math.abs(u.x-player.x)<10){
+          glintShown = true;
+          spawnFloat("...a glint in the brush?", player.x, player.y-1, "#fde68a");
+        }
+      }
     }
   }
 
-  for(let u of units) drawSprite(u, SCALE);
-  for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+  for(const p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
 
   CTX.font="bold 12px monospace"; CTX.textAlign="center";
-  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
+  for(const f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=Math.max(0,f.life); CTX.fillText(f.text, f.x+TILE/2, f.y); }
   CTX.globalAlpha=1;
 
   CTX.fillStyle = '#fff';
-  for(let s of snow){
+  for(const s of snow){
     CTX.fillRect(s.x, s.y, s.s, s.s);
     s.y += 1; s.x += Math.sin(Date.now()/1000);
     if(s.y > GRID_H*TILE) s.y = 0;
@@ -609,28 +863,13 @@ function draw(){
 }
 
 // =========================
-//  UTILS & INPUT
+//  UTILS
 // =========================
-let frameC=0; function frameStep(n){ return (frameC%n)===0; }
 function dist(a,b){ return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
 function getStep(u,t){
   let dx=t.x-u.x, dy=t.y-u.y;
   if(Math.abs(dx)>Math.abs(dy)) return {x:Math.sign(dx), y:0};
   return {x:0, y:Math.sign(dy)};
-}
-function findNearestEnemy(u){
-  let target=null, minDist=99;
-  for(let o of units){
-    if(Math.abs(o.x-u.x)>10 || Math.abs(o.y-u.y)>10) continue;
-    let isEnemy = (u.type==='invader'||u.type==='elephant')
-      ? (o.type==='roman'||o.type==='yours')
-      : (o.type==='invader'||o.type==='elephant');
-    if(isEnemy){
-      let d=dist(u,o);
-      if(d<minDist){minDist=d; target=o;}
-    }
-  }
-  return target;
 }
 function spawnBlood(gx, gy){
   for(let i=0;i<3;i++) particles.push({x:gx*TILE+TILE/2, y:gy*TILE+TILE/2, vx:(Math.random()-.5)*3, vy:(Math.random()-.5)*3, life:1, color:'#900'});
@@ -642,30 +881,57 @@ function updateFX(){
   floats.forEach(f=>{f.y-=0.3; f.life-=0.02});
   floats=floats.filter(f=>f.life>0);
 }
+let lastWarnAt = -999;
+function showMsgOnce(txt){
+  if(phaseTimer - lastWarnAt < 150) return;
+  lastWarnAt = phaseTimer;
+  showMsg(txt, "#fca5a5");
+}
 function showMsg(txt, col){
   const el=document.getElementById('battle-text');
   el.innerText=txt; el.style.color=col; el.style.opacity=1;
-  setTimeout(()=>el.style.opacity=0, 2500);
+  clearTimeout(showMsg._t);
+  showMsg._t = setTimeout(()=>el.style.opacity=0, 2500);
 }
-function gameOver(reason, isWin = false){
+
+const ENDINGS = {
+  dead:  { title:'DEFEAT',  col:'#ef4444', line:'You fell at the Trebia.',
+           text:'Numb, soaked and starving, the legions were caught between Hannibal’s line and Mago’s ambush. Thousands more drowned trying to recross the river.' },
+  north: { title:'BROKE THROUGH', col:'#fbbf24', line:'You cut your way through Hannibal’s centre.',
+           text:'Like the 10,000 legionaries of the Roman centre, you fought straight through the enemy line and marched, in good order, to Placentia. Behind you, the rest of the army was destroyed.' },
+  south: { title:'ESCAPED', col:'#fbbf24', line:'You made it back across the Trebia.',
+           text:'Few who turned back survived the freezing river and the Numidian horsemen. You are one of them.' },
+};
+
+function gameOver(kind){
   gameActive = false;
+  spwMarkDone('trebia');
+  document.getElementById('battle-text').style.opacity = 0;
+  const E = ENDINGS[kind];
+  const fallen = Math.max(0, romansAtStart - units.filter(u=>u.type==='roman').length);
 
   const overlay = document.getElementById('overlay');
   overlay.style.display = 'flex';
   overlay.innerHTML = `
-    <h1>${isWin ? 'SURVIVED' : 'DEFEAT'}</h1>
-    <p><b>${reason}</b></p>
-    <p style="margin-bottom:10px;">The battle is over.</p>
-    ${HISTORY_HTML}
-    <div class="btn-row" style="margin-top:18px;">
+    <h1 style="color:${E.col}">${E.title}</h1>
+    <p><b>${E.line}</b></p>
+    <p>${E.text}</p>
+    <p style="color:#ef4444">Romans fallen: ${fallen} of ${romansAtStart}</p>
+    <div class="btn-row" style="margin-top:12px;">
       <button class="btn-start" id="btn-map">CONTINUE CAMPAIGN</button>
-      <button class="btn-muted" id="btn-restart">RESTART</button>
+      <button class="btn-muted" id="btn-restart">REPLAY</button>
+      <button class="btn-muted" id="btn-hist">HISTORY</button>
     </div>
   `;
-
-  spwMarkDone('trebia');
   document.getElementById('btn-map').onclick = () => { window.location.href = NEXT_PAGE; };
   document.getElementById('btn-restart').onclick = () => { location.reload(); };
+  document.getElementById('btn-hist').onclick = () => {
+    overlay.innerHTML = `${HISTORY_HTML}
+      <div class="btn-row" style="margin-top:18px;">
+        <button class="btn-start" id="btn-map2">CONTINUE CAMPAIGN</button>
+      </div>`;
+    document.getElementById('btn-map2').onclick = () => { window.location.href = NEXT_PAGE; };
+  };
 }
 
 // ----- Virtual stick input (mobile) -----
@@ -718,10 +984,9 @@ window.handleAttack = function(e){
   for(let d of dirs){
     let tx=player.x+d[0], ty=player.y+d[1];
     const t = grid[ty] && grid[ty][tx];
-    if(t && (t.type==='invader' || t.type==='elephant')) attack(player, t);
+    if(t && isCarth(t) && isVisible(t)) attack(player, t);
   }
-  spawnFloat("SWING", player.x, player.y, "#fff");
-  player.attackCd = 18; // small throttle so holding space doesn’t melt everything
+  player.attackCd = PLAYER_ATTACK.cooldown;
 };
 
 // ----- Keyboard controls (desktop) -----
