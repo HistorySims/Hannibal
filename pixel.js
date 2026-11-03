@@ -176,6 +176,102 @@ const PX = (() => {
     ]},
   };
 
+  // ---------------------------------------------------------------
+  //  ALTERNATIVE SPRITE SETS (pick with ?sprites=name)
+  //  Each art entry: front rows, optional back rows, optional alt walk rows
+  //  ({rowIndex: string}) for front/back. Sets with `vflip` draw the back
+  //  (facing up the screen) and get the front by flipping it vertically.
+  //  x/X (spear shaft/tip) never cast an outline, so weapons stay thin.
+  // ---------------------------------------------------------------
+  const SETS = {
+    spear: { shadow:true, art:{
+      legionary: {
+        front:[".X..r...",".x.hhh..",".x.sks..",".xbbbbb.",".sbbybb.","..bbbbb.","..BbbbB.","...l.l..","...f.f.."],
+        frontAlt:{7:"....ll..",8:"....ff.."},
+        back:["...r..X.","..hhh.x.","..HsH.x.",".BmmmBs.",".BmMmBx.",".BcccB..","..CcC...","..l.l...","..f.f..."],
+        backAlt:{7:"...ll...",8:"...ff..."},
+      },
+      centurion: {
+        front:["..rrrrr.","...hhh..",".X.sks..",".Xbbbbb.",".sbbybb.","..bbbbb.","..BbbbB.","...l.l..","...f.f.."],
+        frontAlt:{7:"....ll..",8:"....ff.."},
+        back:[".rrrrr..","..hhh...","..HsH.X.",".BmymBX.",".BmmmBs.",".BcccB..","..CcC...","..l.l...","..f.f..."],
+        backAlt:{7:"...ll...",8:"...ff..."},
+      },
+      gaul: {
+        front:[".X.g.gg.",".x.gggg.",".x.sks..",".xsbbbs.",".s.byb..","...bbb..","...cbc..","...c.c..","...f.f.."],
+        frontAlt:{7:"....cc..",8:"....ff.."},
+        back:["..g.g.X.",".gggg.x.","..gsg.x.","..sss.s.",".BsssB..","..ccc...","..cCc...","..c.c...","..f.f..."],
+        backAlt:{7:"...cc...",8:"...ff..."},
+      },
+      spaniard: {
+        front:["...rr...","..Xhhh..","..Xsks..","..swwwbb","...wrwbb","...www..","...rrr..","...l.l..","...f.f.."],
+        frontAlt:{7:"....ll..",8:"....ff.."},
+        back:["...rr...","..hhhX..","..HsHX..","bbwwws..","bbwrw...","..www...","..rrr...","..l.l...","..f.f..."],
+        backAlt:{7:"...ll...",8:"...ff..."},
+      },
+      libyan: {
+        front:[".X..h...",".x.hhh..",".x.sks..",".x.bbb..",".sbbybb.","..bbbbb.","...bbb..","...l.l..","...f.f.."],
+        frontAlt:{7:"....ll..",8:"....ff.."},
+        back:["...h..X.","..hhh.x.","..HsH.x.","..mmm.s.",".BmMmB..",".BmmmB..","..ccc...","..l.l...","..f.f..."],
+        backAlt:{7:"...ll...",8:"...ff..."},
+      },
+    }},
+
+    topdown: { shadow:false, vflip:true, art:{
+      legionary: { back:[".......X","bbbbbb.x","BbbybB.x",".mhrhm.s","..hhh...","...m....","........","........"] },
+      centurion: { back:["........","bbbbbb..","BbbybB..",".mrrrm..","..hhh...","...m....","........","........"] },
+      gaul:      { back:["X.......","x.bbb...","xbbybb..","ssgggss.","..ggg...","...s....","........","........"] },
+      spaniard:  { back:["......X.",".bb...X.","bbbwwws.",".bwrrw..","..whhw..","...ww...","........","........"] },
+      libyan:    { back:["X.......","x.bbbb..","xbbbybb.","x.bbbb..","..mhm...","...h....","........","........"] },
+    }},
+
+    chibi: { shadow:true, head:5, art:{
+      legionary: { front:["...rr...","..hhhh..",".hhhhhh.",".hksskh.","..ssss..","bbccccs.","bbcmmc..","..l..l..","..f..f.."], frontAlt:{7:"...ll...",8:"...ff..."} },
+      centurion: { front:[".rrrrrr.","..hhhh..",".hhhhhh.",".hksskh.","..ssss..","bbcyycs.","bbcmmc..","..l..l..","..f..f.."], frontAlt:{7:"...ll...",8:"...ff..."} },
+      gaul:      { front:[".g.gg.g.",".gggggg.","gggggggg","ggksskgg","..ssss..","bbssss..","bbcccc..","..c..c..","..f..f.."], frontAlt:{7:"...cc...",8:"...ff..."} },
+      spaniard:  { front:["...rr...","..hhhh..",".hhhhhh.",".hksskh.","..ssss..",".wwwwbb.",".wrrwbb.","..l..l..","..f..f.."], frontAlt:{7:"...ll...",8:"...ff..."} },
+      libyan:    { front:["...hh...","..hhhh..",".hhhhhh.",".Hksskh.","..ssss..","bbmmmm..","bbmmmm..","..l..l..","..f..f.."], frontAlt:{7:"...ll...",8:"...ff..."} },
+    }},
+
+    tiny: { shadow:true, head:5, art:{
+      legionary: { front:["........","........","...r....","..hhh...","..sss...",".bccc...",".bccc...","..l.l...","..f.f..."], frontAlt:{7:"..ll....",8:"..ff...."} },
+      centurion: { front:["........","........",".rrrrr..","..hhh...","..sss...",".bccc...",".bccc...","..l.l...","..f.f..."], frontAlt:{7:"..ll....",8:"..ff...."} },
+      gaul:      { front:["........","........","..g.g...","..ggg...","..sss...",".bsss...",".bccc...","..c.c...","..f.f..."], frontAlt:{7:"..cc....",8:"..ff...."} },
+      spaniard:  { front:["........","........","...r....","..hhh...","..sss...","..wwwb..","..rrrb..","..l.l...","..f.f..."], frontAlt:{7:"..ll....",8:"..ff...."} },
+      libyan:    { front:["........","........","...h....","..hhh...","..sss...",".bmmm...",".bmmm...","..l.l...","..f.f..."], frontAlt:{7:"..ll....",8:"..ff...."} },
+    }},
+  };
+  // which art each other kind borrows in the new sets
+  const ART_FALLBACK = { velite:'spaniard', levy:'libyan', merc:'gaul', forager:'spaniard' };
+  let spriteSet = null;
+  try { const q = new URLSearchParams(location.search).get('sprites'); if(q && SETS[q]) spriteSet = q; } catch(e){}
+  // catch typos in the art while developing
+  for(const [sn, S] of Object.entries(SETS)) for(const [an, A] of Object.entries(S.art)){
+    for(const part of ['front','back']) if(A[part]) A[part].forEach((r,i)=>{ if(r.length!==8) console.error('pixel.js art', sn, an, part, i, r); });
+  }
+
+  function setRows(A, S, back, frame){
+    if(S.vflip){
+      const base = A.back;
+      return back ? base.slice() : base.slice().reverse();
+    }
+    let rows, alt;
+    if(back && A.back){ rows = A.back.slice(); alt = A.backAlt; }
+    else if(back){
+      // derive the back by mirroring the front and covering the face
+      const head = S.head || 3;
+      rows = A.front.map((r, i) => {
+        let m = r.split('').reverse().join('');
+        if(i < head) m = m.replace(/[sk]/g, 'H');
+        else m = m.replace(/y/g,'B');
+        return m;
+      });
+      alt = A.frontAlt && Object.fromEntries(Object.entries(A.frontAlt).map(([k,v]) => [k, v.split('').reverse().join('')]));
+    } else { rows = A.front.slice(); alt = A.frontAlt; }
+    if(frame && alt) for(const [k,v] of Object.entries(alt)) rows[+k] = v;
+    return rows;
+  }
+
   // Colour maps per unit kind (what each art key means for that kind)
   const KINDS = {
     roman:     { art:'legionary', map:{ r:C.plume, h:C.iron, H:C.ironD, c:C.rRed, C:C.rRedD, m:C.iron, M:C.ironD, b:C.rRed, B:C.rRedD, y:C.gold } },
@@ -183,14 +279,18 @@ const PX = (() => {
     yours:     { art:'centurion', map:{ r:C.white, h:C.iron, H:C.ironD, c:C.green, C:C.greenD, m:C.iron, M:C.ironD, b:C.green, B:C.greenD, y:C.gold } },
     velite:    { art:'velite',    map:{ h:C.fur, H:C.leatherD, c:'#d8c090', C:'#a89060', b:C.leather, y:C.gold } },
     gaul:      { art:'gaul',      map:{ g:C.gaulHair, c:C.tartan, C:'#6a3018', y:C.gaulHair, b:C.gaulCloth, B:C.gaulClothD } },
-    spaniard:  { art:'spaniard',  map:{ h:C.leatherD, H:C.black, c:C.spanRed, C:'#701828', b:C.leather, B:C.leatherD, y:C.bronze } },
-    libyan:    { art:'libyan',    map:{ h:C.bronze, H:C.bronzeD, m:C.iron, M:C.ironD, c:C.cBlue, b:C.bronze, y:C.gold } },
+    spaniard:  { art:'spaniard',  map:{ h:C.leatherD, H:C.black, r:C.spanRed, c:C.spanRed, C:'#701828', b:C.leather, B:C.leatherD, y:C.bronze } },
+    libyan:    { art:'libyan',    map:{ h:C.bronze, H:C.bronzeD, m:C.iron, M:C.ironD, c:C.cBlue, b:C.bronze, B:C.bronzeD, y:C.gold } },
     levy:      { art:'levy',      map:{ h:C.bronze, H:C.bronzeD, c:C.cBlue, C:C.cBlueD, b:C.cBlue, y:C.gold } },
-    veteran:   { art:'libyan',    map:{ h:C.gold, H:C.bronzeD, m:C.bronze, M:C.bronzeD, c:C.purple, b:C.purple, y:C.gold } },
+    veteran:   { art:'libyan',    map:{ h:C.gold, H:C.bronzeD, m:C.bronze, M:C.bronzeD, c:C.purple, b:C.purple, B:C.purpleD, y:C.gold } },
     merc:      { art:'merc',      map:{ h:C.leather, c:C.merc, C:C.mercD, b:C.leather, y:C.gold } },
     forager:   { art:'forager',   map:{ g:C.black, c:C.leather, C:C.leatherD } },
   };
-  const BASE = { s:C.skin, k:C.eye, l:C.skinD, f:C.black, w:C.white, x:C.iron };
+  // Defaults for every art key, so a kind that doesn't define one still gets a sensible colour
+  const BASE = { s:C.skin, k:C.eye, l:C.skinD, f:C.black, w:C.white, x:'#7a5a34', X:C.iron,
+                 r:C.rRed, h:C.leather, H:C.leatherD, c:C.leather, C:C.leatherD, m:C.iron, M:C.ironD,
+                 b:C.leather, B:C.leatherD, y:C.gold, g:C.black };
+  const NO_OUTLINE = 'xX';
 
   // ---------------------------------------------------------------
   //  SPRITE CACHE: build, outline, mirror, flash
@@ -202,22 +302,32 @@ const PX = (() => {
   function bake(grid, flash){
     const h = grid.length, w = grid[0].length;
     const cv = mk(w + 2, h + 2), g = cv.getContext('2d');
-    const solid = (x,y) => y>=0 && y<h && x>=0 && x<w && grid[y][x];
+    const at = (x,y) => (y>=0 && y<h && x>=0 && x<w) ? grid[y][x] : null;
+    const solid = (x,y) => { const e = at(x,y); return !!e && !(Array.isArray(e) && !e[1]); };
     g.fillStyle = SPRITE_OUTLINE;
     if(style.outline !== 'none') for(let y=-1; y<=h; y++) for(let x=-1; x<=w; x++){
       if(solid(x,y)) continue;
       if(solid(x-1,y)||solid(x+1,y)||solid(x,y-1)||solid(x,y+1)) g.fillRect(x+1, y+1, 1, 1);
     }
     for(let y=0; y<h; y++) for(let x=0; x<w; x++){
-      if(!grid[y][x]) continue;
-      g.fillStyle = flash ? '#ffffff' : col(grid[y][x]);
+      const e = grid[y][x];
+      if(!e) continue;
+      g.fillStyle = flash ? '#ffffff' : col(Array.isArray(e) ? e[0] : e);
       g.fillRect(x+1, y+1, 1, 1);
     }
     return cv;
   }
 
   function artGrid(kind, back, frame){
-    const K = KINDS[kind] || KINDS.roman, A = ART[K.art];
+    const K = KINDS[kind] || KINDS.roman;
+    if(spriteSet){
+      const S = SETS[spriteSet];
+      const A = S.art[K.art] || S.art[ART_FALLBACK[K.art]] || S.art.legionary;
+      const rows = setRows(A, S, back, frame);
+      const map = Object.assign({}, BASE, K.map);
+      return rows.map(r => r.split('').map(ch => ch==='.' ? null : [map[ch] || '#ff00ff', !NO_OUTLINE.includes(ch)]));
+    }
+    const A = ART[K.art];
     let rows = A.rows.concat(LEGS[frame]);
     if(back){
       rows = rows.map((r, i) => {
@@ -232,7 +342,7 @@ const PX = (() => {
   }
 
   function sprite(kind, back, frame, flip, flash){
-    const key = kind+'|'+(back?1:0)+'|'+frame+'|'+(flip?1:0)+'|'+(flash?1:0);
+    const key = (spriteSet||'blocky')+'|'+kind+'|'+(back?1:0)+'|'+frame+'|'+(flip?1:0)+'|'+(flash?1:0);
     let cv = cache.get(key);
     if(!cv){
       let grid = artGrid(kind, back, frame);
@@ -447,8 +557,10 @@ const PX = (() => {
     const lunge = (u._atkT !== undefined && t - u._atkT < 6) ? 1 : 0;
 
     // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillRect(bx+1, by+T-1, T-2, 1);
+    if(!spriteSet || SETS[spriteSet].shadow || kind==='elephant'){
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.fillRect(bx+2, by+T-1, T-4, 1);
+    }
 
     let img, ox, oy;
     if(kind === 'elephant'){
@@ -495,6 +607,6 @@ const PX = (() => {
   }
   function rectWorld(tx, ty, tw, th, c){ ctx.fillStyle = col(c); ctx.fillRect(tx*T, ty*T, tw*T, th*T); }
 
-  return { T, C, style: styleName, init, resize, setScale, getScale, begin, ground, unit, pic, dot, label, text, overlay, rectWorld, shake,
+  return { T, C, style: styleName, sprites: spriteSet || 'blocky', init, resize, setScale, getScale, begin, ground, unit, pic, dot, label, text, overlay, rectWorld, shake,
            get ctx(){ return ctx; }, get t(){ return t; }, get W(){ return W; }, get H(){ return H; } };
 })();
