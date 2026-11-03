@@ -15,9 +15,49 @@ const PX = (() => {
   let shakeT = 0;
 
   // ---------------------------------------------------------------
+  //  STYLES (pick with ?style=name; used to compare looks)
+  // ---------------------------------------------------------------
+  const STYLES = {
+    classic: { palette:'full',  outline:'dark', ground:1.0, scale:3 },
+    muted:   { palette:'muted', outline:'soft', ground:0.25, scale:3 },
+    gameboy: { palette:'dmg',   outline:'dark', ground:0.25, scale:3 },
+    big:     { palette:'muted', outline:'soft', ground:0.25, scale:4 },
+    flat:    { palette:'full',  outline:'none', ground:0.0, scale:3 },
+  };
+  let styleName = 'classic';
+  try { const q = new URLSearchParams(location.search).get('style'); if(q && STYLES[q]) styleName = q; } catch(e){}
+  const style = STYLES[styleName];
+
+  const DMG = ['#0f380f','#306230','#8bac0f','#9bbc0f'];
+  const colCache = new Map();
+  // Map any '#rrggbb' through the current style's palette
+  function col(c){
+    if(typeof c !== 'string' || c[0] !== '#' || c.length !== 7 || style.palette === 'full') return c;
+    if(colCache.has(c)) return colCache.get(c);
+    let r = parseInt(c.slice(1,3),16)/255, g = parseInt(c.slice(3,5),16)/255, b = parseInt(c.slice(5,7),16)/255;
+    let out;
+    if(style.palette === 'dmg'){
+      const lum = 0.299*r + 0.587*g + 0.114*b;
+      out = DMG[Math.max(0, Math.min(3, Math.floor(lum*4.2)))];
+    } else {
+      // muted: pull saturation down and compress contrast toward a warm mid-tone
+      const avg = (r+g+b)/3;
+      const k = 0.5;
+      r = avg + (r-avg)*k; g = avg + (g-avg)*k; b = avg + (b-avg)*k;
+      const lift = (v, t) => v*0.78 + t*0.22;
+      r = lift(r, 0.62); g = lift(g, 0.56); b = lift(b, 0.46);
+      const h = v => Math.round(Math.max(0, Math.min(1, v))*255).toString(16).padStart(2,'0');
+      out = '#'+h(r)+h(g)+h(b);
+    }
+    colCache.set(c, out);
+    return out;
+  }
+
+  // ---------------------------------------------------------------
   //  PALETTE
   // ---------------------------------------------------------------
-  const OUTLINE = '#1a1410';
+  const OUTLINE = style.palette === 'dmg' ? '#0f380f' : '#1a1410';
+  const SPRITE_OUTLINE = style.outline === 'soft' ? 'rgba(40,30,20,0.45)' : OUTLINE;
   const C = {
     skin:'#e0a878', skinD:'#b07850', eye:'#2a1a12',
     iron:'#b8c0c8', ironD:'#6f7a86', bronze:'#d8a040', bronzeD:'#9a6a28', gold:'#f8d048',
@@ -163,14 +203,14 @@ const PX = (() => {
     const h = grid.length, w = grid[0].length;
     const cv = mk(w + 2, h + 2), g = cv.getContext('2d');
     const solid = (x,y) => y>=0 && y<h && x>=0 && x<w && grid[y][x];
-    g.fillStyle = OUTLINE;
-    for(let y=-1; y<=h; y++) for(let x=-1; x<=w; x++){
+    g.fillStyle = SPRITE_OUTLINE;
+    if(style.outline !== 'none') for(let y=-1; y<=h; y++) for(let x=-1; x<=w; x++){
       if(solid(x,y)) continue;
       if(solid(x-1,y)||solid(x+1,y)||solid(x,y-1)||solid(x,y+1)) g.fillRect(x+1, y+1, 1, 1);
     }
     for(let y=0; y<h; y++) for(let x=0; x<w; x++){
       if(!grid[y][x]) continue;
-      g.fillStyle = flash ? '#ffffff' : grid[y][x];
+      g.fillStyle = flash ? '#ffffff' : col(grid[y][x]);
       g.fillRect(x+1, y+1, 1, 1);
     }
     return cv;
@@ -292,16 +332,17 @@ const PX = (() => {
     if(cv) return cv;
     const D = TILES[name] || TILES.plain;
     cv = mk(T, T); const g = cv.getContext('2d');
-    g.fillStyle = D.base; g.fillRect(0,0,T,T);
+    g.fillStyle = col(D.base); g.fillRect(0,0,T,T);
     const r = (i) => hash(v, i, 7);
-    if(D.dots) for(let i=0;i<4;i++){ g.fillStyle = D.dots[r(i)%D.dots.length]; g.fillRect(r(i+10)%T, r(i+20)%T, 1, 1); }
-    if(D.tuft && v%3===0){ g.fillStyle = D.tuft; const x=r(30)%6+1, y=r(31)%5+2; g.fillRect(x,y,1,2); g.fillRect(x+1,y-1,1,3); g.fillRect(x+2,y+1,1,1); }
-    if(D.wave){ g.fillStyle = D.wave; const y = (r(40) + frame*2) % T; const x = (r(41) + frame) % 5; g.fillRect(x, y, 3, 1); }
-    if(D.reed && v%2===0){ g.fillStyle = D.reed; const x=r(50)%6+1; g.fillRect(x,2,1,5); g.fillRect(x+2,3,1,4); }
+    const nDots = Math.round(4*style.ground);
+    if(D.dots) for(let i=0;i<nDots;i++){ g.fillStyle = col(D.dots[r(i)%D.dots.length]); g.fillRect(r(i+10)%T, r(i+20)%T, 1, 1); }
+    if(D.tuft && v%3===0 && style.ground > 0.6){ g.fillStyle = col(D.tuft); const x=r(30)%6+1, y=r(31)%5+2; g.fillRect(x,y,1,2); g.fillRect(x+1,y-1,1,3); g.fillRect(x+2,y+1,1,1); }
+    if(D.wave){ g.fillStyle = col(D.wave); const y = (r(40) + frame*2) % T; const x = (r(41) + frame) % 5; g.fillRect(x, y, 3, 1); }
+    if(D.reed && v%2===0){ g.fillStyle = col(D.reed); const x=r(50)%6+1; g.fillRect(x,2,1,5); g.fillRect(x+2,3,1,4); }
     if(D.canopy){
-      for(let i=0;i<3;i++){ g.fillStyle = D.canopy[i]; const cx=r(60+i)%6+1, cy=r(70+i)%6+1; g.fillRect(cx-1,cy-1,3,3); g.fillRect(cx,cy-2,1,1); }
+      for(let i=0;i<3;i++){ g.fillStyle = col(D.canopy[i]); const cx=r(60+i)%6+1, cy=r(70+i)%6+1; g.fillRect(cx-1,cy-1,3,3); g.fillRect(cx,cy-2,1,1); }
     }
-    if(D.rock){ g.fillStyle = D.rock; g.fillRect(1,5,6,2); g.fillStyle = D.light; g.fillRect(2,4,3,1); }
+    if(D.rock){ g.fillStyle = col(D.rock); g.fillRect(1,5,6,2); g.fillStyle = col(D.light); g.fillRect(2,4,3,1); }
     cache.set(key, cv);
     return cv;
   }
@@ -320,12 +361,13 @@ const PX = (() => {
     '9':'111101111001110','+':'000010111010000','-':'000000111000000','!':'010010010000010','.':'000000000000010',
     '?':'110001010000010',"'":'010010000000000',',':'000000000010100',':':'000010000010000','/':'001001010100100',' ':'000000000000000',
   };
-  function text(str, x, y, col, center=true){
+  function text(str, x, y, colIn, center=true){
+    const colr = col(colIn);
     str = String(str).toUpperCase();
     const w = str.length*4 - 1;
     let px0 = Math.round(center ? x - w/2 : x), py = Math.round(y);
     for(const pass of [0,1]){
-      ctx.fillStyle = pass ? col : OUTLINE;
+      ctx.fillStyle = pass ? colr : OUTLINE;
       for(let i=0;i<str.length;i++){
         const g = F[str[i]] || F[' '];
         for(let j=0;j<15;j++){
@@ -343,7 +385,7 @@ const PX = (() => {
   // ---------------------------------------------------------------
   function init(cv, opts={}){
     canvas = cv; ctx = canvas.getContext('2d', { alpha:false });
-    scale = opts.scale || 3;
+    scale = style.scale || opts.scale || 3;
     window.addEventListener('resize', resize);
     resize();
   }
@@ -365,7 +407,7 @@ const PX = (() => {
     camY = Math.round(camTileY*T - H/2);
     if(shakeT > 0){ shakeT--; camX += (t%2 ? 1 : -1); }
     ctx.setTransform(1,0,0,1,0,0);
-    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = col(bg); ctx.fillRect(0,0,W,H);
     ctx.setTransform(1,0,0,1,-camX,-camY);
   }
   function shake(n=6){ shakeT = n; }
@@ -426,12 +468,12 @@ const PX = (() => {
     if(opts.bar && opts.maxHp && opts.hp < opts.maxHp){
       const w = Math.max(0, Math.round((opts.hp/opts.maxHp)*(T)));
       ctx.fillStyle = OUTLINE; ctx.fillRect(bx-1, oy-3, T+2, 3);
-      ctx.fillStyle = opts.barCol || '#e04030'; ctx.fillRect(bx, oy-2, w, 1);
+      ctx.fillStyle = col(opts.barCol || '#e04030'); ctx.fillRect(bx, oy-2, w, 1);
     }
     if(opts.marker){
       const bob = Math.floor(t/12) % 2;
       ctx.fillStyle = OUTLINE; ctx.fillRect(bx+2, oy-7+bob, 5, 3); ctx.fillRect(bx+3, oy-4+bob, 3, 1);
-      ctx.fillStyle = C.gold; ctx.fillRect(bx+3, oy-6+bob, 3, 1); ctx.fillRect(bx+4, oy-5+bob, 1, 1);
+      ctx.fillStyle = col(C.gold); ctx.fillRect(bx+3, oy-6+bob, 3, 1); ctx.fillRect(bx+4, oy-5+bob, 1, 1);
     }
   }
 
@@ -444,15 +486,15 @@ const PX = (() => {
   }
 
   // Particles & floats given in tile coordinates
-  function dot(tx, ty, col, size=1){ ctx.fillStyle = col; ctx.fillRect(Math.round(tx*T), Math.round(ty*T), size, size); }
-  function label(str, tx, ty, col){ text(str, tx*T + T/2, ty*T, col); }
+  function dot(tx, ty, c, size=1){ ctx.fillStyle = col(c); ctx.fillRect(Math.round(tx*T), Math.round(ty*T), size, size); }
+  function label(str, tx, ty, c){ text(str, tx*T + T/2, ty*T, c); }
 
   // Overlay drawn in screen space over the whole view (e.g. fog, mist)
   function overlay(fn){
     ctx.save(); ctx.setTransform(1,0,0,1,0,0); fn(ctx, W, H); ctx.restore();
   }
-  function rectWorld(tx, ty, tw, th, col){ ctx.fillStyle = col; ctx.fillRect(tx*T, ty*T, tw*T, th*T); }
+  function rectWorld(tx, ty, tw, th, c){ ctx.fillStyle = col(c); ctx.fillRect(tx*T, ty*T, tw*T, th*T); }
 
-  return { T, C, init, resize, setScale, getScale, begin, ground, unit, pic, dot, label, text, overlay, rectWorld, shake,
+  return { T, C, style: styleName, init, resize, setScale, getScale, begin, ground, unit, pic, dot, label, text, overlay, rectWorld, shake,
            get ctx(){ return ctx; }, get t(){ return t; }, get W(){ return W; }, get H(){ return H; } };
 })();
