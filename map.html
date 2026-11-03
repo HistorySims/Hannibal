@@ -104,7 +104,6 @@ button{
 /* ===================== CONFIG ===================== */
 
 const MAP_SRC = "IMG_4198.jpeg"; 
-const STORAGE_KEY = "spw_campaign_progress_v1";
 
 /* Updated Coordinates */
 const battles = [
@@ -114,6 +113,184 @@ const battles = [
   { id:"cannae",  name:"Cannae",         x:0.75, y:0.55 , url:"cannae_boot.html"},
   { id:"zama",    name:"Zama",           x:0.18, y:0.83 , url:"zama_boot.html"} 
 ];
+
+/* ===================== HANNIBAL'S ROUTE ===================== */
+// Waypoints (fractions of the map) tracing Hannibal's march, Mario-overworld style.
+// `battle` marks a stop; `sea:true` means the leg arriving at this point is by ship.
+const ROUTE = [
+  { x:0.03, y:0.34 },                 // coming from Gaul
+  { x:0.08, y:0.27 },                 // over the Alps
+  { x:0.13, y:0.24 },
+  { x:0.19, y:0.28 },                 // down into the Po valley
+  { x:0.27, y:0.29 },
+  { x:0.34, y:0.30, battle:0 },       // Trebia
+  { x:0.40, y:0.33 },                 // across the Apennines
+  { x:0.45, y:0.37 },
+  { x:0.49, y:0.41, battle:1 },       // Lake Trasimene
+  { x:0.52, y:0.47 },
+  { x:0.53, y:0.53, battle:2 },       // Fabius shadows him through Campania
+  { x:0.61, y:0.52 },
+  { x:0.69, y:0.54 },
+  { x:0.75, y:0.55, battle:3 },       // Cannae
+  { x:0.76, y:0.60 },
+  { x:0.79, y:0.66 },                 // Croton: sail for Africa
+  { x:0.80, y:0.75, sea:true },
+  { x:0.66, y:0.88, sea:true },
+  { x:0.42, y:0.90, sea:true },
+  { x:0.26, y:0.86, sea:true },       // land near Hadrumetum
+  { x:0.18, y:0.83, battle:4 },       // Zama
+];
+const START_STOP = -1;                // before Trebia: at the route's first point
+const WALKER_KEY = "spw_walker_at";   // which stop the little guy last stood at
+
+function routeIndexOfStop(stop){
+  if(stop === START_STOP) return 0;
+  return ROUTE.findIndex(p => p.battle === stop);
+}
+
+/* ===================== WALKER SPRITE ===================== */
+// Hannibal on his elephant, facing right. Two leg frames for the walk cycle.
+const SPR_PAL = {
+  h:"#d4a017", H:"#8a5a00", s:"#c68642", p:"#7e22ce", P:"#4c1d95",
+  r:"#b91c1c", y:"#fbbf24", g:"#9ca3af", G:"#6b7280", d:"#374151",
+  w:"#f8fafc", k:"#111111"
+};
+const SPR_TOP = [
+  ".........hH...........",
+  "........hhhH..........",
+  "........sssk..........",
+  ".......ppppP..........",
+  "......pppppPP.........",
+  ".....yrrrrrrrry.......",
+  "....grrrrrrrrrrgg.....",
+  "...ggyyyyyyyyyygGGgg..",
+  "..gggggggggggggGGGgkg.",
+  ".ggggggggggggggGGGgggg",
+  "dgggggggggggggggGGgwgg",
+  "dgggggggggggggggggwwGg",
+  ".ggggggggggggggggg..Gg",
+  ".gggggggggggggggg...Gg",
+  "..gggggggggggggg....gG",
+];
+const SPR_LEGS = [
+  [ "..ggg..ggg..ggg..ggg..",
+    "..ggg..ggg..ggg..ggg..",
+    "..GGG..GGG..GGG..GGG.." ],
+  [ "...ggg..ggg.ggg..ggg..",
+    "...ggg..ggg.ggg..ggg..",
+    "...GGG..GGG.GGG..GGG.." ],
+];
+const SPR_W = 22;
+
+function drawPixels(rows, ox, oy, S, flip, colorOverride){
+  for(let r=0;r<rows.length;r++){
+    const row = rows[r];
+    for(let c=0;c<row.length;c++){
+      const ch = row[c];
+      if(ch === ".") continue;
+      ctx.fillStyle = colorOverride || SPR_PAL[ch];
+      const cx = flip ? (SPR_W-1-c) : c;
+      ctx.fillRect(ox + cx*S, oy + r*S, S, S);
+    }
+  }
+}
+
+function drawWalker(x, y, S, frame, flip, atSea, t){
+  const rows = atSea ? SPR_TOP : SPR_TOP.concat(SPR_LEGS[frame]);
+  const h = rows.length;
+  const bob = atSea ? Math.round(Math.sin(t*3)*1.5)*S/2 : 0;
+  const ox = Math.round(x - (SPR_W*S)/2);
+  const oy = Math.round(y - h*S + bob - (atSea ? 3*S : 0));
+
+  // ground shadow
+  if(!atSea){
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath(); ctx.ellipse(x, y, 9*S, 2*S, 0, 0, Math.PI*2); ctx.fill();
+  }
+  // 1px dark outline so he reads on any terrain
+  for(const [dx,dy] of [[-1,0],[1,0],[0,-1],[0,1]]){
+    drawPixels(rows, ox+dx*S, oy+dy*S, S, flip, "#0b0b0c");
+  }
+  drawPixels(rows, ox, oy, S, flip);
+
+  if(atSea){
+    // little galley under the elephant
+    const hy = oy + (h-1)*S;
+    ctx.fillStyle = "#0b0b0c";
+    ctx.fillRect(ox - 3*S, hy - S, (SPR_W+6)*S, 6*S);
+    ctx.fillStyle = "#78350f"; ctx.fillRect(ox - 2*S, hy, (SPR_W+4)*S, 4*S);
+    ctx.fillStyle = "#b45309"; ctx.fillRect(ox - 2*S, hy, (SPR_W+4)*S, S);
+    ctx.fillStyle = "#f8fafc";
+    const wave = Math.floor(t*6)%2;
+    for(let i=0;i<SPR_W+4;i+=4) ctx.fillRect(ox + (i-2+wave)*S, hy + 5*S, 2*S, S);
+  }
+}
+
+/* ===================== WALKER STATE ===================== */
+const walker = {
+  pos: 0,            // fractional index along ROUTE
+  target: 0,
+  frame: 0, animT: 0,
+  flip: false,
+  onArrive: null,
+};
+const WALK_SPEED_PX = 70;   // screen pixels per second
+
+function walkTo(routeIdx, onArrive){
+  walker.target = routeIdx;
+  walker.onArrive = onArrive || null;
+}
+function isWalking(){ return Math.abs(walker.pos - walker.target) > 1e-6; }
+
+function routePoint(i){
+  const p = ROUTE[i];
+  return { x: p.x*canvas.width, y: p.y*canvas.height };
+}
+function walkerXY(){
+  const i = Math.floor(walker.pos), f = walker.pos - i;
+  const A = routePoint(i), B = routePoint(Math.min(i+1, ROUTE.length-1));
+  return { x: A.x + (B.x-A.x)*f, y: A.y + (B.y-A.y)*f };
+}
+function walkerAtSea(){
+  // the leg currently being travelled is a sea leg
+  const i = Math.floor(walker.pos), f = walker.pos - i;
+  if(f < 1e-6) return !!ROUTE[i].sea && !!(ROUTE[i+1]||{}).sea;
+  return !!(ROUTE[i+1] && ROUTE[i+1].sea);
+}
+
+function updateWalker(dt){
+  if(!isWalking()){ walker.frame = 0; return; }
+  const dir = Math.sign(walker.target - walker.pos);
+  let budget = WALK_SPEED_PX * dt;
+  while(budget > 0 && isWalking()){
+    const i = dir > 0 ? Math.floor(walker.pos + 1e-9) : Math.ceil(walker.pos - 1e-9) - 1;
+    const A = routePoint(i), B = routePoint(i+1);
+    const segLen = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+    walker.flip = (B.x - A.x) * dir < 0;
+    const stepT = budget / segLen;
+    const edge = dir > 0 ? i+1 : i;
+    const limit = dir > 0 ? Math.min(edge, walker.target) : Math.max(edge, walker.target);
+    const room = Math.abs(limit - walker.pos);
+    if(stepT >= room){ walker.pos = limit; budget -= room*segLen; }
+    else { walker.pos += dir*stepT; budget = 0; }
+  }
+  walker.animT += dt;
+  walker.frame = Math.floor(walker.animT*6) % 2;
+  if(!isWalking() && walker.onArrive){
+    const cb = walker.onArrive; walker.onArrive = null;
+    setTimeout(cb, 350);
+  }
+}
+
+function saveWalkerStop(stop){
+  try { localStorage.setItem(WALKER_KEY, String(stop)); } catch(e){}
+}
+function loadWalkerStop(){
+  try {
+    const v = localStorage.getItem(WALKER_KEY);
+    return v === null ? START_STOP : parseInt(v, 10);
+  } catch(e){ return START_STOP; }
+}
 
 /* ===================== SETUP ===================== */
 
@@ -178,15 +355,19 @@ function draw(){
 
   const unlocked = nextIndex();
 
-  // 2. Connecting Lines (Arrows)
-  for(let i=0;i<unlocked;i++){
-    const A = battles[i-1];
-    const B = battles[i];
-    if(!A) continue; // Skip first battle arrow
-    drawArrow(
-      A.x*canvas.width, A.y*canvas.height,
-      B.x*canvas.width, B.y*canvas.height
-    );
+  // 2. Dotted trail along the route, up to the next battle (no spoilers beyond it)
+  const trailEnd = routeIndexOfStop(Math.min(unlocked, battles.length-1));
+  for(let i=0;i<trailEnd;i++){
+    const A = routePoint(i), B = routePoint(i+1);
+    const sea = !!ROUTE[i+1].sea;
+    const len = Math.hypot(B.x-A.x, B.y-A.y);
+    const n = Math.max(1, Math.floor(len / 10));
+    for(let k=0;k<n;k++){
+      const f = k/n;
+      const x = Math.round(A.x + (B.x-A.x)*f), y = Math.round(A.y + (B.y-A.y)*f);
+      ctx.fillStyle = "#0b0b0c"; ctx.fillRect(x-3, y-3, 6, 6);
+      ctx.fillStyle = sea ? "#e0f2fe" : "#fbbf24"; ctx.fillRect(x-2, y-2, 4, 4);
+    }
   }
 
   // 3. Markers
@@ -197,15 +378,21 @@ function draw(){
     const x = b.x*canvas.width;
     const y = b.y*canvas.height;
     drawMarker(x,y,i===unlocked);
+  });
 
-    // Label
-    ctx.fillStyle="#000"; // Shadow
-    ctx.font="bold 13px ui-monospace, monospace";
-    ctx.textAlign="center";
-    ctx.fillText(b.name, x+1, y-21);
-    
-    ctx.fillStyle="#fff"; // Text
-    ctx.fillText(b.name, x, y-22);
+  // 4. Hannibal and his elephant
+  const S = Math.max(2, Math.round(Math.min(canvas.width, canvas.height) / 260));
+  const wp = walkerXY();
+  drawWalker(wp.x, wp.y, S, walker.frame, walker.flip, walkerAtSea(), performance.now()/1000);
+
+  // 5. Labels on top so the walker never hides them
+  ctx.font="bold 13px ui-monospace, monospace";
+  ctx.textAlign="center";
+  battles.forEach((b,i)=>{
+    if(i > unlocked) return;
+    const x = b.x*canvas.width, y = b.y*canvas.height;
+    ctx.fillStyle="#000"; ctx.fillText(b.name, x+1, y+33);
+    ctx.fillStyle="#fff"; ctx.fillText(b.name, x, y+32);
   });
 
   const done = battles.filter(b=>state[b.id]).length;
@@ -216,7 +403,25 @@ function draw(){
   }
 }
 
-mapImg.onload = draw;
+let lastT = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - lastT)/1000);
+  lastT = now;
+  updateWalker(dt);
+  if(mapImg.complete && mapImg.naturalWidth) draw();
+  requestAnimationFrame(frame);
+}
+
+// On arrival: stand where we last stopped, then march to the next battle
+(function initWalker(){
+  const from = loadWalkerStop();
+  const to = Math.min(nextIndex(), battles.length-1);
+  walker.pos = walker.target = routeIndexOfStop(from);
+  if(to !== from){
+    setTimeout(()=>walkTo(routeIndexOfStop(to), ()=>saveWalkerStop(to)), 600);
+  }
+})();
+requestAnimationFrame(frame);
 
 /* ===================== INTERACTION ===================== */
 
@@ -247,6 +452,17 @@ canvas.addEventListener("pointerup", e=>{
 });
 
 function openBattle(i){
+  if(isWalking()) return;
+  const dest = routeIndexOfStop(i);
+  if(Math.abs(walker.pos - dest) > 1e-6){
+    walkTo(dest, ()=>{ saveWalkerStop(i); enterBattle(i); });
+    return;
+  }
+  saveWalkerStop(i);
+  enterBattle(i);
+}
+
+function enterBattle(i){
   const b = battles[i];
   
   // Battles are marked done by the battle itself when it ends (win or lose).
