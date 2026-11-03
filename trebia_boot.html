@@ -57,6 +57,10 @@
 
     @keyframes blink { 50% { opacity: 0; } }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="boot.css">
 </head>
 <body>
 
@@ -66,7 +70,7 @@
     <div id="dialogue-box" onclick="nextLine()">
         <div class="speaker-name">Sempronius Longus</div>
         <div class="speech-text" id="speech"></div>
-        <div class="click-prompt">CLICK TO CONTINUE ▼</div>
+        <div class="click-prompt">TAP TO CONTINUE ▼</div>
     </div>
 
     <div id="title-screen">
@@ -85,7 +89,7 @@ const TXT = document.getElementById('speech');
 
 // Resolution
 const W = 320;
-const H = 240;
+const H = 420;
 
 // ASSETS
 const P = {
@@ -107,15 +111,23 @@ const SCRIPT = [
     },
     {
         scene: 'face', mood: 'angry',
-        text: "But my Consulship ends in a month! I will not leave this glory for the next man."
+        text: "But my consulship ends in a month! I will not leave this glory for the next man."
     },
     {
         scene: 'face', mood: 'neutral',
         text: "Hannibal is right there. Just across that river."
     },
     {
+        scene: 'face', mood: 'angry',
+        text: "What is that noise? Numidian horsemen, raiding our camp at dawn!"
+    },
+    {
+        scene: 'face', mood: 'yell',
+        text: "They mock us! Every man out after them. Now!"
+    },
+    {
         scene: 'river', mood: 'action',
-        text: "They say the water is freezing... they say we should wait for a clear day..."
+        text: "The river is freezing, they say. The men have not even eaten, they say..."
     },
     {
         scene: 'face', mood: 'yell',
@@ -123,7 +135,7 @@ const SCRIPT = [
     },
     {
         scene: 'river', mood: 'action',
-        text: "Legions! Forward! We cross the Trebia today!"
+        text: "Legions! Forward! Across the Trebia, after them!"
     }
 ];
 
@@ -198,11 +210,11 @@ function rect(x,y,w,h,c){ CTX.fillStyle=c; CTX.fillRect(Math.floor(x),Math.floor
 function drawFace(mood){
     rect(0,0,W,H, '#111');
     const cx = W/2;
-    const cy = H/2 - 20; // Shifted up
-    
-    // Shoulders
-    rect(cx-60, cy+40, 120, 60, P.roman); 
-    rect(cx-50, cy+40, 100, 60, '#991b1b'); 
+    const cy = H - 190;   // bust anchored to the bottom of the picture
+
+    // Shoulders, down to the bottom edge
+    rect(cx-60, cy+40, 120, H-(cy+40), P.roman); 
+    rect(cx-50, cy+40, 100, H-(cy+40), '#991b1b'); 
     rect(cx+30, cy+50, 10, 10, P.gold); 
 
     // Head

@@ -1,0 +1,83 @@
+/* =====================================================================
+   boot.css: one layout and look for every cutscene (and the epilogue).
+   Linked after each page's own <style>, so these rules win.
+   The picture fills the screen above a Game Boy-style text box, instead
+   of a short letterboxed strip with the text box covering the art.
+   ===================================================================== */
+:root{
+  --px-font: "Press Start 2P", ui-monospace, Menlo, Consolas, monospace;
+  --ink: #1a1410;
+  --paper: #f4ecd8;
+}
+html, body{ height: 100%; }
+body{
+  margin: 0 !important;
+  height: 100dvh !important; min-height: 100dvh !important;
+  display: flex !important; align-items: stretch !important; justify-content: center !important;
+  background: #0b0b0c !important; overflow: hidden !important;
+}
+
+/* picture on top, text box underneath */
+#stage{
+  display: flex !important; flex-direction: column !important;
+  width: 100% !important; max-width: 600px !important;
+  height: 100dvh !important; aspect-ratio: auto !important;
+  margin: 0 auto !important; position: relative !important;
+  background: #000 !important; border: none !important; box-shadow: none !important;
+}
+#stage > canvas{
+  flex: 1 1 auto !important; min-height: 0 !important;
+  width: 100% !important; height: auto !important; aspect-ratio: auto !important;
+  object-fit: contain; image-rendering: pixelated;
+}
+
+/* the text box (the coloured top edge still changes with the speaker) */
+#dialogue-box{
+  position: relative !important; left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
+  flex: 0 0 auto !important;
+  width: 100% !important; height: auto !important; min-height: 158px !important;
+  box-sizing: border-box !important;
+  padding: 16px 18px 30px !important;
+  background: #161210 !important;
+  border-left: 4px solid var(--ink); border-right: 4px solid var(--ink); border-bottom: 4px solid var(--ink);
+  border-top-width: 4px; border-top-style: solid;
+  box-shadow: inset 0 0 0 3px rgba(244,236,216,0.85) !important;
+  display: block !important;
+}
+.speaker-name{
+  font-family: var(--px-font) !important; font-size: 10px !important; font-weight: normal !important;
+  letter-spacing: 1px !important; margin: 0 0 12px 0 !important; text-transform: uppercase;
+}
+.speech-text{
+  font-family: var(--px-font) !important; font-size: 11px !important; font-weight: normal !important;
+  line-height: 1.9 !important; color: var(--paper) !important;
+}
+.click-prompt{
+  position: absolute !important; right: 16px !important; bottom: 10px !important; top: auto !important; left: auto !important;
+  font-family: var(--px-font) !important; font-size: 7px !important; letter-spacing: 0.5px;
+  animation: px-blink 1s steps(2) infinite !important;
+}
+@keyframes px-blink { 50% { opacity: 0; } }
+
+/* title screens */
+#title-screen{ padding: 20px; box-sizing: border-box; }
+#title-screen h1{
+  font-family: var(--px-font) !important; font-weight: normal !important;
+  font-size: clamp(22px, 7vw, 34px) !important; line-height: 1.35 !important; letter-spacing: 1px !important;
+  text-shadow: 4px 4px 0 #000 !important; margin: 0 0 16px 0 !important;
+}
+#title-screen h2{
+  font-family: var(--px-font) !important; font-weight: normal !important;
+  font-size: 10px !important; letter-spacing: 1px !important; line-height: 1.6 !important;
+  text-shadow: 2px 2px 0 #000 !important; margin: 0 0 28px 0 !important;
+}
+#title-screen button{
+  font-family: var(--px-font) !important; font-size: 12px !important; font-weight: normal !important;
+  letter-spacing: 0.5px; padding: 15px 22px !important; min-width: 220px;
+  border-radius: 0 !important; border: 3px solid var(--ink) !important; color: #fff !important;
+  background: #b83a24 !important;
+  box-shadow: inset -3px -3px 0 rgba(0,0,0,0.35), inset 3px 3px 0 rgba(255,255,255,0.25), 0 4px 0 #000 !important;
+  text-transform: uppercase;
+}
+#title-screen button + button{ background: #4a5568 !important; margin-top: 14px !important; }
+#title-screen button:active{ transform: translateY(3px); box-shadow: inset -3px -3px 0 rgba(0,0,0,0.35), 0 1px 0 #000 !important; }

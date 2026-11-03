@@ -74,6 +74,10 @@
 
     @keyframes blink { 50% { opacity: 0; } }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="boot.css">
 </head>
 <body>
 
@@ -101,7 +105,7 @@ const TXT = document.getElementById('speech');
 const NAME = document.getElementById('speaker');
 
 const W = 320;
-const H = 240;
+const H = 420;
 
 const P = {
   metal:'#b7bcc5', black:'#111114',
@@ -310,12 +314,13 @@ function drawCarthage(){
 
 function drawTriumph(){
     rect(0,0,W,H, P.sky);
-    rect(0, 150, 60, 90, P.marble); rect(260, 150, 60, 90, P.marble); rect(60, 180, 200, 60, '#d1d5db');
+    const g = H - 240;   // the street sits on the bottom of the picture
+    rect(0, 150+g, 60, 90, P.marble); rect(260, 150+g, 60, 90, P.marble); rect(60, 180+g, 200, 60, '#d1d5db');
     for(let i=0; i<15; i++){
-        let x = i*22; let y = 200 + Math.sin(frame/2 + i)*3;
+        let x = i*22; let y = 200 + g + Math.sin(frame/2 + i)*3;
         drawSprite('roman', x, y, 1.5);
     }
-    let cx = W/2 - 30; let cy = 170;
+    let cx = W/2 - 30; let cy = 170 + g;
     rect(cx-20, cy+10, 30, 15, '#5c4033'); rect(cx+50, cy+10, 30, 15, '#5c4033');
     rect(cx, cy, 60, 30, P.gold); drawSprite('yours', cx+20, cy-15, 2);
     for(let p of confetti){
