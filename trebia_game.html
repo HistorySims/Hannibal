@@ -126,6 +126,10 @@
     .btn-label{ font-size:10px; }
   }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 
@@ -154,6 +158,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="pixel.js"></script>
 <script>
 // =========================
 //  ASSETS & SPRITES
@@ -168,7 +173,6 @@ const P = {
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
-const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
 const NEXT_PAGE = "map.html";
 
@@ -188,55 +192,11 @@ const HISTORY_HTML = `
   </div>
 `;
 
-function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
 function isCarth(u){ return u.type!=='roman' && u.type!=='yours'; }
 function isVisible(u){
   if(u.hidden) return false;
   if(isCarth(u) && u.role!=='raider' && battlePhase < PH.BATTLE) return false;  // still in the fog
   return true;
-}
-
-function drawHorse(x, y, s, coat, rider){
-  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+5*s, y+9*s, 6*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-  for(let dx=1; dx<=8; dx++){ px(x+dx*s, y+5*s, s, coat); px(x+dx*s, y+6*s, s, coat); }
-  px(x+0*s, y+4*s, s, coat); px(x+0*s, y+3*s, s, coat); px(x+1*s, y+4*s, s, P.black);
-  px(x+2*s, y+7*s, s, coat); px(x+2*s, y+8*s, s, P.black);
-  px(x+7*s, y+7*s, s, coat); px(x+7*s, y+8*s, s, P.black);
-  px(x+9*s, y+5*s, s, P.black);
-  px(x+4*s, y+3*s, s, rider); px(x+4*s, y+4*s, s, rider); px(x+4*s, y+2*s, s, '#3a2a1a');
-}
-
-function drawSprite(u, scale){
-  if(!isVisible(u)) return;
-  const x = u.x * TILE - (u.type==='elephant'?0:4);
-  const y = u.y * TILE - 8;
-  const s = scale;
-
-  if(u.type === 'elephant'){
-    CTX.fillStyle = 'rgba(0,0,0,0.4)';
-    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill();
-    CTX.fillStyle = '#666'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
-    CTX.fillStyle = '#888'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
-    CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 6*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 6*s);
-    CTX.fillStyle = '#555'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
-    return;
-  }
-  if(u.type === 'cavalry'){
-    drawHorse(x-2, y, s, P.horse, u.role==='raider' || u.numid ? P.numid : P.libyan);
-    return;
-  }
-
-  const coat = {roman:P.roman, yours:P.you, invader:P.inv, libyan:P.libyan, mago:P.mago}[u.type] || P.inv;
-  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-  px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
-  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
-  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-  if(u.type==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
-  else if(u.type==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
-  else if(u.type==='libyan'){ px(x+3*s,y,s,P.metal); px(x+4*s,y,s,P.metal); }
-  else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
-  // soaked and freezing: icy shoulders
-  if(u.frozen > 0){ px(x+1*s, y+3*s, s, P.ice); px(x+6*s, y+3*s, s, P.ice); }
 }
 
 // =========================
@@ -246,7 +206,6 @@ const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
 const CX = 20;
-let SCALE = 2;
 
 const T = { GROUND:0, DEEP:1, FORD:2, BRUSH:3 };
 const RIVER_Y0 = 30, RIVER_Y1 = 33;
@@ -631,6 +590,8 @@ function handleAI(u){
       const v = grid[u.y+md.y] && grid[u.y+md.y][u.x+md.x];
       if(v && !isCarth(v)){
         v.hp -= 20;
+        v._hitT = PX.t; u._atkT = PX.t;
+        if(v.type==='yours') PX.shake(6);
         spawnBlood(v.x, v.y);
         spawnFloat("TRAMPLED", v.x, v.y, "#f00");
         if(v.hp<=0) grid[v.y][v.x]=null;
@@ -774,6 +735,8 @@ function attack(atk, def){
     else { dmg = 0; spawnFloat("TINK", def.x, def.y, "#ccc"); }
   }
   def.hp -= dmg;
+  def._hitT = PX.t; atk._atkT = PX.t;
+  if(def.type==='yours' && dmg > 0) PX.shake(4);
   spawnBlood(def.x, def.y);
   if(dmg > 0 && (atk.type==='yours' || def.type==='yours')) spawnFloat("-"+(+dmg.toFixed(1)), def.x, def.y, "#ef4444");
 
@@ -786,55 +749,45 @@ function attack(atk, def){
 // =========================
 //  VISUALS & FX
 // =========================
-function drawTerrain(){
-  for(let y=0; y<GRID_H; y++){
-    for(let x=0; x<GRID_W; x++){
-      const t = terrain[y][x], X = x*TILE, Y = y*TILE;
-      if(t===T.DEEP){
-        CTX.fillStyle = P.deep; CTX.fillRect(X,Y,TILE,TILE);
-        if((Math.floor(phaseTimer/40) + x + y)%5 === 0){ CTX.fillStyle='rgba(165,243,252,0.25)'; CTX.fillRect(X+4, Y+TILE/2, 10, 2); }
-      } else if(t===T.FORD){
-        CTX.fillStyle = P.ford; CTX.fillRect(X,Y,TILE,TILE);
-        px(X+4, Y+4, 2, P.reeds); px(X+12, Y+12, 2, P.reeds); px(X+18, Y+6, 2, P.reeds);
-        if((Math.floor(phaseTimer/30) + x)%4 === 0){ CTX.fillStyle='rgba(255,255,255,0.18)'; CTX.fillRect(X+2, Y+18, 8, 2); }
-      } else if(t===T.BRUSH){
-        CTX.fillStyle = P.brush; CTX.fillRect(X,Y,TILE,TILE);
-        CTX.fillStyle = P.brushDark;
-        CTX.fillRect(X+3, Y+6, 2, 12); CTX.fillRect(X+11, Y+2, 2, 14); CTX.fillRect(X+18, Y+8, 2, 12);
-        CTX.fillStyle = '#4c6b35'; CTX.fillRect(X+6, Y+4, 3, 3); CTX.fillRect(X+15, Y+14, 3, 3);
-      }
-    }
-  }
+const TREBIA_TILE = { [T.DEEP]:'deep', [T.FORD]:'ford', [T.BRUSH]:'brush' };
+function groundTile(x, y){
+  const t = terrain[y][x];
+  if(t !== T.GROUND) return TREBIA_TILE[t];
+  return 'snowGround';   // snow on frozen ground, dead grass poking through
+}
+
+function unitKind(u){
+  if(u.type==='yours') return 'yours';
+  if(u.type==='roman') return 'roman';
+  if(u.type==='invader') return 'gaul';
+  if(u.type==='libyan') return 'libyan';
+  if(u.type==='mago') return 'mago';
+  if(u.type==='elephant') return 'elephant';
+  if(u.type==='cavalry') return (u.role==='raider' || u.numid) ? 'numid' : 'carcav';
+  return 'gaul';
 }
 
 function draw(){
-  CTX.fillStyle=P.black;
-  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
+  PX.begin(cam.x/TILE, cam.y/TILE, '#3a3c3a');
+  PX.ground(GRID_W, GRID_H, groundTile);
 
-  CTX.save();
-  let cx = CANVAS.width/2 - cam.x;
-  let cy = CANVAS.height/2 - cam.y;
-  CTX.translate(Math.round(cx), Math.round(cy));
-
-  // frozen winter ground
-  CTX.fillStyle='#3a3c3a';
-  CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
-  CTX.fillStyle='#4a4d4a';
-  for(let i=0; i<160; i++) CTX.fillRect((i*47)%(GRID_W*TILE), (i*31)%(GRID_H*TILE), 3, 2);
-  CTX.fillStyle='rgba(230,236,240,0.35)';
-  for(let i=0; i<120; i++) CTX.fillRect((i*73)%(GRID_W*TILE), (i*53)%(GRID_H*TILE), 2, 2);
-
-  drawTerrain();
-
-  for(const u of units) drawSprite(u, SCALE);
+  for(const u of units){
+    if(!isVisible(u)) continue;
+    const roman = !isCarth(u);
+    PX.unit(u, unitKind(u), {
+      defaultBack: roman,
+      icy: roman && u.frozen > 0,
+      bar: u.type==='yours', hp: u.hp, maxHp: u.maxHp, barCol: '#38a848',
+      marker: u.type==='yours',
+    });
+  }
 
   // A glint of bronze in the brush, for those paying attention
   if(battlePhase < PH.MAGO){
     for(const u of units){
       if(!u.hidden) continue;
       if(((phaseTimer + Math.floor(u.f*997)) % 211) < 5){
-        CTX.fillStyle = '#fde68a';
-        CTX.fillRect(u.x*TILE+10, u.y*TILE+8, 3, 3);
+        PX.dot(u.x + 0.4, u.y + 0.3, '#fde68a', 1);
         if(!glintShown && battlePhase>=PH.BATTLE && Math.abs(u.y-player.y)<8 && Math.abs(u.x-player.x)<10){
           glintShown = true;
           spawnFloat("...a glint in the brush?", player.x, player.y-1, "#fde68a");
@@ -843,19 +796,15 @@ function draw(){
     }
   }
 
-  for(const p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+  for(const p of particles) PX.dot(p.x/TILE, p.y/TILE, p.color);
+  // Hits show as a white flash; only words that matter get printed
+  for(const f of floats){ if(f.life > 0.15 && f.text[0] !== '-') PX.label(f.text, f.x/TILE, f.y/TILE, f.color); }
 
-  CTX.font="bold 12px monospace"; CTX.textAlign="center";
-  for(const f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=Math.max(0,f.life); CTX.fillText(f.text, f.x+TILE/2, f.y); }
-  CTX.globalAlpha=1;
-
-  CTX.fillStyle = '#fff';
   for(const s of snow){
-    CTX.fillRect(s.x, s.y, s.s, s.s);
-    s.y += 1; s.x += Math.sin(Date.now()/1000);
+    PX.dot(s.x/TILE, s.y/TILE, '#f4f8fc', 1);
+    s.y += 0.8; s.x += Math.sin((phaseTimer + s.s*50)/60) * 0.6;
     if(s.y > GRID_H*TILE) s.y = 0;
   }
-  CTX.restore();
 }
 
 // =========================
@@ -1023,10 +972,10 @@ BOX.addEventListener('mousedown', ()=>{ BOX.focus?.(); });
 BOX.addEventListener('touchstart', ()=>{ BOX.focus?.(); }, {passive:true});
 
 // Resize
+let pxReady = false;
 function resize(){
-  CANVAS.width=BOX.clientWidth;
-  CANVAS.height=BOX.clientHeight;
-  CTX.imageSmoothingEnabled=false;
+  if(!pxReady){ PX.init(CANVAS, { scale: 3 }); pxReady = true; }
+  else PX.resize();
 }
 window.addEventListener('resize', resize);
 </script>
