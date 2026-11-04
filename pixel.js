@@ -160,11 +160,18 @@ const PX = (() => {
     return mapPic(rows, Object.assign({}, BASE, K.map));
   }
 
-  function sprite(kind, back, frame, flip, flash){
-    const key = kind+'|'+(back?1:0)+'|'+frame+'|'+(flip?1:0)+'|'+(flash?1:0);
+  // soaked and freezing: the whole figure turns frost-blue
+  function frost(c){
+    const n = parseInt(c.slice(1), 16), r = n>>16, g = (n>>8)&255, b = n&255;
+    const m = (v, w) => Math.round(v*0.4 + w*0.6);
+    return '#' + [m(r,150), m(g,215), m(b,240)].map(v => v.toString(16).padStart(2,'0')).join('');
+  }
+  function sprite(kind, back, frame, flip, flash, icy){
+    const key = kind+'|'+(back?1:0)+'|'+frame+'|'+(flip?1:0)+'|'+(flash?1:0)+'|'+(icy?1:0);
     let cv = cache.get(key);
     if(!cv){
       let grid = artGrid(kind, back, frame);
+      if(icy) grid = grid.map(r => r.map(c => (c && c[0]==='#' && c.length===7) ? frost(c) : c));
       if(flip) grid = grid.map(r => r.slice().reverse());
       cv = bake(grid, flash);
       cache.set(key, cv);
@@ -173,18 +180,19 @@ const PX = (() => {
   }
 
   // Horses and elephants are drawn side-on, from pixel maps
+  // facing right: tail, back with the rider astride, arched neck, head with ears up
   const HORSE = [
-    "......rr....",
-    "......RR....",
-    ".....rRRr...",
-    "hh...hhhhh..",
-    "hHh.hhhhhhhh",
-    ".hhhhhhhhhhh",
-    "..hhhhhhhhh.",
-    "..h.h...h.h.",
-    "..f.f...f.f.",
+    "......rr......",
+    "......RR...h..",
+    ".....rRRr.Hhh.",
+    ".....rrrrHhhhf",
+    "..hhhhrhhhh...",
+    ".Hhhhhrhhhh...",
+    "H.hhhhhhhh....",
+    "H.h.h..h.h....",
+    "..f.f..f.f....",
   ];
-  const HORSE2 = HORSE.slice(0,7).concat(["...hh...hh..", "...ff...ff.."]);
+  const HORSE2 = HORSE.slice(0,7).concat([".h...h.h...h..", "f....f.f....f."]);   // at the gallop
   const ELEPHANT = [
     "......tttt......",
     ".....tTTTTt.....",
@@ -497,16 +505,17 @@ const PX = (() => {
       img = mounted(kind, frame, face < 0, flash);
       oy = by + T - img.height + 1;
     } else {
-      img = sprite(kind, !!opts.back, frame, face < 0, flash);
+      img = sprite(kind, !!opts.back, frame, face < 0, flash, !!opts.icy);
       oy = by + T - img.height + 1 - (opts.bob ? 1 : 0);
       if(opts.lunge) oy += opts.back ? -1 : 1;
     }
     const ox = Math.round(bx + T/2 - img.width/2);
     ctx.drawImage(img, ox, Math.round(oy));
-    if(opts.icy && !MOUNTED.includes(kind) && kind !== 'elephant'){
-      // soaked and freezing: frost on the shoulders
-      ctx.fillStyle = C.ice;
-      ctx.fillRect(ox+2, Math.round(oy)+5, 1, 1); ctx.fillRect(ox+6, Math.round(oy)+5, 1, 1); ctx.fillRect(ox+4, Math.round(oy)+1, 1, 1);
+    if(opts.icy && !MOUNTED.includes(kind) && kind !== 'elephant' && (t + Math.round(bx*7 + by*3)) % 70 < 14){
+      // breath clouding in the cold
+      const k = ((t + Math.round(bx*7 + by*3)) % 70) >> 2;
+      ctx.fillStyle = 'rgba(240,248,255,0.8)';
+      ctx.fillRect(ox + img.width - 1 + (k>>1), Math.round(oy) + 2 - (k>>1), 2, 1);
     }
     return { ox, oy: Math.round(oy), w: img.width, h: img.height };
   }
