@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Second Punic War – Campaign</title>
+
+<style>
+html,body{
+  margin:0;
+  height:100%;
+  background:#020617;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overflow:hidden;
+}
+
+canvas{
+  width:100vw;
+  height:100vh;
+  display:block;
+  image-rendering: pixelated;
+}
+
+#hud{
+  position:fixed;
+  top:0; left:0; right:0;
+  padding:12px 14px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color:#fbbf24;
+  background:linear-gradient(to bottom, rgba(2,6,23,0.85), rgba(2,6,23,0));
+  pointer-events:none;
+}
+
+#progress{
+  position:fixed;
+  bottom:12px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:12px;
+  color:rgba(255,255,255,0.6);
+  background:rgba(0,0,0,0.4);
+  padding:4px 8px;
+  border-radius:4px;
+}
+
+#modal{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.75);
+}
+
+#card{
+  background:#0b0b0c;
+  border:1px solid #fbbf24;
+  padding:18px;
+  width:min(90vw,420px);
+  color:#e7e7ea;
+}
+
+#card h1{
+  margin:0 0 10px 0;
+  color:#fbbf24;
+  font-size:18px;
+}
+
+button{
+  font-family:inherit;
+  margin-top:12px;
+  padding:8px 12px;
+  background:#1e293b;
+  border:1px solid #fbbf24;
+  color:#f8fafc;
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div>SECOND PUNIC WAR</div>
+  <div>Campaign</div>
+</div>
+
+<div id="progress"></div>
+
+<div id="modal">
+  <div id="card">
+    <h1 id="mTitle"></h1>
+    <p id="mText"></p>
+    <button id="closeBtn">Return to Map</button>
+  </div>
+</div>
+
+<script>
+/* ===================== CONFIG ===================== */
+
+const MAP_SRC = "IMG_4198.jpeg"; 
+const STORAGE_KEY = "spw_campaign_progress_v1";
+
+/* Updated Coordinates */
+const battles = [
+  { id:"trebia",  name:"Trebia",         x:0.34, y:0.30 , url:"trebia_boot.html"},
+  { id:"tras",    name:"Lake Trasimene", x:0.49, y:0.41 , url:"tresimene_boot.html"},
+  { id:"fabian",  name:"Fabian Tactics", x:0.53, y:0.53 , url:"fabius_boot.html"},
+  { id:"cannae",  name:"Cannae",         x:0.75, y:0.55 , url:"cannae_boot.html"},
+  { id:"zama",    name:"Zama",           x:0.18, y:0.83 , url:"zama_boot.html"} 
+];
+
+/* ===================== SETUP ===================== */
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+const modal = document.getElementById("modal");
+const mTitle = document.getElementById("mTitle");
+const mText  = document.getElementById("mText");
+const closeBtn = document.getElementById("closeBtn");
+const progressLine = document.getElementById("progress");
+
+let mapImg = new Image();
+mapImg.src = MAP_SRC;
+
+// Load progress or start fresh
+let state = {};
+try {
+  state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+} catch(e) {
+  console.warn("Failed to parse campaign progress, resetting:", e);
+  state = {};
+}
+
+function resize(){
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  if(mapImg.complete) draw();
+}
+window.addEventListener("resize", resize);
+
+/* ===================== HELPERS ===================== */
+
+function nextIndex(){
+  for(let i=0;i<battles.length;i++){
+    if(!state[battles[i].id]) return i;
+  }
+  return battles.length;
+}
+
+function drawMarker(x,y,active){
+  // Active = the next battle to fight (bright yellow)
+  // Inactive = past battles (faded)
+  ctx.fillStyle = active ? "#fbbf24" : "rgba(251,191,36,0.5)";
+  
+  // Cross shape
+  ctx.fillRect(x-6,y-18,12,36);
+  ctx.fillRect(x-18,y-6,36,12);
+}
+
+function drawArrow(ax,ay,bx,by){
+  ctx.strokeStyle = "#ef4444";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(ax,ay);
+  ctx.lineTo(bx,by);
+  ctx.stroke();
+}
+
+/* ===================== DRAW ===================== */
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 1. Map
+  ctx.drawImage(mapImg, 0,0, canvas.width, canvas.height);
+
+  const unlocked = nextIndex();
+
+  // 2. Connecting Lines (Arrows)
+  for(let i=0;i<unlocked;i++){
+    const A = battles[i-1];
+    const B = battles[i];
+    if(!A) continue; // Skip first battle arrow
+    drawArrow(
+      A.x*canvas.width, A.y*canvas.height,
+      B.x*canvas.width, B.y*canvas.height
+    );
+  }
+
+  // 3. Markers
+  battles.forEach((b,i)=>{
+    // Don't draw future locked battles
+    if(i > unlocked) return;
+
+    const x = b.x*canvas.width;
+    const y = b.y*canvas.height;
+    drawMarker(x,y,i===unlocked);
+
+    // Label
+    ctx.fillStyle="#000"; // Shadow
+    ctx.font="bold 13px ui-monospace, monospace";
+    ctx.textAlign="center";
+    ctx.fillText(b.name, x+1, y-21);
+    
+    ctx.fillStyle="#fff"; // Text
+    ctx.fillText(b.name, x, y-22);
+  });
+
+  const done = battles.filter(b=>state[b.id]).length;
+  if(done >= battles.length){
+    progressLine.innerHTML = `Campaign complete · <a href="victory.html" style="color:#fbbf24">Epilogue ▶</a>`;
+  } else {
+    progressLine.textContent = `Progress: ${done}/${battles.length}`;
+  }
+}
+
+mapImg.onload = draw;
+
+/* ===================== INTERACTION ===================== */
+
+canvas.addEventListener("pointerup", e=>{
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX-r.left)/r.width;
+  const my = (e.clientY-r.top)/r.height;
+
+  // Since the image aspect ratio changes on phones vs desktop,
+  // we need a generous click radius.
+  
+  // Adjust aspect ratio for click detection
+  const aspect = canvas.width / canvas.height;
+  
+  const unlocked = nextIndex();
+
+  for(let i=0;i<=Math.min(unlocked, battles.length-1);i++){
+    const b = battles[i];
+    const dx = (mx - b.x);
+    const dy = (my - b.y) / aspect; // normalize Y distance
+    
+    // Distance check (approx 5% radius)
+    if((dx*dx + dy*dy) < 0.003){
+      openBattle(i);
+      break;
+    }
+  }
+});
+
+function openBattle(i){
+  const b = battles[i];
+  
+  // 1. If we have a dedicated boot file, go there!
+  if(b.url){
+    // Mark as visited immediately (optional, or do this after winning)
+    if(i === nextIndex()){
+      state[b.id]=true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+    window.location.href = b.url;
+    return;
+  }
+
+  // 2. Otherwise, show the placeholder modal (for future levels)
+  mTitle.textContent = b.name;
+  mText.textContent = `${b.name} placeholder screen. Click below to return.`;
+  modal.style.display="flex";
+
+  if(i === nextIndex()){
+    state[b.id]=true;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+}
+
+
+closeBtn.onclick = ()=>{
+  modal.style.display="none";
+  draw();
+};
+
+/* Initial resize to set it up */
+resize();
+
+</script>
+</body>
+</html>
