@@ -387,6 +387,14 @@ const PX = (() => {
     ctx.imageSmoothingEnabled = false;
   }
   function setScale(s){ scale = s; resize(); }
+
+  // Cutscenes: draw into a fixed-size buffer (no automatic resizing; the page scales the canvas)
+  function useCanvas(cv, w, h){
+    canvas = null;
+    ctx = cv.getContext('2d', { alpha:false });
+    cv.width = w; cv.height = h; W = w; H = h;
+    ctx.imageSmoothingEnabled = false;
+  }
   function getScale(){ return scale; }
 
   // camTileX/Y: the world point (in tiles) to centre on
@@ -525,7 +533,7 @@ const PX = (() => {
     });
   }
 
-  return { T, C, init, resize, setScale, getScale, begin, ground, glide, unit, figure, pic, dot, label, text, overlay, rectWorld, pointer, shake,
+  return { T, C, init, useCanvas, bake, resize, setScale, getScale, begin, ground, glide, unit, figure, pic, dot, label, text, overlay, rectWorld, pointer, shake,
            get ctx(){ return ctx; }, get t(){ return t; }, get W(){ return W; }, get H(){ return H; },
            get camX(){ return camX; }, get camY(){ return camY; } };
 })();
