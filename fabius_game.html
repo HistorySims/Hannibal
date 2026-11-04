@@ -114,6 +114,10 @@
     #kbd-hint{opacity:0.9;}
   }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 
@@ -155,6 +159,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="pixel.js"></script>
 <script>
 // ===================================================
 //  ROUTING / END FLOW
@@ -222,66 +227,7 @@ const P = {
 };
 
 const CANVAS = document.getElementById('cv');
-const CTX = CANVAS.getContext('2d', { alpha:false });
 const BOX = document.getElementById('game-box');
-let DPR=1, VIEW_W=0, VIEW_H=0;
-
-function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-
-function drawSoldier(x, y, s, coat, helm){
-  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-  px(x+1*s, y+6*s, s, '#111'); px(x+6*s, y+6*s, s, '#111');
-  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
-  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-  px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
-}
-
-function drawSprite(u, scale){
-  const x = u.x * TILE - 4;
-  const y = u.y * TILE - 8;
-  const s = scale;
-
-  if(u.type === 'village'){
-    const dead = u.state !== 'intact';
-    CTX.fillStyle = P.shadow; CTX.fillRect(x+2*s, y+8*s, 12*s, 4*s);
-    CTX.fillStyle = dead ? '#6b7280' : P.village; CTX.fillRect(x, y+4*s, 10*s, 8*s);
-    CTX.fillStyle = dead ? '#4b5563' : '#9ca3af'; CTX.fillRect(x+6*s, y+2*s, 8*s, 8*s);
-    CTX.fillStyle = dead ? '#3f3f46' : P.roof;
-    CTX.beginPath(); CTX.moveTo(x-2*s, y+4*s); CTX.lineTo(x+5*s, y-2*s); CTX.lineTo(x+12*s, y+4*s); CTX.fill();
-    if(dead && (phaseTimer % 40) < 30){
-      px(x+4*s, y-4*s, s, '#f59e0b'); px(x+5*s, y-5*s, s, '#f59e0b'); px(x+6*s, y-4*s, s, '#f59e0b');
-      px(x+5*s, y-6*s, s, '#ef4444');
-      px(x+3*s, y-8*s, s, 'rgba(156,163,175,0.8)'); px(x+7*s, y-9*s, s, 'rgba(156,163,175,0.6)');
-    }
-    // being plundered: a progress bar
-    if(u.state==='intact' && u.plunder > 0){
-      CTX.fillStyle='#000'; CTX.fillRect(x, y-10*s, 12*s, 3);
-      CTX.fillStyle='#ef4444'; CTX.fillRect(x, y-10*s, 12*s*(u.plunder/PLUNDER_FRAMES), 3);
-    }
-    return;
-  }
-  if(u.type==='hannibal'){
-    // Hannibal's army: a dense knot of troops around the general
-    for(const [ox,oy] of [[-10,-6],[10,-6],[-12,6],[12,6],[0,10]]) drawSoldier(x+ox, y+oy, s*0.75, P.forager, '#444');
-    drawSoldier(x, y, s, P.hannibal, '#111');
-    CTX.fillStyle = '#000'; CTX.fillRect(x+2*s, y+2*s, 4*s, 6*s);
-    return;
-  }
-  if(u.type==='fabius'){
-    for(const [ox,oy] of [[-10,-6],[10,-6],[-10,6],[10,6]]) drawSoldier(x+ox, y+oy, s*0.75, '#c53030', '#fbbf24');
-    drawSoldier(x, y, s, P.fabius, '#fff');
-    return;
-  }
-  if(u.type==='minucius'){
-    for(const [ox,oy] of [[-10,-4],[10,-4],[0,8]]) drawSoldier(x+ox, y+oy, s*0.75, '#c53030', '#fbbf24');
-    drawSoldier(x, y, s, P.minucius, '#fbbf24');
-    return;
-  }
-  if(u.type==='forager'){
-    drawSoldier(x+3, y+3, s*0.8, P.forager, '#444');
-    px(x+8*s, y+4*s, 2*s, '#d4b483');   // sack of grain
-  }
-}
 
 // ===================================================
 //  CONFIG
@@ -289,7 +235,6 @@ function drawSprite(u, scale){
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
-let SCALE = 2;
 
 const TERR = { PLAIN:0, FOREST:1, HILL:2 };
 
@@ -557,6 +502,8 @@ function handleHannibal(){
       // Battle on open ground: he crushes you
       if(target === fabius && onHill(fabius)){ hannibal.cooldown = 20; return; }
       target.hp -= STATS.crushDmg;
+      target._hitT = PX.t; hannibal._atkT = PX.t;
+      if(target === fabius) PX.shake(5);
       spawnBlood(target.x, target.y);
       spawnFloat("CRUSHED!", target.x, target.y, '#f00');
       if(target === minucius && target.hp <= 0) minuciusLost();
@@ -697,6 +644,7 @@ function doAttack(e){
   const f = units.find(u => u.type==='forager' && u.hp>0 && dist(u, fabius) <= 1.5);
   if(f){
     f.hp -= STATS.fabDmg;
+    f._hitT = PX.t;
     spawnBlood(f.x, f.y);
     if(f.hp <= 0){ stats.foragers++; changeConf(CONF.forager, "foragers routed"); }
     return;
@@ -705,7 +653,7 @@ function doAttack(e){
   if(dist(fabius, hannibal) <= 1.5){
     spawnFloat("He barely notices", hannibal.x, hannibal.y, '#aaa');
     changeConf(CONF.attackHannibal, "Rome cheers");
-    if(!onHill(fabius)){ fabius.hp -= STATS.crushDmg; spawnBlood(fabius.x, fabius.y); }
+    if(!onHill(fabius)){ fabius.hp -= STATS.crushDmg; fabius._hitT = PX.t; PX.shake(5); spawnBlood(fabius.x, fabius.y); }
     return;
   }
   // 3. Scorched earth: burn the crops before he can take them
@@ -775,66 +723,70 @@ function finishRun(kind){
 // ===================================================
 //  VISUALS
 // ===================================================
-function draw(){
-  CTX.fillStyle='#111';
-  CTX.fillRect(0,0,VIEW_W,VIEW_H);
+const FAB_TILE = { [TERR.PLAIN]:'grass', [TERR.FOREST]:'forest', [TERR.HILL]:'hill' };
 
-  CTX.save();
-  let cx = VIEW_W/2 - cam.x;
-  let cy = VIEW_H/2 - cam.y;
-  CTX.translate(Math.round(cx), Math.round(cy));
+// An army on the map: its commander with a few men around him (and, for Hannibal, his last elephant)
+const ARMIES = {
+  fabius:   { lead:'yours',    men:['roman','roman','roman','roman'] },
+  minucius: { lead:'roman',    men:['roman','roman','triarii'] },
+  hannibal: { lead:'hannibal', men:['libyan','gaul','spaniard','libyan'], elephant:true },
+};
+const ESCORT = [[-6,-4],[6,-4],[-6,3],[6,3]];
+function drawArmy(u){
+  const A = ARMIES[u.type];
+  const moving = PX.glide(u);
+  const T8 = PX.T, bx = Math.round(u._rx*T8), by = Math.round(u._ry*T8);
+  const frame = moving ? Math.floor(PX.t/8) % 2 : 0;
+  const flash = u._hitT !== undefined && PX.t - u._hitT < 5;
+  const face = u._face || 1;
+  if(A.elephant) PX.figure('elephant', bx + 9*face, by - 5, { face, frame, flash });
+  const men = A.men.map((k,i) => ({ k, dx:ESCORT[i][0], dy:ESCORT[i][1] }));
+  for(const m of men.filter(m => m.dy < 0)) PX.figure(m.k, bx+m.dx, by+m.dy, { face, frame, flash });
+  PX.figure(A.lead, bx, by, { face, frame, flash });
+  for(const m of men.filter(m => m.dy > 0)) PX.figure(m.k, bx+m.dx, by+m.dy, { face, frame, flash });
+}
 
-  for(let y=0; y<GRID_H; y++){
-    for(let x=0; x<GRID_W; x++){
-      const t = grid[y][x], X = x*TILE, Y = y*TILE;
-      if(t===TERR.HILL){
-        CTX.fillStyle = P.hill; CTX.fillRect(X, Y, TILE, TILE);
-        CTX.fillStyle = P.hillTop; CTX.fillRect(X+3, Y+3, TILE-8, 4);
-        CTX.fillStyle = '#4f4740'; CTX.fillRect(X+4, Y+14, 14, 4);
-      } else if(t===TERR.FOREST){
-        CTX.fillStyle = P.forest; CTX.fillRect(X, Y, TILE, TILE);
-        CTX.fillStyle='#0f3d20'; CTX.fillRect(X+8, Y+4, 8, 12);
-      } else {
-        CTX.fillStyle = P.grass; CTX.fillRect(X, Y, TILE, TILE);
-        if((x*7+y*11)%6===0){ CTX.fillStyle='#65a30d'; CTX.fillRect(X+6, Y+8, 3, 3); }
-      }
+function drawVillage(v){
+  if(v.state === 'intact'){
+    PX.pic('house', v.x, v.y);
+    if(v.plunder > 0){
+      // being plundered: a burning bar over the roof
+      PX.rectWorld(v.x - 0.5, v.y - 1.25, 2, 0.25, '#1a1410');
+      PX.rectWorld(v.x - 0.5, v.y - 1.25, Math.round(16*Math.min(1, v.plunder/PLUNDER_FRAMES))/8, 0.25, '#ef4444');
     }
+    return;
   }
+  PX.pic('ruin', v.x, v.y);
+  // still smouldering
+  const t = PX.t;
+  if(t % 40 < 30){
+    PX.dot(v.x + 0.3, v.y - 0.1, '#f59e0b', 1); PX.dot(v.x + 0.5, v.y - 0.3, '#ef4444', 1); PX.dot(v.x + 0.7, v.y - 0.1, '#fde047', 1);
+  }
+  const rise = (t % 60) / 60;
+  PX.dot(v.x + 0.4 + Math.sin(t/20)*0.2, v.y - 0.5 - rise, 'rgba(160,160,160,0.8)', 1);
+}
+
+function draw(){
+  PX.begin(cam.x/TILE + 0.5, cam.y/TILE + 0.5, '#2a3a1a');
+  PX.ground(GRID_W, GRID_H, (x,y) => FAB_TILE[grid[y][x]]);
 
   const all = units.filter(u => u.hp > 0 || u.type==='village');
   all.sort((a,b)=>a.y - b.y);
-  for(const u of all) drawSprite(u, SCALE);
-
-  // On the hills you are safe: a little banner marks it
-  if(onHill(fabius)){
-    CTX.font="bold 10px monospace"; CTX.textAlign="center"; CTX.fillStyle='#fde68a';
-    CTX.fillText("HIGH GROUND", fabius.x*TILE+TILE/2, fabius.y*TILE-22);
+  for(const u of all){
+    if(u.type==='village') drawVillage(u);
+    else if(u.type==='forager') PX.unit(u, 'forager', {});
+    else drawArmy(u);
   }
 
-  for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+  // On the hills you are safe: say so
+  if(onHill(fabius)) PX.label("HIGH GROUND", fabius._rx ?? fabius.x, (fabius._ry ?? fabius.y) - 1.6, '#fde68a');
 
-  CTX.font="bold 12px monospace"; CTX.textAlign="center";
-  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=Math.max(0,f.life); CTX.fillText(f.text, f.x+TILE/2, f.y); }
-  CTX.globalAlpha=1;
-  CTX.restore();
+  for(const p of particles) PX.dot(p.x/TILE, p.y/TILE, p.color);
+  for(const f of floats){ if(f.life > 0.15) PX.label(f.text, f.x/TILE, f.y/TILE, f.color); }
 
-  // Off-screen arrows: a farm being plundered, and Minucius
-  const arrows = [];
-  if(raidAlert.active) arrows.push({x:raidAlert.x, y:raidAlert.y, col:'239,68,68', label:'HELP!'});
-  if(minucius && minucius.hp > 0) arrows.push({x:minucius.x, y:minucius.y, col:'251,191,36', label:'MINUCIUS'});
-  for(const a of arrows){
-    const dx = a.x*TILE + TILE/2 - cam.x, dy = a.y*TILE + TILE/2 - cam.y;
-    if(Math.abs(dx) > VIEW_W/2 || Math.abs(dy) > VIEW_H/2){
-      const ang = Math.atan2(dy, dx);
-      const ax = VIEW_W/2 + Math.cos(ang)*140, ay = VIEW_H/2 + Math.sin(ang)*140;
-      CTX.save(); CTX.translate(ax, ay); CTX.rotate(ang);
-      CTX.fillStyle = `rgba(${a.col}, ${ (Math.sin(Date.now()/100)+1)/4 + 0.5 })`;
-      CTX.beginPath(); CTX.moveTo(10,0); CTX.lineTo(-10,10); CTX.lineTo(-10,-10); CTX.fill();
-      CTX.restore();
-      CTX.font="bold 14px sans-serif"; CTX.fillStyle="white"; CTX.textAlign="center";
-      CTX.fillText(a.label, ax, ay + 28);
-    }
-  }
+  // Off-screen pointers: a farm being plundered, and Minucius
+  if(raidAlert.active) PX.pointer(raidAlert.x, raidAlert.y, '#ef4444', 'HELP!');
+  if(minucius && minucius.hp > 0) PX.pointer(minucius.x, minucius.y, '#fbbf24', 'MINUCIUS');
 }
 
 // ===================================================
@@ -918,16 +870,10 @@ document.addEventListener('touchmove', (e)=>{ if(gameActive) e.preventDefault();
 // ===================================================
 //  RESIZE (RETINA)
 // ===================================================
+let pxReady = false;
 function resize(){
-  const rect = BOX.getBoundingClientRect();
-  VIEW_W = Math.max(1, Math.floor(rect.width));
-  VIEW_H = Math.max(1, Math.floor(rect.height));
-  DPR = Math.min(3, window.devicePixelRatio || 1);
-
-  CANVAS.width = Math.floor(VIEW_W * DPR);
-  CANVAS.height = Math.floor(VIEW_H * DPR);
-  CTX.setTransform(DPR,0,0,DPR,0,0); // draw in CSS pixels
-  CTX.imageSmoothingEnabled=false;
+  if(!pxReady){ PX.init(CANVAS, { scale: 3 }); pxReady = true; }
+  else PX.resize();
 }
 window.addEventListener('resize', resize, {passive:true});
 window.addEventListener('orientationchange', resize, {passive:true});

@@ -1,0 +1,95 @@
+/* =====================================================================
+   ui.css: one look for the HUD, messages, overlays and controls of every
+   battle. Linked after each page's own <style>, so these rules win.
+   Pixel font for short game text; a plain font for paragraphs.
+   ===================================================================== */
+:root{
+  --px-font: "Press Start 2P", ui-monospace, Menlo, Consolas, monospace;
+  --body-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ink: #1a1410;
+  --paper: #f4ecd8;
+  --rome: #ef4444;
+  --carth: #60a5fa;
+  --gold: #fbbf24;
+  --you: #4ade80;
+  --panel: rgba(16, 12, 10, 0.86);
+}
+
+/* ---------- HUD ---------- */
+.hud-top{
+  top: 0 !important; height: auto !important;
+  padding: 10px 8px 14px !important;
+  gap: 14px !important; flex-wrap: wrap;
+  font-family: var(--px-font) !important; font-size: 10px !important; font-weight: normal !important;
+  letter-spacing: 0.5px; line-height: 1.6;
+  text-shadow: 2px 2px 0 var(--ink) !important;
+  background: linear-gradient(to bottom, rgba(10,8,6,0.85) 60%, transparent) !important;
+}
+.team-rom{ color: var(--rome) !important; }
+.team-han{ color: var(--carth) !important; }
+.team-you{ color: var(--you) !important; }
+
+/* Fabius' stat panels */
+.hud-panel .stat-box{
+  background: var(--panel) !important; border: 2px solid var(--ink) !important;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.15) inset; border-radius: 0 !important;
+}
+.hud-panel .stat-label{ font-family: var(--px-font); font-size: 7px !important; letter-spacing: 0.5px; color: #cbbfa8 !important; }
+.hud-panel .stat-val{ font-family: var(--px-font); font-size: 11px !important; font-weight: normal !important; margin: 3px 0 4px; }
+.hud-panel .bar-bg{ border-radius: 0 !important; border: 1px solid var(--ink); }
+.hud-panel .bar-fill{ border-radius: 0 !important; }
+
+/* ---------- Battle messages: a framed text box under the HUD ---------- */
+#center-msg{
+  top: 56px !important; transform: translateX(-50%) !important;
+  width: auto !important; max-width: min(92%, 520px);
+}
+#center-msg .big-text{
+  font-family: var(--px-font) !important; font-size: 12px !important; font-weight: normal !important;
+  line-height: 1.7; letter-spacing: 0.5px;
+  text-shadow: 2px 2px 0 var(--ink) !important;
+  background: var(--panel); padding: 10px 14px;
+  border: 3px solid var(--ink); box-shadow: 0 0 0 2px rgba(255,255,255,0.25) inset;
+}
+
+/* ---------- Overlays (intro, end, history) ---------- */
+#overlay{ background: rgba(8,6,5,0.94) !important; }
+#overlay h1, #overlay h2, #title-screen h1{
+  font-family: var(--px-font) !important; font-weight: normal !important;
+  letter-spacing: 1px; line-height: 1.4; text-shadow: 3px 3px 0 #000;
+}
+#overlay h1{ font-size: 22px !important; margin: 0 0 18px 0 !important; }
+#overlay h2{ font-size: 13px !important; }
+#overlay p{ font-family: var(--body-font); font-size: 15px; line-height: 1.55; }
+
+/* ---------- Buttons ---------- */
+.btn-start, .btn-muted, .btn-secondary, #closeBtn{
+  font-family: var(--px-font) !important; font-size: 11px !important; font-weight: normal !important;
+  letter-spacing: 0.5px; line-height: 1.4;
+  padding: 14px 18px !important; border-radius: 0 !important;
+  border: 3px solid var(--ink) !important;
+  box-shadow: inset -3px -3px 0 rgba(0,0,0,0.35), inset 3px 3px 0 rgba(255,255,255,0.25), 0 4px 0 #000 !important;
+  cursor: pointer;
+}
+.btn-start{ background: #b83a24; color: #fff; }
+.btn-muted, .btn-secondary{ background: #4a5568 !important; color: #fff; }
+.btn-start:active, .btn-muted:active, .btn-secondary:active{ transform: translateY(3px); box-shadow: inset -3px -3px 0 rgba(0,0,0,0.35), 0 1px 0 #000 !important; }
+
+/* ---------- Controls ---------- */
+#stick-zone{ background: rgba(0,0,0,0.18) !important; }
+.stick-bg{ border: 3px solid rgba(255,255,255,0.35) !important; }
+.stick-nub{ background: rgba(244,236,216,0.9) !important; border: 3px solid var(--ink); box-shadow: none !important; }
+#btn-attack{
+  background: var(--gold) !important; border: 3px solid var(--ink) !important;
+  box-shadow: inset -4px -4px 0 rgba(0,0,0,0.25), inset 4px 4px 0 rgba(255,255,255,0.4), 0 4px 0 #000 !important;
+}
+#btn-attack:active{ background: #d99a10 !important; }
+#btn-zoom{ border: 2px solid var(--ink) !important; background: rgba(244,236,216,0.35) !important; }
+.dpad-btn{ border-radius: 0 !important; border: 2px solid var(--ink) !important; background: rgba(244,236,216,0.35) !important; }
+.btn-label, .btn-hint, #kbd-hint{
+  font-family: var(--px-font) !important; font-size: 7px !important; letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 #000 !important;
+}
+
+/* Fabius has stat panels at the top: put the message box below them */
+.hud-panel ~ #center-msg{ top: 128px !important; }

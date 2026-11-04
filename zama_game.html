@@ -93,6 +93,10 @@
     background:#475569; box-shadow:0 4px 0 #334155;
   }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 
@@ -124,6 +128,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="pixel.js"></script>
 <script>
 // ===================================================
 //  ROUTING
@@ -143,48 +148,7 @@ const P = {
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
-const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
-
-function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-
-function drawHorse(x, y, s, horse, rider, helm){
-  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+5*s, y+9*s, 6*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-  for(let dx=1; dx<=8; dx++){ px(x+dx*s, y+5*s, s, horse); px(x+dx*s, y+6*s, s, horse); }
-  px(x, y+4*s, s, horse); px(x, y+3*s, s, horse); px(x+1*s, y+4*s, s, P.black);
-  px(x+2*s, y+7*s, s, horse); px(x+2*s, y+8*s, s, P.black);
-  px(x+7*s, y+7*s, s, horse); px(x+7*s, y+8*s, s, P.black);
-  px(x+4*s, y+3*s, s, rider); px(x+4*s, y+4*s, s, rider); px(x+4*s, y+2*s, s, helm);
-}
-
-function drawSprite(u, scale){
-  const x = u.x * TILE - (u.type==='elephant'?0:4);
-  const y = u.y * TILE - 8;
-  const s = scale;
-
-  if(u.type === 'elephant'){
-    CTX.fillStyle = 'rgba(0,0,0,0.3)';
-    CTX.beginPath(); CTX.ellipse(x+8*s, y+10*s, 8*s, 4*s, 0,0,Math.PI*2); CTX.fill();
-    CTX.fillStyle = u.panic ? '#8a8a8a' : '#777'; CTX.fillRect(x, y-5*s, 16*s, 14*s);
-    CTX.fillStyle = '#b91c1c'; CTX.fillRect(x+4*s, y-5*s, 8*s, 4*s);
-    CTX.fillStyle = '#999'; CTX.fillRect(x-2*s, y-4*s, 4*s, 8*s); CTX.fillRect(x+14*s, y-4*s, 4*s, 8*s);
-    CTX.fillStyle = '#fff'; CTX.fillRect(x+4*s, y+6*s, 2*s, 8*s); CTX.fillRect(x+10*s, y+6*s, 2*s, 8*s);
-    CTX.fillStyle = '#666'; CTX.fillRect(x+7*s, y+2*s, 2*s, 10*s);
-    if(u.panic){ CTX.fillStyle='#fde68a'; CTX.font='bold 14px monospace'; CTX.fillText('!', x+8*s, y-7*s); }
-    return;
-  }
-  if(u.type === 'romcav') return drawHorse(x-2, y, s, '#78350f', u.numid ? '#d6b26a' : P.roman, u.numid ? '#f59e0b' : P.gold);
-  if(u.type === 'carcav') return drawHorse(x-2, y, s, '#3f2a1a', '#2563eb', '#444');
-
-  const coat = {roman: u.role==='triarii' ? P.triarii : P.roman, yours:P.you, velite:P.velite,
-                mercenary:P.mercenary, levy:P.levy, veteran:P.veteran}[u.type] || P.black;
-  const helm = {roman:P.gold, yours:P.white, velite:'#8b5a2b', mercenary:'#a8a29e', levy:P.metal, veteran:P.gold}[u.type] || P.metal;
-  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-  px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
-  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
-  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-  px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
-}
 
 // ===================================================
 //  CONFIG
@@ -192,7 +156,6 @@ function drawSprite(u, scale){
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
-let SCALE = 2;
 
 const LANES = [10, 20, 30];   // Scipio left open lanes between his maniples
 const inLane = x => LANES.some(l => x >= l-1 && x <= l+1);
@@ -544,6 +507,8 @@ function elephantAI(u){
     if(!isCarth(v) || hitsOwn){
       const dmg = v.type==='yours' ? 35 : 11;
       v.hp -= dmg;
+      v._hitT = PX.t;
+      if(v.type==='yours') PX.shake(8);
       spawnBlood(v.x, v.y);
       spawnFloat("TRAMPLED", v.x, v.y, "#f00");
       if(v.hp<=0){ grid[v.y][v.x]=null; }
@@ -593,6 +558,8 @@ function attack(atk, def){
     else { dmg = 0; if(atk.type==='yours') spawnFloat("BLOCKED", def.x, def.y, "#ccc"); }
   }
   def.hp -= dmg;
+  def._hitT = PX.t; atk._atkT = PX.t;
+  if(def.type==='yours' && dmg > 0) PX.shake(4);
   spawnBlood(def.x, def.y);
   if(atk.type==='yours' || def.type==='yours') if(dmg>0) spawnFloat("-"+(+dmg.toFixed(1)), def.x, def.y, "#ef4444");
   if(def.hp<=0){
@@ -696,32 +663,44 @@ window.addEventListener('keyup', (e)=>{
 // ===================================================
 //  DRAW
 // ===================================================
-function draw(){
-  CTX.fillStyle=P.black;
-  CTX.fillRect(0,0,CANVAS.width,CANVAS.height);
-  CTX.save();
-  CTX.translate(Math.round(CANVAS.width/2 - cam.x), Math.round(CANVAS.height/2 - cam.y));
+function unitKind(u){
+  switch(u.type){
+    case 'yours': return 'yours';
+    case 'roman': return u.role==='triarii' ? 'triarii' : 'roman';
+    case 'velite': return 'velite';
+    case 'romcav': return u.numid ? 'numid' : 'romcav';
+    case 'elephant': return 'elephant';
+    case 'mercenary': return 'merc';
+    case 'levy': return 'levy';
+    case 'veteran': return 'veteran';
+    case 'carcav': return 'carcav';
+  }
+  return 'roman';
+}
 
-  CTX.fillStyle=P.sand;
-  CTX.fillRect(0,0,GRID_W*TILE, GRID_H*TILE);
-  CTX.fillStyle=P.sandDark;
-  for(let i=0; i<140; i++) CTX.fillRect((i*47)%(GRID_W*TILE), (i*31)%(GRID_H*TILE), 3, 3);
+function draw(){
+  PX.begin(cam.x/TILE + 0.5, cam.y/TILE + 0.5, '#b08968');
   // the lanes, worn into the dust behind the velites
-  CTX.fillStyle = 'rgba(120,80,40,0.10)';
-  for(const l of LANES) CTX.fillRect((l-1)*TILE, 32*TILE, 3*TILE, (GRID_H-32)*TILE);
+  PX.ground(GRID_W, GRID_H, (x,y) => (y >= 32 && inLane(x)) ? 'sandLane' : 'sand');
   // where Scipio wants the new line
   if(battlePhase===PH.REFORM || battlePhase===PH.VETERANS){
-    CTX.fillStyle = 'rgba(255,255,255,0.12)';
-    CTX.fillRect(2*TILE, lineY*TILE, 36*TILE, 2*TILE);
+    PX.rectWorld(2, lineY, 36, 2, 'rgba(255,255,255,0.14)');
+    PX.rectWorld(2, lineY, 36, 0.125, 'rgba(255,255,255,0.5)');
   }
 
-  for(const u of units) drawSprite(u, SCALE);
-  for(const p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+  for(const u of units){
+    const roman = !isCarth(u);
+    PX.unit(u, unitKind(u), {
+      defaultBack: roman,
+      panic: u.panic,
+      bar: u.type==='yours', hp: u.hp, maxHp: u.maxHp, barCol: '#38a848',
+      marker: u.type==='yours',
+    });
+  }
 
-  CTX.font="bold 12px monospace"; CTX.textAlign="center";
-  for(const f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=Math.max(0,f.life); CTX.fillText(f.text, f.x+TILE/2, f.y); }
-  CTX.globalAlpha=1;
-  CTX.restore();
+  for(const p of particles) PX.dot(p.x/TILE, p.y/TILE, p.color);
+  // Hits show as a white flash; only words that matter get printed
+  for(const f of floats){ if(f.life > 0.15 && f.text[0] !== '-') PX.label(f.text, f.x/TILE, f.y/TILE, f.color); }
 }
 
 // ===================================================
@@ -749,7 +728,11 @@ function showMsg(txt, col){
   clearTimeout(showMsg._t);
   showMsg._t = setTimeout(()=>el.style.opacity=0, 2600);
 }
-function resize(){ CANVAS.width=BOX.clientWidth; CANVAS.height=BOX.clientHeight; CTX.imageSmoothingEnabled=false; }
+let pxReady = false;
+function resize(){
+  if(!pxReady){ PX.init(CANVAS, { scale: 3 }); pxReady = true; }
+  else PX.resize();
+}
 window.addEventListener('resize', resize);
 
 // ===================================================
