@@ -397,11 +397,19 @@ const PX = (() => {
   }
   function getScale(){ return scale; }
 
-  // camTileX/Y: the world point (in tiles) to centre on
-  function begin(camTileX, camTileY, bg='#000'){
+  // camTileX/Y: the world point (in tiles) to centre on.
+  // world {w, h} (in tiles), if given, keeps the view on the battlefield
+  // instead of showing empty ground past its edges (centred on it when the
+  // screen is bigger than the battlefield).
+  function begin(camTileX, camTileY, bg='#000', world){
     t++;
     camX = Math.round(camTileX*T - W/2);
     camY = Math.round(camTileY*T - H/2);
+    if(world){
+      const ww = world.w*T, wh = world.h*T;
+      camX = ww >= W ? Math.max(0, Math.min(ww - W, camX)) : Math.round((ww - W)/2);
+      camY = wh >= H ? Math.max(0, Math.min(wh - H, camY)) : Math.round((wh - H)/2);
+    }
     if(shakeT > 0){ shakeT--; camX += (t%2 ? 1 : -1); }
     ctx.setTransform(1,0,0,1,0,0);
     ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
@@ -409,17 +417,59 @@ const PX = (() => {
   }
   function shake(n=6){ shakeT = n; }
 
-  // tileFn(x,y) -> tile name or null
+  // tileFn(x,y) -> tile name or null.
+  // The ground is painted once into a world-sized canvas and copied to the
+  // screen in one call; only tiles that change (and animated water, once
+  // every 20 frames) are repainted. Hundreds of small draws per frame were
+  // most of the cost of a frame on a slow laptop.
+  let G = null, Gg = null, gKey = null, gGW = 0, gGH = 0;
   function ground(gw, gh, tileFn){
+    if(!G || gw !== gGW || gh !== gGH){
+      gGW = gw; gGH = gh; G = mk(gw*T, gh*T); Gg = G.getContext('2d');
+      gKey = new Array(gw*gh).fill(undefined);
+    }
     const x0 = Math.max(0, Math.floor(camX/T)), x1 = Math.min(gw-1, Math.floor((camX+W)/T));
     const y0 = Math.max(0, Math.floor(camY/T)), y1 = Math.min(gh-1, Math.floor((camY+H)/T));
     const frame = Math.floor(t/20) % 4;
     for(let y=y0; y<=y1; y++) for(let x=x0; x<=x1; x++){
       const name = tileFn(x,y);
-      if(!name) continue;
-      const D = TILES[name];
-      ctx.drawImage(tileCanvas(name, hash(x,y)%8, D && D.anim ? frame : 0), x*T, y*T);
+      const D = name && TILES[name];
+      const f = D && D.anim ? frame : 0;
+      const key = name ? name + f : null;
+      const i = y*gw + x;
+      if(gKey[i] === key) continue;
+      gKey[i] = key;
+      if(!name){ Gg.clearRect(x*T, y*T, T, T); continue; }
+      Gg.drawImage(tileCanvas(name, hash(x,y)%8, f), x*T, y*T);
     }
+    if(x1 >= x0 && y1 >= y0){
+      const sx = x0*T, sy = y0*T, sw = (x1-x0+1)*T, sh = (y1-y0+1)*T;
+      ctx.drawImage(G, sx, sy, sw, sh, sx, sy, sw, sh);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  //  GAME CLOCK: how many 1/60 s game steps to run this animation frame,
+  //  so the battles keep the same speed on a 60 Hz phone, a 120 Hz screen
+  //  or a slow laptop that only manages 30 frames a second.
+  //    function loop(now){ let n = PX.steps(now); while(n-- > 0) update(); ... }
+  // ---------------------------------------------------------------
+  const STEP = 1000/60, SNAP = [[STEP, 2], [STEP/2, 0.6], [STEP*2, 4]];   // [frame time, tolerance] in ms
+  let clkLast = -1, clkAcc = 0;
+  function steps(now){
+    if(!(now > 0)) now = performance.now();
+    let dt = clkLast < 0 ? STEP : now - clkLast;
+    clkLast = now;
+    if(!(dt >= 0) || dt > 250) dt = STEP;          // first frame, or back from a hidden tab
+    // frame times near 60, 120 or 30 a second are taken as exactly that, so
+    // the timing jitter of a 60 Hz screen never skips or doubles a step
+    for(const [r, tol] of SNAP) if(Math.abs(dt - r) < tol){ dt = r; break; }
+    clkAcc += dt;
+    // 2 ms of slack, so a 60 Hz screen's jitter never skips or doubles a step
+    let n = Math.floor((clkAcc + 2) / STEP);
+    clkAcc -= n*STEP;
+    if(n > 3){ n = 3; clkAcc = 0; }                  // too slow to keep up: run slower instead
+    return n;
   }
 
   // Smoothly glide a unit's drawn position toward its grid cell
@@ -533,7 +583,7 @@ const PX = (() => {
     });
   }
 
-  return { T, C, init, useCanvas, bake, resize, setScale, getScale, begin, ground, glide, unit, figure, pic, dot, label, text, overlay, rectWorld, pointer, shake,
+  return { T, C, init, useCanvas, bake, resize, setScale, getScale, begin, ground, steps, glide, unit, figure, pic, dot, label, text, overlay, rectWorld, pointer, shake,
            get ctx(){ return ctx; }, get t(){ return t; }, get W(){ return W; }, get H(){ return H; },
            get camX(){ return camX; }, get camY(){ return camY; } };
 })();

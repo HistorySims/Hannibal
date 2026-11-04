@@ -89,3 +89,28 @@ body{
   width: var(--sw, 384px) !important; height: var(--sh, 480px) !important;
   margin: auto !important; object-fit: fill;
 }
+
+/* Wide screens (laptops, tablets, phones held sideways): the text box
+   sits beside the picture. scene.js adds .row when that lets the picture
+   be bigger, and sets the stage's width and --boxw. */
+#stage.row{
+  flex-direction: row !important; align-items: center !important; justify-content: center !important;
+  max-width: none !important; padding: 16px !important; box-sizing: border-box !important; gap: 24px;
+  background: transparent !important;
+}
+#stage.row > canvas.px-scene{ margin: 0 !important; }
+#stage.row #dialogue-box{
+  width: var(--boxw, 360px) !important; flex: 0 0 var(--boxw, 360px) !important;
+  min-height: 230px !important;
+}
+
+/* Keyboard (controls.js adds html.kbd on a device without a touchscreen) */
+html.kbd .click-prompt{ font-size: 0 !important; }
+html.kbd .click-prompt::after{ content: "SPACE TO CONTINUE \25BC"; font-size: 7px; }
+html.kbd #title-screen:has(button:not(.restart-btn))::after{
+  content: "ENTER \25B8"; display: block;
+  font-family: var(--px-font); font-size: 8px; letter-spacing: 1px; color: rgba(244,236,216,0.7);
+  margin-top: 18px; animation: px-blink 1s steps(2) infinite;
+}
+#stage.row .speech-text{ font-size: var(--txt, 11px) !important; }
+#stage.row .speaker-name{ font-size: calc(var(--txt, 11px) - 1px) !important; }

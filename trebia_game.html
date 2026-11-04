@@ -144,6 +144,7 @@
   </div>
 
   <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
+  <div id="kbd-hint">ARROWS / WASD MOVE · SPACE STRIKE</div>
   <canvas id="cv"></canvas>
 
   <div class="controls-layer">
@@ -158,6 +159,7 @@
 </div>
 
 <script src="campaign.js"></script>
+<script src="controls.js"></script>
 <script src="pixel.js"></script>
 <script>
 // =========================
@@ -398,10 +400,14 @@ function spawnUnit(gx, gy, type){
 // =========================
 //  LOGIC
 // =========================
-function loop(){
+function loop(now){
   if(!gameActive) return;
-  update();
-  if(gameActive) draw();
+  // a fixed 60 game steps a second, whatever the screen's refresh rate (pixel.js)
+  let n = PX.steps(now);
+  if(n > 0){
+    while(n-- > 0 && gameActive) update();
+    if(gameActive) draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -768,7 +774,7 @@ function unitKind(u){
 }
 
 function draw(){
-  PX.begin(cam.x/TILE, cam.y/TILE, '#3a3c3a');
+  PX.begin(cam.x/TILE, cam.y/TILE, '#3a3c3a', { w: GRID_W, h: GRID_H });
   PX.ground(GRID_W, GRID_H, groundTile);
 
   for(const u of units){
@@ -883,16 +889,19 @@ function gameOver(kind){
 const stickZone=document.getElementById('stick-zone');
 const stickEl=document.getElementById('stick');
 
-stickZone.addEventListener('touchstart',e=>{
+stickZone.addEventListener('pointerdown', e=>{
+  if(stick.active) return;
+  stick.pid = e.pointerId;
+  try { stickZone.setPointerCapture(e.pointerId); } catch(err){}
   stick.active=true;
-  stick.startX=e.touches[0].clientX; stick.startY=e.touches[0].clientY;
+  stick.startX=e.clientX; stick.startY=e.clientY;
   stick.curX=stick.startX; stick.curY=stick.startY;
 }, {passive:false});
 
-stickZone.addEventListener('touchmove',e=>{
-  if(!stick.active) return;
+stickZone.addEventListener('pointermove', e=>{
+  if(!stick.active || e.pointerId !== stick.pid) return;
   e.preventDefault();
-  stick.curX=e.touches[0].clientX; stick.curY=e.touches[0].clientY;
+  stick.curX=e.clientX; stick.curY=e.clientY;
   updateStick();
 }, {passive:false});
 
@@ -903,8 +912,8 @@ const endStick=()=>{
   // if keyboard is held, restore it
   recomputeKeyInput();
 };
-stickZone.addEventListener('touchend', endStick);
-stickZone.addEventListener('touchcancel', endStick);
+stickZone.addEventListener('pointerup', e=>{ if(e.pointerId === stick.pid) endStick(); });
+stickZone.addEventListener('pointercancel', e=>{ if(e.pointerId === stick.pid) endStick(); });
 
 function updateStick(){
   let dx=stick.curX-stick.startX, dy=stick.curY-stick.startY;
