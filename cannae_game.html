@@ -142,14 +142,16 @@
 <div id="game-box">
   <div id="overlay">
     <h1>CANNAE</h1>
-    <p>You are a Centurion (Green/White). Your men will crowd around you as the trap closes.</p>
-    <p><b>Updated Physics:</b> Chain-shoving is enabled. If enemies pack too tightly, they will be <b>CRUSHED</b>.</p>
+    <p><b>August, 216 BC.</b> You are a centurion (green) in the front rank of the largest army Rome has ever fielded.</p>
+    <p>Consul Varro's orders: smash straight through the Carthaginian centre. Their line is thin. Ours is deep.</p>
+    <p style="font-size:13px; color:#aaa;">Arrows / WASD to move · Space to strike</p>
     <button class="btn-start" onclick="startGame()">LEAD THE CHARGE</button>
   </div>
 
   <div class="hud-top">
     <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
     <span class="team-han">CARTHAGE: <span id="ui-han">0</span></span>
+    <span style="color:#fbbf24">GLORY: <span id="ui-glory">0</span></span>
   </div>
 
   <div id="center-msg"><div class="big-text" id="battle-text"></div></div>
@@ -186,6 +188,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // =========================
 //  TOUCH vs DESKTOP UI TOGGLE
@@ -200,7 +203,7 @@
 // =========================
 const P = {
   metal:'#b7bcc5', black:'#111114',
-  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
+  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21', libyan:'#3567b5',
   gold:'#fbbf24', white:'#e7e7ea',
   mane:'#2b1a10',
   hoof:'#0b0b0c',
@@ -211,14 +214,14 @@ const CTX = CANVAS.getContext('2d');
 const BOX = document.getElementById('game-box');
 
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-function isInvaderType(t){ return (t==='invader' || t==='cavalry'); }
+function isInvaderType(t){ return (t==='invader' || t==='libyan' || t==='cavalry'); }
 
 function drawInfSprite(kind, x, y, scale){
   const s = scale;
   const coat =
     kind==='roman' ? P.roman :
     kind==='yours' ? P.you :
-    isInvaderType(kind) ? P.inv : P.inv;
+    kind==='libyan' ? P.libyan : P.inv;
 
   CTX.fillStyle=P.shadow;
   CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
@@ -232,6 +235,7 @@ function drawInfSprite(kind, x, y, scale){
 
   if(kind==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
   else if(kind==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
+  else if(kind==='libyan'){ px(x+3*s,y,s,P.metal); px(x+4*s,y,s,P.metal); }
   else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
 }
 function drawHorseSprite(x,y,scale){
@@ -273,44 +277,43 @@ function drawSprite(kind, x, y, scale){
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
+const CX = Math.floor(GRID_W/2);
 let SCALE = 2;
 
 const PACE = {
   playerMove: 16,
   romanMove: 34,
-  invaderMove: 40,
-  cavalryMove: 18,
-  aiThinkJitter: 26,
+  centerMove: 40,     // Gauls & Spaniards of Hannibal's centre
+  libyanMove: 30,     // African veterans on the wings
+  cavalryMove: 14,
+  aiThinkJitter: 20,
   combatDelay: 56
 };
-const PHASE = {
-  bendAt: 280,
-  encircleAt: 1050,
-  reinfAt: 1450
+
+// The battle is a script the AI plays out. Phases advance on what happens on the
+// field (how far the Romans have been drawn in), with timers only as a backstop.
+const PHASE = { CONTACT:0, BAIT:1, JAWS:2, REAR:3, CRUSH:4 };
+const SCRIPT = {
+  baitAt: 300,          // frames: the centre starts giving ground
+  jawsFrontY: 19,       // once the Roman front is drawn up to this row, the wings turn in
+  jawsLatest: 1800,     // ...or at this frame at the latest
+  cavalryStageAt: 1000, // Hasdrubal's horse appears behind the Roman army...
+  rearAfterJaws: 240,   // ...and charges the rear this long after the wings turn
+  crushAfterRear: 420,  // then the ring is closed and the press begins
+  retreatDepth: 11,     // rows the very centre of the crescent will give up
+  retreatChance: 0.6,   // when Romans are close, chance a Gaul steps back instead of fighting
+  funnelChance: 0.3,    // Roman flank files drifting toward the "breaking" centre
 };
-const PLAYER_ATTACK = {
-  cooldownFrames: 18,
-  maxHits: 2
-};
+const PLAYER_ATTACK = { cooldownFrames: 18, maxHits: 2, dmg: 1.6 };
 const PRESSURE = {
   blockDiagonalWhenEngaged: true,
   blockIntoPressAdj: 2,
   blockWorseningContact: true,
   shoveChance: 0.25
 };
-const KNOT = {
-  startR: 12,
-  endR: 4,
-  shrinkEvery: 160,
-  invaderBiteChance: 0.25
-};
-const SHIELDWALL = {
-  startAtPhase: 1,
-  reserveRadius: 14,
-  ringDesired: 8,
-  ringAggro: 0.9,
-  swapChance: 0.18
-};
+// Packed men can't swing; once the ring closes, the press itself kills.
+const CRUSH = { packedAt: 7, every: 45, dmg: 1 };
+const SHIELDWALL = { ringAggro: 0.6, followRadius: 9 };
 
 // =========================
 //  STATE
@@ -322,12 +325,15 @@ let units = [];
 let particles = [];
 let floats = [];
 let player = null;
-let battlePhase = 0;
+let battlePhase = PHASE.CONTACT;
 let phaseTimer = 0;
-let hasReinforced = false;
-let frontY = 0;
-let doom = { x:0, y:0, r:KNOT.startR };
+let phaseStartedAt = 0;
 let atkCD = 0;
+let glory = 0;
+let romansAtStart = 0;
+let lastWarn = -999;
+let cavalryOut = false;
+let rbox = {minX:0, maxX:0, minY:0, maxY:0, cx:0, cy:0};   // live extent of the Roman army
 
 // movement input comes from stick OR keyboard OR dpad
 let input = {dx:0, dy:0};
@@ -342,7 +348,6 @@ let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
 // =========================
 function startGame(){
   document.getElementById('overlay').style.display = 'none';
-  document.querySelector('#overlay h1').innerText = "CANNAE";
   if(gameActive) return;
   gameActive = true;
   resize();
@@ -352,74 +357,56 @@ function startGame(){
 function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
 
 function setupMap(){
-  units = [];
-  particles = [];
-  floats = [];
+  units = []; particles = []; floats = [];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
-  battlePhase = 0;
-  phaseTimer = 0;
-  hasReinforced = false;
-  atkCD = 0;
+  battlePhase = PHASE.CONTACT; phaseTimer = 0; phaseStartedAt = 0;
+  atkCD = 0; glory = 0; cavalryOut = false;
 
-  const CX = Math.floor(GRID_W/2);
-  const CY = Math.floor(GRID_H/2);
-  frontY = CY - 6;
+  // ROME: Varro deepened the maniples into one huge, packed block.
+  const R_TOP = 31, R_BOT = 43, R_L = 12, R_R = 27;
+  player = spawnUnit(CX, R_TOP+1, 'yours');   // a centurion in the front ranks
+  for(let y=R_TOP; y<=R_BOT; y++){
+    for(let x=R_L; x<=R_R; x++){
+      if(Math.random() < 0.92){
+        const u = spawnUnit(x, y, 'roman');
+        if(u) u.role = (y >= R_BOT-3) ? 'reserve' : 'line';
+      }
+    }
+  }
+  romansAtStart = units.filter(u=>u.type==='roman').length;
 
-  player = spawnUnit(CX, CY+2, 'yours');
+  // CARTHAGE CENTRE: a thin crescent of Gauls & Spaniards bulging toward Rome.
+  for(let x=R_L; x<=R_R; x++){
+    const d = Math.abs(x-CX);
+    const front = 28 - Math.floor(d*d/14);
+    for(let r=0; r<3; r++){
+      const u = spawnUnit(x, front-r, 'invader');
+      if(u){ u.role='center'; u.homeX=x; u.homeY=front-r; }
+    }
+  }
+
+  // Behind it, Hannibal and Mago with a second line of Gauls and Spaniards.
+  for(let x=R_L+1; x<=R_R-1; x++){
+    for(const y of [14]){
+      const u = spawnUnit(x, y, 'invader');
+      if(u){ u.role='center'; u.homeX=x; u.homeY=y; }
+    }
+  }
+
+  // AFRICAN VETERANS: deep columns out beyond both Roman flanks. Standing. Waiting.
+  for(const side of [-1, 1]){
+    const x0 = side<0 ? 6 : 31;
+    for(let y=20; y<=26; y++){
+      for(let x=x0; x<x0+3; x++){
+        const u = spawnUnit(x, y, 'libyan');
+        if(u){ u.role='wing'; u.side=side; }
+      }
+    }
+  }
+
   cam.x = player.x*TILE + TILE/2;
   cam.y = player.y*TILE + TILE/2;
-
-  doom.x = player.x;
-  doom.y = player.y;
-  doom.r = KNOT.startR;
-
-  // ROMANS (more)
-  for(let y=CY; y<CY+10; y++){
-    for(let x=CX-7; x<CX+7; x++){
-      if(Math.random()>0.1 && !grid[y][x]){
-        const u = spawnUnit(x, y, 'roman');
-        if(u){
-          u.role = (y >= CY+5) ? 'reserve' : 'front';
-        }
-      }
-    }
-  }
-
-  // CARTHAGE (fewer + starts closer)
-  for(let x=CX-12; x<CX+12; x++){
-    const dist = Math.abs(x-CX);
-    const curve = Math.floor((dist*dist)/16);
-    const frontRow = (CY-5) - curve;
-    for(let r=0; r<2; r++){
-      const uy = frontRow - r;
-      if(uy>2 && uy<GRID_H && x>2 && x<GRID_W-2 && !grid[uy][x]){
-        if(Math.random() < 0.75) spawnUnit(x, uy, 'invader');
-      }
-    }
-  }
-
-  // extra center thickening
-  let added = 0;
-  const centerXs = [];
-  for(let d=0; d<=12; d++){
-    if(CX-d > 2) centerXs.push(CX-d);
-    if(d!==0 && CX+d < GRID_W-3) centerXs.push(CX+d);
-  }
-  for(const x of centerXs){
-    if(added >= 20) break;
-    const dist = Math.abs(x-CX);
-    const curve = Math.floor((dist*dist)/16);
-    const frontRow = (CY-5) - curve;
-    for(const uy of [frontRow, frontRow-1]){
-      if(added >= 20) break;
-      if(uy>2 && uy<GRID_H-2 && !grid[uy][x]){
-        spawnUnit(x, uy, 'invader');
-        added++;
-      }
-    }
-  }
-
-  showMsg("ADVANCE!", "#fff");
+  showMsg("ADVANCE! CRUSH THEIR CENTRE!", "#fff");
 }
 
 // =========================
@@ -427,24 +414,23 @@ function setupMap(){
 // =========================
 function spawnUnit(gx, gy, type){
   if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H || grid[gy][gx]) return null;
-  let hp, maxHp, moveSpeed;
-  if(type === 'yours'){
-    hp=80; maxHp=100; moveSpeed=PACE.playerMove;
-  } else if(type === 'roman'){
-    hp=8; maxHp=8; moveSpeed=PACE.romanMove;
-  } else if(type === 'cavalry'){
-    hp=15; maxHp=15; moveSpeed=PACE.cavalryMove;
-  } else {
-    hp=12; maxHp=12; moveSpeed=PACE.invaderMove;
-  }
+  const T = {
+    yours:   {hp:80, speed:PACE.playerMove},
+    roman:   {hp:8,  speed:PACE.romanMove},
+    invader: {hp:9,  speed:PACE.centerMove},
+    libyan:  {hp:22, speed:PACE.libyanMove},   // fewer, but Hannibal's best: veteran and heavily armed
+    cavalry: {hp:15, speed:PACE.cavalryMove},
+  }[type];
   const u = {
     id: Math.random(),
     x: gx, y: gy,
     type,
-    hp, maxHp,
+    hp: T.hp, maxHp: T.hp,
     cooldown: Math.random()*60,
-    moveSpeed,
-    role: null
+    moveSpeed: T.speed,
+    role: null,
+    f: Math.random(),     // which slot of the ring this unit will take
+    f2: Math.random()
   };
   units.push(u);
   grid[gy][gx] = u;
@@ -571,46 +557,70 @@ window.addEventListener('keyup', (e)=>{
 // =========================
 //  UPDATE
 // =========================
+function setPhase(p, msg, col){
+  battlePhase = p;
+  phaseStartedAt = phaseTimer;
+  if(msg) showMsg(msg, col);
+}
+
+function advanceScript(){
+  const since = phaseTimer - phaseStartedAt;
+  if(!cavalryOut && (phaseTimer > SCRIPT.cavalryStageAt || battlePhase >= PHASE.JAWS)){
+    cavalryOut = true;
+    spawnCavalry();
+    showMsg("DUST BEHIND US... HORSEMEN?", "#e5e7eb");
+  }
+  if(battlePhase===PHASE.CONTACT && phaseTimer > SCRIPT.baitAt){
+    setPhase(PHASE.BAIT, "THEY'RE BREAKING! PRESS THEM!", P.gold);
+  }
+  else if(battlePhase===PHASE.BAIT && (rbox.minY <= SCRIPT.jawsFrontY || phaseTimer > SCRIPT.jawsLatest)){
+    setPhase(PHASE.JAWS, "THE AFRICANS ARE TURNING IN!", P.roman);
+  }
+  else if(battlePhase===PHASE.JAWS && since > SCRIPT.rearAfterJaws){
+    setPhase(PHASE.REAR, "CAVALRY IN THE REAR!", P.gold);
+  }
+  else if(battlePhase===PHASE.REAR && since > SCRIPT.crushAfterRear){
+    setPhase(PHASE.CRUSH, "NO ROOM TO RAISE A SWORD...", "#e5e7eb");
+  }
+}
+
+function spawnCavalry(){
+  // Hasdrubal's horse, having routed the Roman cavalry, rides in from behind.
+  for(const side of [-1, 1]){
+    const xs = side<0 ? [0,1,2,3,4] : [35,36,37,38,39];
+    for(const x of xs){
+      for(const y of [55,57]){
+        const c = spawnUnit(x, y, 'cavalry');
+        if(c){ c.role='rear'; c.cooldown = Math.random()*20; }
+      }
+    }
+  }
+}
+
+function computeRomanBox(){
+  // The ring is built around the core of the army, not its stragglers.
+  const xs=[], ys=[];
+  for(const u of units){
+    if(u.hp<=0 || isInvaderType(u.type)) continue;
+    xs.push(u.x); ys.push(u.y);
+  }
+  if(!xs.length && player){ xs.push(player.x); ys.push(player.y); }
+  xs.sort((a,b)=>a-b); ys.sort((a,b)=>a-b);
+  const q = (arr, t) => arr[Math.min(arr.length-1, Math.max(0, Math.floor(t*(arr.length-1))))];
+  rbox = {
+    minX: q(xs, 0.06), maxX: q(xs, 0.94),
+    minY: q(ys, 0.06), maxY: q(ys, 0.94),
+    cx: xs.reduce((a,b)=>a+b,0)/xs.length,
+    cy: ys.reduce((a,b)=>a+b,0)/ys.length,
+  };
+}
+
 function update(){
   phaseTimer++;
   if(atkCD>0) atkCD--;
 
-  const CX = Math.floor(GRID_W/2);
-  const CY = Math.floor(GRID_H/2);
-
-  if(battlePhase === 0 && phaseTimer > PHASE.bendAt){
-    battlePhase = 1;
-    showMsg("THE LINE BENDS...", P.gold);
-  }
-  if(battlePhase === 1 && phaseTimer > PHASE.encircleAt){
-    battlePhase = 2;
-    showMsg("ENCIRCLED. HOLD FAST.", P.roman);
-    for(let y=CY-12; y<CY+12; y++){
-      let a = spawnUnit(2, y, 'invader'); if(a) a.role='sealer';
-      let b = spawnUnit(GRID_W-3, y, 'invader'); if(b) b.role='sealer';
-    }
-  }
-  if(battlePhase === 2 && phaseTimer > PHASE.reinfAt && !hasReinforced){
-    hasReinforced = true;
-    showMsg("NUMIDIAN CAVALRY! Closing the rear.", "#fbbf24");
-    for(let x=CX-8; x<=CX+8; x+=2){
-      let c1 = spawnUnit(x, player.y+10, 'cavalry'); if(c1) c1.role='rearSealer';
-    }
-  }
-
-  if(battlePhase >= 1) frontY += 0.002;
-
-  if(player && player.hp>0){
-    doom.x += (player.x - doom.x) * 0.35;
-    doom.y += (player.y - doom.y) * 0.35;
-  }
-  if(battlePhase >= 2){
-    const t = Math.max(0, phaseTimer - PHASE.encircleAt);
-    const steps = Math.floor(t / KNOT.shrinkEvery);
-    doom.r = Math.max(KNOT.endR, KNOT.startR - steps);
-  } else {
-    doom.r = KNOT.startR;
-  }
+  computeRomanBox();
+  advanceScript();
 
   units.sort((a,b)=>a.y-b.y);
 
@@ -620,14 +630,25 @@ function update(){
     if(u.type==='yours'){
       if(u.cooldown>0) u.cooldown--;
       if(u.cooldown<=0 && (input.dx || input.dy)){
-        tryMove(u, input.dx, input.dy);
-        u.cooldown = u.moveSpeed;
-        if(isEngaged(u)){
-          u.cooldown *= 2.0;
-        }
+        const r = tryMove(u, input.dx, input.dy);
+        u.cooldown = u.moveSpeed * (r==='swap' ? 1.6 : 1);
+        if(isEngaged(u)) u.cooldown *= 2.0;
       }
     } else {
-      handleAI(u, CX, CY);
+      handleAI(u);
+    }
+  }
+
+  // The press: once the ring closes, men packed in with no room simply die.
+  if(battlePhase >= PHASE.REAR && phaseTimer % CRUSH.every === 0){
+    for(const u of units){
+      if(u.hp<=0 || isInvaderType(u.type)) continue;
+      if(!isPacked(u)) continue;
+      const touching = countAdjacentInvaders(u.x, u.y) > 0;
+      if(!touching && battlePhase < PHASE.CRUSH) continue;
+      u.hp -= CRUSH.dmg;
+      if(u.type==='yours') spawnFloat("CAN'T BREATHE", u.x, u.y, "#e5e7eb");
+      if(u.hp<=0) grid[u.y][u.x]=null;
     }
   }
 
@@ -644,100 +665,123 @@ function update(){
 
   document.getElementById('ui-rome').innerText = units.filter(u=>!isInvaderType(u.type)).length;
   document.getElementById('ui-han').innerText  = units.filter(u=>isInvaderType(u.type)).length;
+  document.getElementById('ui-glory').innerText = glory;
 
-  if(player && player.hp<=0) gameOver("Crushed in the press.");
+  if(player && player.hp<=0){ gameOver("Crushed in the press."); return; }
+  // Rare outcome: cutting your way to the edge of the field means you escaped the ring.
+  if(player && (player.x<=0 || player.y<=0 || player.x>=GRID_W-1 || player.y>=GRID_H-1)){
+    gameOver("You broke out of the ring.", true);
+    return;
+  }
 }
 
 // =========================
-//  AI CORE (unchanged)
+//  AI
 // =========================
-function handleAI(u, CX, CY){
-  if(u.cooldown>0){ u.cooldown--; return; }
-
+function nearestEnemy(u, range){
   let target=null, minDist=99;
   for(const o of units){
-    if(Math.abs(o.x-u.x)>3 || Math.abs(o.y-u.y)>3) continue;
-    const isEnemy =
-      (!isInvaderType(u.type) && isInvaderType(o.type)) ||
-      ( isInvaderType(u.type) && !isInvaderType(o.type) );
-    if(isEnemy){
-      const d = dist(u,o);
-      if(d<minDist){ minDist=d; target=o; }
-    }
+    if(o.hp<=0) continue;
+    if(Math.abs(o.x-u.x)>range || Math.abs(o.y-u.y)>range) continue;
+    if(isInvaderType(u.type) === isInvaderType(o.type)) continue;
+    const d = dist(u,o);
+    if(d<minDist){ minDist=d; target=o; }
   }
+  return target;
+}
 
-  if(target && minDist<=1.5){
-    attack(u,target);
-    u.cooldown = PACE.combatDelay + Math.random()*20;
-    return;
-  }
+function handleAI(u){
+  if(u.cooldown>0){ u.cooldown--; return; }
+  const target = nearestEnemy(u, 3);
+  const adj = !!target && dist(u,target) <= 1.5;
+
+  if(u.type==='roman') return romanAI(u, target, adj);
+  if(u.role==='center' && battlePhase < PHASE.JAWS) return centreAI(u, target, adj);
+  return envelopAI(u, target, adj);
+}
+
+function strike(u, target, delayMult=1){
+  attack(u, target);
+  u.cooldown = (PACE.combatDelay + Math.random()*20) * delayMult;
+}
+
+function romanAI(u, target, adj){
+  // Packed men can't raise their swords.
+  if(adj && !isPacked(u)){ strike(u, target); return; }
 
   let md = {x:0, y:0};
-  if(isInvaderType(u.type)){
-    if(battlePhase >= 2){
-      const dx = doom.x - u.x;
-      const dy = doom.y - u.y;
-      const d = Math.hypot(dx, dy);
-
-      if(target && minDist<=2 && Math.random() < KNOT.invaderBiteChance){
-        md = getStep(u,target);
-      } else if(d > doom.r + 1){
-        md = (Math.abs(dx) > Math.abs(dy)) ? {x:Math.sign(dx), y:0} : {x:0, y:Math.sign(dy)};
-      } else {
-        md = (Math.random()<0.5)
-          ? {x:(dy>0 ? 1 : -1), y:0}
-          : {x:0, y:(dx>0 ? -1 : 1)};
-      }
-
-      if(u.type==='cavalry'){
-        if(md.x || md.y){
-          const moved = tryMoveSmart(u, md.x, md.y);
-          if(!moved){
-            u.cooldown = u.moveSpeed * 0.35;
-            return;
-          }
-        }
-        u.cooldown = u.moveSpeed + Math.random()*8;
-        return;
-      }
-    } else {
-      if(battlePhase < 2){
-        if(u.y < frontY + 6 && Math.random() < 0.65) md = {x:0, y:1};
-      }
-      if(u.role==='sealer' && player && player.hp>0){
-        const ringY = player.y + 4;
-        if(u.y < ringY) md = {x:0, y:1};
-        else if(u.y > ringY) md = {x:0, y:-1};
-        else md = {x:(u.x < CX) ? 1 : -1, y:0};
-      } else {
-        if(target) md = getStep(u,target);
-        else if(Math.random()>0.7) md = {x:(u.x<CX)?1:-1, y:0};
-      }
-    }
-  }
-
-  if(u.type==='roman'){
-    const wantsShield = (battlePhase >= SHIELDWALL.startAtPhase) && (u.role==='reserve');
-    if(wantsShield && player && player.hp>0 && Math.random() < SHIELDWALL.ringAggro){
-      const ring = ringTargets(player.x, player.y);
-      let best = null;
-      for(const t of ring){
-        if(!inBounds(t.x,t.y)) continue;
-        if(!grid[t.y][t.x]){ best = t; break; }
-      }
-      if(best){
-        md = getStep(u, best);
-      } else {
-        md = orbitAround(u, player.x, player.y);
-      }
-    } else {
-      if(target) md = getStep(u, target);
-      else md = {x:0, y:-1};
-    }
+  const guarding = u.role==='reserve' && battlePhase>=PHASE.BAIT && player && player.hp>0
+                   && dist(u, player) < SHIELDWALL.followRadius && Math.random() < SHIELDWALL.ringAggro;
+  if(guarding){
+    const free = ringTargets(player.x, player.y).find(t=>inBounds(t.x,t.y) && !grid[t.y][t.x]);
+    md = free ? getStep(u, free) : orbitAround(u, player.x, player.y);
+  } else if(battlePhase >= PHASE.JAWS){
+    // Attacked from every side, the ranks close in on themselves.
+    const c = {x:Math.round(rbox.cx), y:Math.round(rbox.cy)};
+    if(dist(u, c) > 1.5) md = getStep(u, c);
+  } else if(target){
+    md = getStep(u, target);
+  } else {
+    // Press forward. Files on the flanks drift in toward the "breaking" centre.
+    if(Math.abs(u.x-CX) > 2 && Math.random() < SCRIPT.funnelChance) md = {x:Math.sign(CX-u.x), y:0};
+    else md = {x:0, y:-1};
   }
 
   if(md.x || md.y) tryMove(u, md.x, md.y);
   u.cooldown = u.moveSpeed + Math.random()*PACE.aiThinkJitter;
+}
+
+function centreAI(u, target, adj){
+  if(battlePhase===PHASE.BAIT && target && dist(u,target) <= 2.3){
+    // The feigned retreat: give ground, most at the very centre of the crescent,
+    // so the bulge turns inside out and the Romans pour into the pocket.
+    const depth = SCRIPT.retreatDepth * Math.max(0.15, 1 - Math.abs(u.homeX-CX)/9);
+    if(u.y > u.homeY - depth && Math.random() < SCRIPT.retreatChance){
+      if(!tryMoveReturn(u, 0, -1)) tryMoveReturn(u, Math.random()<0.5 ? -1 : 1, -1);
+      u.cooldown = u.moveSpeed * 0.8 + Math.random()*PACE.aiThinkJitter;
+      return;
+    }
+  }
+  if(adj){ strike(u, target); return; }
+  u.cooldown = 20 + Math.random()*PACE.aiThinkJitter;   // hold the line
+}
+
+// Where in the closing ring this unit belongs, built from the live Roman formation.
+function ringSlot(u){
+  const w = rbox.maxX - rbox.minX, h = rbox.maxY - rbox.minY;
+  if(u.type==='libyan') return { x: u.side<0 ? rbox.minX-1 : rbox.maxX+1, y: Math.round(rbox.minY + u.f*h) };
+  if(u.type==='cavalry'){
+    // Before the charge they hover behind the army, cutting off the way home.
+    const back = battlePhase >= PHASE.REAR ? 1 : 6 + (u.f2<0.5 ? 0 : 2);
+    return { x: Math.round(rbox.minX + u.f*w), y: Math.min(GRID_H-2, rbox.maxY + back) };
+  }
+  return { x: Math.round(rbox.minX + u.f*w), y: rbox.minY - 1 - (u.f2<0.5 ? 0 : 1) };   // centre holds the front, two deep
+}
+
+function envelopAI(u, target, adj){
+  if(adj){ strike(u, target, u.type==='cavalry' ? 0.7 : 1); return; }
+
+  if(u.type==='libyan' && battlePhase < PHASE.JAWS){
+    u.cooldown = 30;   // stand in column; the trap isn't sprung yet
+    return;
+  }
+
+  let md;
+  // The horsemen ride down anyone who breaks from the ring.
+  const fugitive = u.type==='cavalry' ? nearestEnemy(u, 9) : null;
+  const fleeing = fugitive && (fugitive.y > rbox.maxY+1 || fugitive.x < rbox.minX-1 || fugitive.x > rbox.maxX+1);
+  if(fleeing) md = getStep(u, fugitive);
+  else if(target && dist(u,target) <= 2.5) md = getStep(u, target);
+  else {
+    const s = ringSlot(u);
+    md = getStep(u, s);
+    if(s.x===u.x && s.y===u.y) md = {x:0, y:0};
+  }
+
+  if(md.x || md.y){
+    if(!tryMoveSmart(u, md.x, md.y)){ u.cooldown = u.moveSpeed*0.4; return; }
+  }
+  u.cooldown = (u.moveSpeed + Math.random()*PACE.aiThinkJitter) * (fleeing ? 0.6 : 1);
 }
 
 // =========================
@@ -750,7 +794,6 @@ function tryMoveSmart(u, dx, dy){
     {x:-dy, y:-dx},
     {x:dx, y:0},
     {x:0, y:dy},
-    {x:Math.sign(dx), y:Math.sign(dy)}
   ];
   for(const o of opts){
     if(o.x===0 && o.y===0) continue;
@@ -778,22 +821,50 @@ function countAdjacentInvaders(gx, gy){
   }
   return c;
 }
+function countOccupied(gx, gy){
+  let c=0;
+  for(let dy=-1; dy<=1; dy++){
+    for(let dx=-1; dx<=1; dx++){
+      if(dx===0 && dy===0) continue;
+      const x=gx+dx, y=gy+dy;
+      if(!inBounds(x,y) || grid[y][x]) c++;
+    }
+  }
+  return c;
+}
+function isPacked(u){ return countOccupied(u.x, u.y) >= CRUSH.packedAt; }
 function isEngaged(u){ return countAdjacentInvaders(u.x, u.y) > 0; }
+
+function warn(txt){
+  if(phaseTimer - lastWarn < 120) return;
+  lastWarn = phaseTimer;
+  showMsg(txt, "#fca5a5");
+}
 
 function tryMove(u, dx, dy){
   const tx=u.x+dx, ty=u.y+dy;
   if(!inBounds(tx,ty)) return;
 
   if(u.type==='yours'){
+    // Until the trap is sprung, the officers keep you with your men: no hanging back.
+    if(dy>0 && battlePhase < PHASE.JAWS && ty > rbox.maxY - 2){ warn("NO RETREAT! STAY WITH YOUR MEN!"); return; }
+
     const engaged = isEngaged(u);
     if(engaged){
       if(PRESSURE.blockDiagonalWhenEngaged && dx!==0 && dy!==0) return;
       const herePress = countAdjacentInvaders(u.x, u.y);
       const therePress = countAdjacentInvaders(tx, ty);
-      if(grid[ty][tx]) return;
+      if(grid[ty][tx] && grid[ty][tx].type!=='roman') return;
       if(therePress >= PRESSURE.blockIntoPressAdj) return;
       if(PRESSURE.blockWorseningContact && therePress > herePress) return;
       if(Math.random() < PRESSURE.shoveChance) return;
+    }
+    // Push through your own ranks (slowly) by trading places.
+    const occ = grid[ty][tx];
+    if(occ && occ.type==='roman'){
+      grid[u.y][u.x] = occ; occ.x = u.x; occ.y = u.y;
+      grid[ty][tx] = u; u.x = tx; u.y = ty;
+      return 'swap';
     }
   }
   if(grid[ty][tx]) return;
@@ -801,81 +872,53 @@ function tryMove(u, dx, dy){
   grid[u.y][u.x]=null;
   u.x=tx; u.y=ty;
   grid[ty][tx]=u;
+  return 'move';
 }
 
 // =========================
 //  COMBAT
 // =========================
 function attack(atk, def){
-  let mult = 1.0;
-  if(atk.type === 'yours') mult = 0.25;
-  if(atk.type === 'cavalry') mult = 1.5;
-  let dmg = 1 * mult;
+  let dmg = 1;
+  if(atk.type === 'yours') dmg = PLAYER_ATTACK.dmg;
+  if(atk.type === 'libyan') dmg = 1.3;
+  if(atk.type === 'cavalry') dmg = 1.5;
 
   def.hp -= dmg;
   spawnBlood(def.x, def.y);
-  spawnFloat("-"+formatDmg(dmg), def.x, def.y, "#ef4444");
+  if(def.type==='yours' || atk.type==='yours') spawnFloat("-"+formatDmg(dmg), def.x, def.y, "#ef4444");
 
-  // no shove for player
   if(atk.type === 'yours'){
     if(def.hp<=0){
       grid[def.y][def.x]=null;
-      spawnFloat("KILL", def.x, def.y, P.gold);
+      glory++;
+      spawnFloat("+GLORY", def.x, def.y, P.gold);
     }
     return;
   }
 
-  // shove calc (AI only)
+  // Shove the defender away from the attacker; if there's no room, the press crushes him.
   let dx = def.x - atk.x;
   let dy = def.y - atk.y;
   if(Math.abs(dx) > Math.abs(dy)) { dx = Math.sign(dx); dy = 0; }
   else { dx = 0; dy = Math.sign(dy); }
+  const tx = def.x + dx, ty = def.y + dy;
 
-  let tx = def.x + dx;
-  let ty = def.y + dy;
-
-  if(!inBounds(tx,ty)){
-     const crush = 3 * mult;
-     def.hp -= crush;
-     spawnFloat("CRUSH", def.x, def.y, "#f00");
-     spawnFloat("-"+formatDmg(crush), def.x, def.y, "#f00");
-     if(def.hp<=0){
-       grid[def.y][def.x]=null;
-       spawnFloat("KILL", def.x, def.y, P.gold);
-     }
-     return;
-  }
-
-  if(!grid[ty][tx]){
+  if(inBounds(tx,ty) && !grid[ty][tx]){
     grid[def.y][def.x] = null;
     def.x = tx; def.y = ty;
-    grid[def.y][def.x] = def;
-    spawnFloat("SHOVE", def.x, def.y, "#fff");
+    grid[ty][tx] = def;
+  } else if(inBounds(tx,ty) && inBounds(tx+dx,ty+dy) && !grid[ty+dy][tx+dx]){
+    const behind = grid[ty][tx];
+    grid[ty][tx] = null; behind.x = tx+dx; behind.y = ty+dy; grid[behind.y][behind.x] = behind;
+    grid[def.y][def.x] = null; def.x = tx; def.y = ty; grid[ty][tx] = def;
   } else {
-    let behind = grid[ty][tx];
-    let tx2 = tx + dx;
-    let ty2 = ty + dy;
-    if(inBounds(tx2, ty2) && !grid[ty2][tx2]){
-       grid[ty][tx] = null;
-       behind.x = tx2; behind.y = ty2;
-       grid[ty2][tx2] = behind;
-
-       grid[def.y][def.x] = null;
-       def.x = tx; def.y = ty;
-       grid[ty][tx] = def;
-       spawnFloat("DOMINO", def.x, def.y, "#fff");
-    } else {
-       const crush = 3 * mult;
-       def.hp -= crush;
-       spawnFloat("CRUSH", def.x, def.y, "#f00");
-       spawnFloat("-"+formatDmg(crush), def.x, def.y, "#f00");
-       spawnBlood(def.x, def.y);
-    }
+    def.hp -= 2*dmg;
+    if(def.type==='yours' || Math.random()<0.25) spawnFloat("CRUSH", def.x, def.y, "#f87171");
   }
 
   if(def.hp<=0){
     grid[def.y][def.x]=null;
-    spawnFloat("KILL", def.x, def.y, P.gold);
   }
 }
 function formatDmg(n){
@@ -943,10 +986,10 @@ window.handleAttack = function(e){
   if(!targets.length) return;
 
   targets.sort((a,b)=>dist(player,a)-dist(player,b));
-  for(const t of targets.slice(0, PLAYER_ATTACK.maxHits)){
+  const hits = isPacked(player) ? 1 : PLAYER_ATTACK.maxHits;
+  for(const t of targets.slice(0, hits)){
     attack(player, t);
   }
-  spawnFloat("CLASH", player.x, player.y, "#fff");
 };
 
 // =========================
@@ -975,13 +1018,26 @@ function showMsg(txt, col){
   el.innerText=txt; el.style.color=col; el.style.opacity=1;
   setTimeout(()=>el.style.opacity=0, 2500);
 }
-function gameOver(t){
+function gameOver(t, escaped=false){
   gameActive=false;
-  document.getElementById('overlay').style.display='flex';
-  document.querySelector('#overlay h1').innerText="DEFEAT";
-  document.querySelectorAll('#overlay p')[0].innerHTML=t;
-  document.querySelectorAll('#overlay p')[1].innerHTML="Your shield wall collapsed.";
-  document.querySelectorAll('#overlay p')[2].innerHTML="Tap Lead the Charge to try again.";
+  document.getElementById('battle-text').style.opacity = 0;
+  spwMarkDone('cannae');
+  const epilogue = escaped
+    ? "You are one of the few. About 10,000 Romans cut their way out and fled to Canusium. Behind you, some 50,000 lay dead on the plain, among them the consul Paullus."
+    : "Packed shoulder to shoulder, the legions could not raise their swords. By nightfall some 50,000 Romans lay dead on the plain, among them the consul Paullus.";
+  const ov = document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML = `
+    <h1 style="color:${escaped ? '#fbbf24' : '#ef4444'}">${escaped ? 'ESCAPED' : 'CANNAE'}</h1>
+    <p><b>${t}</b></p>
+    <p>${epilogue}</p>
+    <p style="color:#fbbf24">Glory won pressing their centre: ${glory}<br>
+    <span style="color:#ef4444">Romans fallen around you: ${Math.max(0, romansAtStart - units.filter(u=>u.type==='roman').length)} of ${romansAtStart}</span></p>
+    <button class="btn-start" id="btn-map">CONTINUE CAMPAIGN</button>
+    <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
+  `;
+  document.getElementById('btn-map').onclick = () => { window.location.href = 'map.html'; };
+  document.getElementById('btn-replay').onclick = () => location.reload();
 }
 
 // =========================

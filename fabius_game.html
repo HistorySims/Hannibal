@@ -122,20 +122,20 @@
 
   <div class="hud-panel">
     <div class="stat-box" style="border-color:var(--gold)">
-      <div class="stat-label">Fabius HP</div>
+      <div class="stat-label">Your Army</div>
       <div class="stat-val"><span id="ui-hp">50</span></div>
       <div class="bar-bg"><div class="bar-fill" id="bar-hp" style="width:100%; background:var(--red)"></div></div>
 
-      <div class="stat-label">Confidence</div>
+      <div class="stat-label">Rome's Patience</div>
       <div class="stat-val"><span id="ui-conf">100</span></div>
       <div class="bar-bg" style="margin-bottom:0"><div class="bar-fill" id="bar-conf" style="width:100%; background:var(--gold)"></div></div>
     </div>
 
     <div class="stat-box" style="border-color:#7f1d1d; align-items:flex-end;">
-      <div class="stat-label">Hannibal HP</div>
-      <div class="stat-val" style="color:#fca5a5" id="ui-han">1000</div>
+      <div class="stat-label">Month</div>
+      <div class="stat-val" style="color:#fde68a" id="ui-month">1 / 6</div>
 
-      <div class="stat-label" style="margin-top:6px">Food Supply</div>
+      <div class="stat-label" style="margin-top:6px">Hannibal's Food</div>
       <div class="stat-val" id="ui-food">100</div>
       <div class="bar-bg" style="margin-bottom:0"><div class="bar-fill" id="bar-food" style="width:100%; background:#84cc16"></div></div>
     </div>
@@ -154,6 +154,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // ===================================================
 //  ROUTING / END FLOW
@@ -166,26 +167,24 @@ function goToMap(){ window.location.href = NEXT_PAGE; }
 // ===================================================
 const INTRO_HTML = `
   <h1>THE DELAYER</h1>
-  <p><b>Updated:</b> Resources drain 2x faster.<br>Hannibal is smarter.</p>
-  <p>1. <b>Panic:</b> Your Confidence drops rapidly.</p>
-  <p>2. <b>Hunger:</b> Hannibal starves quickly. Defend the villages.</p>
-  <p>3. <b>Scorched Earth:</b> Attack a village to burn it 🔥. Burned villages <b>cannot feed Hannibal</b>.</p>
-  <p>4. <b>Bait:</b> If you get close to Hannibal, he will <b>chase you</b> instead of raiding for food.</p>
-  <p>5. <b>Pathfinding:</b> Hannibal will find his way around rocks.</p>
+  <p><b>Summer 217 BC.</b> After Trasimene, Rome names you dictator: Quintus Fabius Maximus. You have six months.</p>
+  <p><b>Do not give Hannibal his battle.</b> On the hills he will not attack you. On open ground he will crush you.</p>
+  <p>Shadow him. Pick off his foragers. Burn the crops in his path so he starves (the farmers will hate you for it).</p>
+  <p>Every farm he plunders, Rome’s patience runs thinner.</p>
   <button class="btn-start" id="btn-start">BECOME FABIUS</button>
 `;
 
 const HISTORY_HTML = `
-  <h2 style="color:#f59e0b; margin:0 0 10px 0;">FABIUS MAXIMUS</h2>
+  <h2 style="color:#f59e0b; margin:0 0 10px 0;">FABIUS MAXIMUS, “THE DELAYER”</h2>
   <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:560px;">
     <p><strong style="color:#fff">THE STRATEGY:</strong><br>
-    Fabius realized he could not beat Hannibal in battle. Instead, he targeted supply lines, burned crops (&ldquo;scorched earth&rdquo;), and shadowed Hannibal on high ground to deny him battle.</p>
-
-    <p><strong style="color:#fff">THE REMOVAL:</strong><br>
-    The Roman people hated this. They viewed it as cowardly and un-Roman. Watching their farms burn while the army did nothing destroyed morale (the &ldquo;Confidence&rdquo; bar in this game).</p>
-
+    Fabius knew he could not beat Hannibal in open battle. He shadowed him along the high ground, refused every offer of battle, attacked foraging parties and ordered crops burned in his path.</p>
+    <p><strong style="color:#fff">THE COST:</strong><br>
+    Romans watched Hannibal plunder the rich Falernian plain while their army stood on the hills. They called Fabius <i>Cunctator</i>, “the Delayer”, and meant it as an insult.</p>
+    <p><strong style="color:#fff">MINUCIUS:</strong><br>
+    The Senate gave his impatient Master of Horse, Minucius, equal command. Minucius promptly attacked Hannibal near Geronium, was trapped, and was saved only when Fabius marched to his rescue.</p>
     <p><strong style="color:#fff">THE RESULT:</strong><br>
-    The Senate grew impatient. They gave his second-in-command (Minucius) equal power, and later elected aggressive consuls. That shift toward direct aggression led to catastrophe at Cannae.</p>
+    When his six months ended, Rome went back to elected consuls who promised to fight. One of them was Varro. The next summer, at Cannae, he gave Hannibal exactly the battle Fabius had refused. Only later did Rome return to Fabius’s strategy, and it was the strategy that eventually won the war.</p>
   </div>
 `;
 
@@ -193,7 +192,6 @@ function renderIntro(){
   const ov = document.getElementById('overlay');
   ov.style.display='flex';
   ov.innerHTML = INTRO_HTML;
-
   const histBtn = document.createElement('button');
   histBtn.className = "btn-start";
   histBtn.textContent = "HISTORY";
@@ -202,10 +200,8 @@ function renderIntro(){
   histBtn.style.marginTop = "10px";
   histBtn.onclick = ()=> renderHistory('intro');
   ov.appendChild(histBtn);
-
   document.getElementById('btn-start').onclick = startGame;
 }
-
 function renderHistory(backTo){
   const ov = document.getElementById('overlay');
   ov.style.display='flex';
@@ -213,27 +209,32 @@ function renderHistory(backTo){
     ${HISTORY_HTML}
     <button class="btn-start" id="btn-back" style="margin-top:18px; background:#475569; box-shadow:0 4px 0 #334155;">BACK</button>
   `;
-  document.getElementById('btn-back').onclick = ()=> {
-    if(backTo === 'intro') renderIntro();
-  };
+  document.getElementById('btn-back').onclick = ()=> { if(backTo === 'intro') renderIntro(); };
 }
 
 // ===================================================
 //  ASSETS
 // ===================================================
 const P = {
-  grass:'#4d7c0f', forest:'#14532d', hill:'#57534e',
-  fabius:'#f59e0b', hannibal:'#7f1d1d', village:'#e5e7eb',
-  roof:'#b91c1c', metal:'#94a3b8', shadow:'rgba(0,0,0,0.3)'
+  grass:'#4d7c0f', forest:'#14532d', hill:'#6b6259', hillTop:'#857a6f',
+  fabius:'#f59e0b', hannibal:'#7f1d1d', minucius:'#c53030', forager:'#7a4a21',
+  village:'#e5e7eb', roof:'#b91c1c', metal:'#94a3b8', shadow:'rgba(0,0,0,0.3)'
 };
 
 const CANVAS = document.getElementById('cv');
 const CTX = CANVAS.getContext('2d', { alpha:false });
 const BOX = document.getElementById('game-box');
-
 let DPR=1, VIEW_W=0, VIEW_H=0;
 
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
+
+function drawSoldier(x, y, s, coat, helm){
+  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+  px(x+1*s, y+6*s, s, '#111'); px(x+6*s, y+6*s, s, '#111');
+  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
+  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
+  px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
+}
 
 function drawSprite(u, scale){
   const x = u.x * TILE - 4;
@@ -241,74 +242,86 @@ function drawSprite(u, scale){
   const s = scale;
 
   if(u.type === 'village'){
+    const dead = u.state !== 'intact';
     CTX.fillStyle = P.shadow; CTX.fillRect(x+2*s, y+8*s, 12*s, 4*s);
-
-    // base house
-    CTX.fillStyle = u.burnt ? '#6b7280' : P.village;
-    CTX.fillRect(x, y+4*s, 10*s, 8*s);
-
-    // side building
-    CTX.fillStyle = u.burnt ? '#4b5563' : '#9ca3af';
-    CTX.fillRect(x+6*s, y+2*s, 8*s, 8*s);
-
-    // roof
-    CTX.fillStyle = u.burnt ? '#3f3f46' : P.roof;
+    CTX.fillStyle = dead ? '#6b7280' : P.village; CTX.fillRect(x, y+4*s, 10*s, 8*s);
+    CTX.fillStyle = dead ? '#4b5563' : '#9ca3af'; CTX.fillRect(x+6*s, y+2*s, 8*s, 8*s);
+    CTX.fillStyle = dead ? '#3f3f46' : P.roof;
     CTX.beginPath(); CTX.moveTo(x-2*s, y+4*s); CTX.lineTo(x+5*s, y-2*s); CTX.lineTo(x+12*s, y+4*s); CTX.fill();
-
-    // fire marker 🔥 (simple pixel flames so it stays “gamey”)
-    if(u.burnt){
-      // little flames above roof
-      px(x+4*s, y-4*s, s, '#f59e0b');
-      px(x+5*s, y-5*s, s, '#f59e0b');
-      px(x+6*s, y-4*s, s, '#f59e0b');
+    if(dead && (phaseTimer % 40) < 30){
+      px(x+4*s, y-4*s, s, '#f59e0b'); px(x+5*s, y-5*s, s, '#f59e0b'); px(x+6*s, y-4*s, s, '#f59e0b');
       px(x+5*s, y-6*s, s, '#ef4444');
-      px(x+5*s, y-4*s, s, '#fde047');
-      // “smoke”
-      px(x+3*s, y-7*s, s, 'rgba(156,163,175,0.8)');
-      px(x+7*s, y-7*s, s, 'rgba(156,163,175,0.6)');
+      px(x+3*s, y-8*s, s, 'rgba(156,163,175,0.8)'); px(x+7*s, y-9*s, s, 'rgba(156,163,175,0.6)');
+    }
+    // being plundered: a progress bar
+    if(u.state==='intact' && u.plunder > 0){
+      CTX.fillStyle='#000'; CTX.fillRect(x, y-10*s, 12*s, 3);
+      CTX.fillStyle='#ef4444'; CTX.fillRect(x, y-10*s, 12*s*(u.plunder/PLUNDER_FRAMES), 3);
     }
     return;
   }
-
-  CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-
-  const coat = (u.type==='fabius') ? P.fabius : P.hannibal;
-  const helm = (u.type==='fabius') ? '#fff' : '#111';
-
-  px(x+1*s, y+6*s, s, '#111'); px(x+6*s, y+6*s, s, '#111');
-  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
-  for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-  px(x+3*s,y,s,helm); px(x+4*s,y,s,helm);
-
   if(u.type==='hannibal'){
+    // Hannibal's army: a dense knot of troops around the general
+    for(const [ox,oy] of [[-10,-6],[10,-6],[-12,6],[12,6],[0,10]]) drawSoldier(x+ox, y+oy, s*0.75, P.forager, '#444');
+    drawSoldier(x, y, s, P.hannibal, '#111');
     CTX.fillStyle = '#000'; CTX.fillRect(x+2*s, y+2*s, 4*s, 6*s);
+    return;
+  }
+  if(u.type==='fabius'){
+    for(const [ox,oy] of [[-10,-6],[10,-6],[-10,6],[10,6]]) drawSoldier(x+ox, y+oy, s*0.75, '#c53030', '#fbbf24');
+    drawSoldier(x, y, s, P.fabius, '#fff');
+    return;
+  }
+  if(u.type==='minucius'){
+    for(const [ox,oy] of [[-10,-4],[10,-4],[0,8]]) drawSoldier(x+ox, y+oy, s*0.75, '#c53030', '#fbbf24');
+    drawSoldier(x, y, s, P.minucius, '#fbbf24');
+    return;
+  }
+  if(u.type==='forager'){
+    drawSoldier(x+3, y+3, s*0.8, P.forager, '#444');
+    px(x+8*s, y+4*s, 2*s, '#d4b483');   // sack of grain
   }
 }
 
 // ===================================================
-//  CONFIG (FAST DRAIN)
+//  CONFIG
 // ===================================================
 const TILE = 24;
 const GRID_W = 40;
 const GRID_H = 60;
 let SCALE = 2;
 
+const TERR = { PLAIN:0, FOREST:1, HILL:2 };
+
 const STATS = {
-  hanHP: 1000,
-  hanFood: 100,
-  hanStepCost: 2,
-  hanRaidGain: 40,
-
   fabHP: 50,
-  fabConf: 100,
-  fabStepCost: 2,
-  fabHitGain: 10,
-
-  moveSpeed: 10,
-  hanBaseSpeed: 12,
-  forestSpeed: 20,
-  combatCD: 30
+  hanFood: 100,
+  hanFoodEvery: 45,      // frames per point of food his army eats
+  plunderFood: 30,
+  foragerFood: 12,
+  fabMove: 10, fabForest: 18, fabHill: 16,
+  hanMove: 13, hanForest: 22, hanStarving: 26,
+  foragerMove: 16,
+  crushDmg: 6, crushCD: 30,
+  fabDmg: 3, fabAtkCD: 18,
 };
+const PLUNDER_FRAMES = 70;
+
+// Rome's patience (Confidence)
+const CONF = {
+  start: 100,
+  drainEvery: 320,       // "Rome grows impatient": -1 every this many frames
+  plundered: -8,         // a farm burned by Hannibal
+  scorched: -5,          // a farm burned on YOUR orders
+  forager: +6,           // a small victory to report
+  attackHannibal: +3,    // Rome loves a fight...
+  minuciusSaved: +15,
+  minuciusLost: -20,
+};
+
+const TERM_FRAMES = 6 * 1500;        // six months
+const MINUCIUS_MONTH = 3;            // when the Senate splits the command
+const STARVE_OUT_FRAMES = 2400;      // Hannibal at zero food this long withdraws
 
 // ===================================================
 //  STATE
@@ -321,8 +334,12 @@ let particles = [];
 let floats = [];
 let fabius = null;
 let hannibal = null;
-
+let minucius = null;
+let phaseTimer = 0;
+let starveT = 0;
+let minuciusDone = false;
 let raidAlert = { active:false, x:0, y:0, timer:0 };
+let stats = { plundered:0, scorched:0, foragers:0 };
 
 let input = {dx:0, dy:0};
 let stick = {active:false, startX:0, startY:0, curX:0, curY:0};
@@ -335,13 +352,11 @@ function computeKeyboardDir(){
   const down = keysDown.has('ArrowDown') || keysDown.has('KeyS');
   const left = keysDown.has('ArrowLeft') || keysDown.has('KeyA');
   const right = keysDown.has('ArrowRight') || keysDown.has('KeyD');
-
   let dx=0, dy=0;
   if(left && !right) dx=-1;
   if(right && !left) dx=1;
   if(up && !down) dy=-1;
   if(down && !up) dy=1;
-
   if(dx!==0 && dy!==0){
     if(lastKeyDir.dx !== 0) dy=0;
     else dx=0;
@@ -370,57 +385,49 @@ function startGame(){
 
 function setupMap(){
   units = []; particles = []; floats = [];
-  grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
+  grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(TERR.PLAIN));
   raidAlert.active = false;
+  phaseTimer = 0; starveT = 0; minucius = null; minuciusDone = false;
+  stats = { plundered:0, scorched:0, foragers:0 };
 
-  // Generate Terrain
+  // Campania: rich plains, wooded patches, and ridges of high ground
   for(let y=0; y<GRID_H; y++){
     for(let x=0; x<GRID_W; x++){
-      let n = Math.sin(x/4) * Math.cos(y/4);
-      if(n > 0.6) grid[y][x] = 2;       // Hill (Block)
-      else if(n < -0.3) grid[y][x] = 1; // Forest (Slow)
+      const n = Math.sin(x/4) * Math.cos(y/4);
+      if(n > 0.55) grid[y][x] = TERR.HILL;
+      else if(n < -0.4) grid[y][x] = TERR.FOREST;
     }
   }
 
-  // Spawn Villages
-  for(let i=0; i<12; i++){
-    let vx = Math.floor(Math.random()*(GRID_W-4))+2;
-    let vy = Math.floor(Math.random()*(GRID_H-4))+2;
-    if(grid[vy][vx] !== 2) spawnUnit(vx, vy, 'village');
+  // Farms and villages on the plain
+  let made=0, tries=0;
+  while(made < 14 && tries < 500){
+    tries++;
+    const vx = 2 + Math.floor(Math.random()*(GRID_W-4));
+    const vy = 2 + Math.floor(Math.random()*(GRID_H-4));
+    if(grid[vy][vx] !== TERR.PLAIN) continue;
+    if(units.some(v => Math.abs(v.x-vx) + Math.abs(v.y-vy) < 6)) continue;
+    const v = spawnUnit(vx, vy, 'village');
+    v.state = 'intact'; v.plunder = 0;
+    made++;
   }
 
-  // Spawn Fabius
   fabius = spawnUnit(20, 50, 'fabius');
-  fabius.conf = STATS.fabConf;
-  fabius.steps = 0;
-  fabius.cooldown = 0;
-  cam.x = fabius.x*TILE; cam.y = fabius.y*TILE;
-
-  // Spawn Hannibal
+  fabius.conf = CONF.start;
+  fabius.atkCd = 0;
   hannibal = spawnUnit(20, 10, 'hannibal');
   hannibal.food = STATS.hanFood;
-  hannibal.steps = 0;
-  hannibal.cooldown = 0;
+  hannibal.foragerT = 300;
+  for(let dy=-1; dy<=1; dy++) for(let dx=-1; dx<=1; dx++){ grid[10+dy][20+dx] = TERR.PLAIN; grid[50+dy][20+dx] = TERR.PLAIN; }
 
-  // Clear Start Zone
-  for(let dy=-1; dy<=1; dy++){
-    for(let dx=-1; dx<=1; dx++){
-      grid[10+dy][20+dx] = 0;
-    }
-  }
-
-  showMsg("AVOID BATTLE. ATTACK LOGISTICS.", "#fff");
+  cam.x = fabius.x*TILE; cam.y = fabius.y*TILE;
+  showMsg("SHADOW HIM. DENY HIM BATTLE.", "#fff");
   updateUI();
 }
 
 function spawnUnit(gx, gy, type){
-  let hp = (type==='hannibal') ? STATS.hanHP : (type==='fabius'?STATS.fabHP:20);
-  let u = {
-    id:Math.random(), x:gx, y:gy, type,
-    hp, maxHp:hp,
-    cooldown:0
-  };
-  if(type === 'village') u.burnt = false; // NEW
+  const hp = {hannibal:999, fabius:STATS.fabHP, minucius:25, forager:6, village:20}[type];
+  const u = { id:Math.random(), x:gx, y:gy, type, hp, maxHp:hp, cooldown:0 };
   units.push(u);
   return u;
 }
@@ -431,288 +438,297 @@ function spawnUnit(gx, gy, type){
 function loop(){
   if(!gameActive) return;
   update();
-  draw();
+  if(gameActive) draw();
   requestAnimationFrame(loop);
 }
 
 // ===================================================
 //  LOGIC
 // ===================================================
-function update(){
-  // keyboard direction
-  setInputFromKeyboard();
+const month = () => Math.min(6, 1 + Math.floor(phaseTimer / (TERM_FRAMES/6)));
 
-  // Camera
-  let tx = fabius.x*TILE;
-  let ty = fabius.y*TILE;
-  cam.x += (tx - cam.x)*0.1;
-  cam.y += (ty - cam.y)*0.1;
-
-  if(raidAlert.active){
-    raidAlert.timer--;
-    if(raidAlert.timer <= 0) raidAlert.active = false;
-  }
-
-  // Fabius movement + confidence drain
-  if(fabius.cooldown > 0) fabius.cooldown--;
-  if(fabius.cooldown <= 0 && (input.dx || input.dy)){
-    if(tryMove(fabius, input.dx, input.dy)){
-      fabius.steps++;
-      if(fabius.steps % STATS.fabStepCost === 0){
-        fabius.conf--;
-        updateUI();
-        if(fabius.conf <= 0){
-          finishRun("DEFEAT", "The Senate recalled you. Rome fell.");
-          return;
-        }
-      }
-      let t = grid[fabius.y][fabius.x];
-      fabius.cooldown = (t===1) ? STATS.forestSpeed : STATS.moveSpeed;
-    }
-  }
-
-  handleHannibal();
-  updateFX();
+function changeConf(d, why){
+  fabius.conf = Math.max(0, Math.min(100, fabius.conf + d));
+  if(why) spawnFloat((d>0?'+':'')+d+' '+why, fabius.x, fabius.y-1, d>0 ? '#fde68a' : '#fca5a5');
+  updateUI();
 }
 
-// --- SMART AI (BFS PATHFINDING) ---
-function getSmartStep(unit, target){
-  if(dist(unit, target) <= 1.5) return {x:0, y:0};
+function onHill(u){ return grid[u.y][u.x] === TERR.HILL; }
 
-  let queue = [{x: unit.x, y: unit.y}];
-  let cameFrom = {};
-  let visited = new Set();
-  let startKey = unit.x + "," + unit.y;
-  visited.add(startKey);
-  cameFrom[startKey] = null;
+function update(){
+  phaseTimer++;
+  setInputFromKeyboard();
+  if(fabius.atkCd > 0) fabius.atkCd--;
 
-  let found = false;
-  let limit = 450;
-  let closest = {x: unit.x, y: unit.y, d: 999};
+  cam.x += (fabius.x*TILE - cam.x)*0.1;
+  cam.y += (fabius.y*TILE - cam.y)*0.1;
 
-  const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+  if(raidAlert.active && --raidAlert.timer <= 0) raidAlert.active = false;
 
-  while(queue.length > 0 && limit-- > 0){
-    let curr = queue.shift();
+  // Rome grows impatient
+  if(phaseTimer % CONF.drainEvery === 0) changeConf(-1);
 
-    if(curr.x === target.x && curr.y === target.y){
-      found = true;
-      break;
-    }
-
-    let d = Math.abs(curr.x - target.x) + Math.abs(curr.y - target.y);
-    if(d < closest.d){ closest.d = d; closest.x = curr.x; closest.y = curr.y; }
-
-    for(let dd of dirs){
-      let nx = curr.x + dd[0];
-      let ny = curr.y + dd[1];
-      let key = nx + "," + ny;
-
-      if(nx>=0 && nx<GRID_W && ny>=0 && ny<GRID_H && !visited.has(key)){
-        if(grid[ny][nx] !== 2){
-          visited.add(key);
-          cameFrom[key] = curr;
-          queue.push({x:nx, y:ny});
-        }
-      }
+  // Fabius moves; terrain sets the pace
+  if(fabius.cooldown > 0) fabius.cooldown--;
+  if(fabius.cooldown <= 0 && (input.dx || input.dy)){
+    if(tryMove(fabius, input.dx, input.dy, true)){
+      const t = grid[fabius.y][fabius.x];
+      fabius.cooldown = t===TERR.HILL ? STATS.fabHill : t===TERR.FOREST ? STATS.fabForest : STATS.fabMove;
     }
   }
 
-  let curr = found ? {x: target.x, y: target.y} : {x: closest.x, y: closest.y};
-  let path = [];
-  while(curr){
-    path.push(curr);
-    let key = curr.x + "," + curr.y;
-    curr = cameFrom[key];
-  }
+  // The Senate splits the command
+  if(!minucius && !minuciusDone && month() >= MINUCIUS_MONTH) splitCommand();
 
-  if(path.length >= 2){
-    let nextStep = path[path.length - 2];
-    return {x: nextStep.x - unit.x, y: nextStep.y - unit.y};
+  handleHannibal();
+  for(const u of units){
+    if(u.type==='forager') handleForager(u);
+    if(u.type==='minucius') handleMinucius(u);
   }
-  return {x:0, y:0};
+  units = units.filter(u => u.hp > 0 || u.type==='village');
+
+  updateFX();
+  updateUI();
+
+  // ENDINGS
+  if(fabius.hp <= 0){ finishRun('dead'); return; }
+  if(fabius.conf <= 0){ finishRun('recalled'); return; }
+  if(hannibal.food <= 0){ if(++starveT > STARVE_OUT_FRAMES){ finishRun('starved'); return; } }
+  else starveT = 0;
+  if(phaseTimer >= TERM_FRAMES){ finishRun('term'); return; }
+}
+
+// ---------- HANNIBAL ----------
+function nearestVillage(from, maxD=999){
+  let best=null, bd=maxD;
+  for(const v of units){
+    if(v.type!=='village' || v.state!=='intact') continue;
+    const d = dist(from, v);
+    if(d < bd){ bd=d; best=v; }
+  }
+  return best;
 }
 
 function handleHannibal(){
-  // “Victory” is allowed, but still returns to map
-  if(hannibal.hp <= 0){
-    finishRun("SURVIVED", "Hannibal withdrew. Your delaying strategy worked.");
+  // His army eats
+  if(phaseTimer % STATS.hanFoodEvery === 0 && hannibal.food > 0) hannibal.food--;
+
+  // Send out foraging parties
+  if(--hannibal.foragerT <= 0){
+    // A hungry army forages further and more often
+    const hungry = hannibal.food < 25;
+    hannibal.foragerT = (hungry ? 200 : 420) + Math.random()*240;
+    const v = nearestVillage(hannibal, hungry ? 999 : 26);
+    if(v && units.filter(u=>u.type==='forager').length < (hungry ? 6 : 4)){
+      const f = spawnUnit(hannibal.x, hannibal.y, 'forager');
+      f.target = v; f.carrying = 0; f.cooldown = 10;
+    }
+  }
+
+  if(hannibal.cooldown > 0){ hannibal.cooldown--; return; }
+
+  // Easy prey first: Minucius, then you if you're caught on open ground nearby.
+  let target = null, mode = 'raid';
+  if(minucius && minucius.hp > 0 && dist(hannibal, minucius) < 14){ target = minucius; mode = 'fight'; }
+  else if(dist(hannibal, fabius) <= 7){
+    if(!onHill(fabius)){ target = fabius; mode = 'fight'; }
+    else { mode = 'bait'; }   // he won't climb after you; he waits below, daring you to come down
+  }
+  if(!target && mode !== 'bait') target = nearestVillage(hannibal);
+
+  if(mode === 'bait'){
+    if(phaseTimer % 120 === 0) spawnFloat("Come down and fight!", hannibal.x, hannibal.y-1, '#fca5a5');
+    hannibal.cooldown = 20;
     return;
   }
 
-  if(hannibal.food <= 0){
-    if(Math.random()>0.9){
-      hannibal.hp -= 2;
-      spawnFloat("STARVING", hannibal.x, hannibal.y, "#aaa");
-      updateUI();
-    }
-  }
-
-  if(hannibal.cooldown > 0) { hannibal.cooldown--; return; }
-
-  let dPlayer = dist(hannibal, fabius);
-  let target = null;
-
-  // If you get close, he chases you (this is the mechanic you wanted explained)
-  if(dPlayer <= 6){
-    target = fabius;
-  } else {
-    let minD = 999;
-    // NEW: Hannibal ignores burnt villages when looking for food
-    let vils = units.filter(u => u.type === 'village' && !u.burnt);
-    for(let v of vils){
-      let d = dist(hannibal, v);
-      if(d < minD){ minD = d; target = v; }
-    }
-
-    // fallback: if all are burnt, wander (and slowly starve)
-    if(!target){
-      if(Math.random()>0.6) target = null;
-    }
-  }
-
-  let moveDir = {x:0, y:0};
-
   if(target){
-    if(dist(hannibal, target) <= 1){
-      // ATTACK
-      if(target.type === 'fabius'){
-        target.hp -= 5;
-        spawnBlood(target.x, target.y);
-        spawnFloat("CRUSH!", target.x, target.y, "#f00");
-        updateUI();
-        if(target.hp<=0){
-          finishRun("DEFEAT", "Caught by Hannibal.");
-          return;
+    if(dist(hannibal, target) <= 1.5){
+      if(target.type === 'village'){
+        target.plunder++;
+        hannibal.cooldown = 1;
+        if(target.plunder === 1){
+          raidAlert = { active:true, x:target.x, y:target.y, timer:PLUNDER_FRAMES+30 };
+          spawnFloat("HELP!", target.x, target.y, '#ef4444');
         }
-      } else if(target.type === 'village'){
-        target.hp -= 5;
-
-        raidAlert.active = true;
-        raidAlert.x = target.x;
-        raidAlert.y = target.y;
-        raidAlert.timer = 90;
-        spawnFloat("HELP!", target.x, target.y, "#ef4444");
-
-        if(target.hp <= 0){
-          // NEW: if village is burnt, Hannibal gets NO FOOD from it
-          const wasBurnt = !!target.burnt;
-
-          units = units.filter(u => u !== target);
-
-          if(!wasBurnt){
-            hannibal.food = Math.min(100, hannibal.food + STATS.hanRaidGain);
-            spawnFloat("+FOOD", hannibal.x, hannibal.y, "#84cc16");
-          } else {
-            spawnFloat("ASHES", hannibal.x, hannibal.y, "#9ca3af");
-          }
-          updateUI();
-          raidAlert.active = false;
-        }
+        if(target.plunder >= PLUNDER_FRAMES) plunderVillage(target, STATS.plunderFood);
+        return;
       }
-      hannibal.cooldown = STATS.combatCD;
+      // Battle on open ground: he crushes you
+      if(target === fabius && onHill(fabius)){ hannibal.cooldown = 20; return; }
+      target.hp -= STATS.crushDmg;
+      spawnBlood(target.x, target.y);
+      spawnFloat("CRUSHED!", target.x, target.y, '#f00');
+      if(target === minucius && target.hp <= 0) minuciusLost();
+      hannibal.cooldown = STATS.crushCD;
       return;
     }
-
-    moveDir = getSmartStep(hannibal, target);
-  } else {
-    if(Math.random()>0.8) moveDir = {x: (Math.random()>.5?1:-1), y: (Math.random()>.5?1:-1)};
-  }
-
-  if(moveDir.x !== 0 || moveDir.y !== 0){
-    if(tryMove(hannibal, moveDir.x, moveDir.y)){
-      hannibal.steps++;
-      if(hannibal.steps % STATS.hanStepCost === 0 && hannibal.food > 0){
-        hannibal.food--;
-        updateUI();
-      }
-      let t = grid[hannibal.y][hannibal.x];
-      let baseSpeed = (hannibal.food <= 0) ? 30 : STATS.hanBaseSpeed;
-      hannibal.cooldown = (t===1) ? baseSpeed + 10 : baseSpeed;
+    const step = getSmartStep(hannibal, target);
+    if(step.x || step.y){
+      tryMove(hannibal, step.x, step.y, false);
+      const t = grid[hannibal.y][hannibal.x];
+      const base = hannibal.food <= 0 ? STATS.hanStarving : STATS.hanMove;
+      hannibal.cooldown = t===TERR.FOREST ? base + 9 : base;
+      return;
     }
+  }
+  hannibal.cooldown = 20;
+}
+
+function plunderVillage(v, food){
+  v.state = 'plundered';
+  hannibal.food = Math.min(100, hannibal.food + food);
+  stats.plundered++;
+  showMsg("FARMS BURN IN CAMPANIA!", "#ef4444");
+  changeConf(CONF.plundered, "Rome is angry");
+  raidAlert.active = false;
+}
+
+// ---------- FORAGERS ----------
+function handleForager(f){
+  if(f.hp <= 0) return;
+  if(f.cooldown > 0){ f.cooldown--; return; }
+  f.cooldown = STATS.foragerMove;
+  if(!f.carrying){
+    if(!f.target || f.target.state !== 'intact') f.target = nearestVillage(f, hannibal.food < 25 ? 999 : 26);
+    if(!f.target){ f.carrying = -1; return; }     // nothing left: head home empty-handed
+    if(dist(f, f.target) <= 1.5){
+      f.target.plunder += 12;
+      if(f.target.plunder >= PLUNDER_FRAMES){ plunderVillage(f.target, 0); f.carrying = STATS.foragerFood; }
+      return;
+    }
+    const st = getSmartStep(f, f.target); tryMove(f, st.x, st.y, false);
+  } else {
+    if(dist(f, hannibal) <= 1.5){
+      if(f.carrying > 0){ hannibal.food = Math.min(100, hannibal.food + f.carrying); spawnFloat("+FOOD", hannibal.x, hannibal.y, '#84cc16'); }
+      f.hp = 0;   // rejoins the army
+      return;
+    }
+    const st = getSmartStep(f, hannibal); tryMove(f, st.x, st.y, false);
   }
 }
 
-function tryMove(u, dx, dy){
-  let tx = u.x + dx;
-  let ty = u.y + dy;
+// ---------- MINUCIUS ----------
+function splitCommand(){
+  // He takes half your army and marches off to fight.
+  const share = Math.floor(fabius.hp / 2);
+  fabius.hp -= share;
+  minucius = spawnUnit(fabius.x + (fabius.x < 30 ? 2 : -2), fabius.y, 'minucius');
+  if(grid[minucius.y][minucius.x] === TERR.HILL) grid[minucius.y][minucius.x] = TERR.PLAIN;
+  minucius.hp = minucius.maxHp = Math.max(10, share);
+  minucius.cooldown = 60;
+  showMsg("THE SENATE GIVES MINUCIUS EQUAL COMMAND!", "#fde68a");
+  setTimeout(()=>{ if(gameActive && minucius) showMsg("MINUCIUS MARCHES TO ATTACK HANNIBAL!", "#fca5a5"); }, 2600);
+}
+
+function handleMinucius(m){
+  if(m.hp <= 0) return;
+  // Rescue: reach him while Hannibal has him pinned
+  if(dist(m, fabius) <= 2.5){
+    fabius.hp = Math.min(STATS.fabHP, fabius.hp + m.hp);
+    m.hp = 0; minucius = null; minuciusDone = true;
+    showMsg("FABIUS RESCUES MINUCIUS!", "#fde68a");
+    changeConf(CONF.minuciusSaved, "Rome remembers");
+    // Hannibal draws off rather than face both armies at once
+    hannibal.cooldown = 120;
+    return;
+  }
+  if(m.cooldown > 0){ m.cooldown--; return; }
+  m.cooldown = 22;
+  if(dist(m, hannibal) > 1.5){
+    const st = getSmartStep(m, hannibal); tryMove(m, st.x, st.y, false);
+  }
+}
+function minuciusLost(){
+  minucius.hp = 0; minucius = null; minuciusDone = true;
+  showMsg("MINUCIUS' ARMY IS DESTROYED!", "#ef4444");
+  changeConf(CONF.minuciusLost, "disaster");
+}
+
+// ---------- PATHFINDING (BFS around high ground) ----------
+function getSmartStep(unit, target){
+  if(dist(unit, target) <= 1.5) return {x:0, y:0};
+  const queue = [{x: unit.x, y: unit.y}];
+  const cameFrom = new Map();
+  const key = (x,y)=> x+","+y;
+  cameFrom.set(key(unit.x,unit.y), null);
+  let found = null, closest = {x:unit.x, y:unit.y, d:1e9};
+  let limit = 600;
+  const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+  while(queue.length && limit-- > 0){
+    const c = queue.shift();
+    if(Math.abs(c.x-target.x) + Math.abs(c.y-target.y) <= 1){ found = c; break; }
+    const d = Math.abs(c.x-target.x) + Math.abs(c.y-target.y);
+    if(d < closest.d) closest = {x:c.x, y:c.y, d};
+    for(const [dx,dy] of dirs){
+      const nx=c.x+dx, ny=c.y+dy;
+      if(nx<0||nx>=GRID_W||ny<0||ny>=GRID_H) continue;
+      if(grid[ny][nx] === TERR.HILL) continue;   // the Carthaginian army keeps to the plain
+      const k = key(nx,ny);
+      if(cameFrom.has(k)) continue;
+      cameFrom.set(k, c);
+      queue.push({x:nx, y:ny});
+    }
+  }
+  let cur = found || closest;
+  let prev = null;
+  while(cur && !(cur.x===unit.x && cur.y===unit.y)){ prev = cur; cur = cameFrom.get(key(cur.x,cur.y)); }
+  return prev ? {x: prev.x-unit.x, y: prev.y-unit.y} : {x:0, y:0};
+}
+
+function tryMove(u, dx, dy, canClimb){
+  const tx = u.x + dx, ty = u.y + dy;
   if(tx<0||tx>=GRID_W||ty<0||ty>=GRID_H) return false;
-  if(grid[ty][tx] === 2) return false;
+  if(grid[ty][tx] === TERR.HILL && !canClimb) return false;
   u.x = tx; u.y = ty;
   return true;
 }
 
 // ===================================================
-//  NEW: Scorched earth action
+//  ACTIONS: strike / scorch
 // ===================================================
-function burnVillage(v){
-  if(!v || v.type !== 'village' || v.burnt) return false;
-  v.burnt = true;
-  // (Optional) make it easier for Hannibal to wipe it out, but it still won't feed him
-  v.hp = Math.min(v.hp, 10);
-
-  // little burst of “embers”
-  for(let i=0;i<12;i++){
-    particles.push({
-      x: v.x*TILE + TILE/2,
-      y: v.y*TILE + TILE/2,
-      vx:(Math.random()-.5)*4,
-      vy:(Math.random()-.8)*4,
-      life:1,
-      color: (Math.random()>0.5 ? '#f59e0b' : '#ef4444')
-    });
-  }
-  spawnFloat("🔥 BURN", v.x, v.y, "#f59e0b");
-  showMsg("SCORCHED EARTH!", "#f59e0b");
-  return true;
-}
-
-// Attack (button + keyboard)
 function doAttack(e){
-  if(e){ e.stopPropagation(); e.preventDefault(); }
+  if(e){ e.stopPropagation?.(); e.preventDefault?.(); }
   if(!gameActive) return;
+  if(fabius.atkCd > 0) return;
+  fabius.atkCd = STATS.fabAtkCD;
 
-  // Priority 1: poke Hannibal if close
-  let d = dist(fabius, hannibal);
-  if(d <= 2){
-    hannibal.hp -= 5;
-    spawnBlood(hannibal.x, hannibal.y);
-    spawnFloat("POKE", hannibal.x, hannibal.y, "#fff");
-    fabius.conf = Math.min(100, fabius.conf + STATS.fabHitGain);
-    spawnFloat("+CONF", fabius.x, fabius.y, "#f59e0b");
-    updateUI();
+  // 1. Foragers in reach: cut them down
+  const f = units.find(u => u.type==='forager' && u.hp>0 && dist(u, fabius) <= 1.5);
+  if(f){
+    f.hp -= STATS.fabDmg;
+    spawnBlood(f.x, f.y);
+    if(f.hp <= 0){ stats.foragers++; changeConf(CONF.forager, "foragers routed"); }
     return;
   }
-
-  // Priority 2: burn a village if in range
-  const burnRange = 2;
-  let nearest = null;
-  let bestD = 999;
-  for(const v of units){
-    if(v.type !== 'village' || v.burnt) continue;
-    const dv = dist(fabius, v);
-    if(dv <= burnRange && dv < bestD){
-      bestD = dv; nearest = v;
+  // 2. Hannibal himself: Rome cheers... and he answers
+  if(dist(fabius, hannibal) <= 1.5){
+    spawnFloat("He barely notices", hannibal.x, hannibal.y, '#aaa');
+    changeConf(CONF.attackHannibal, "Rome cheers");
+    if(!onHill(fabius)){ fabius.hp -= STATS.crushDmg; spawnBlood(fabius.x, fabius.y); }
+    return;
+  }
+  // 3. Scorched earth: burn the crops before he can take them
+  const v = units.find(u => u.type==='village' && u.state==='intact' && dist(u, fabius) <= 2);
+  if(v){
+    v.state = 'scorched';
+    stats.scorched++;
+    for(let i=0;i<12;i++){
+      particles.push({ x:v.x*TILE+TILE/2, y:v.y*TILE+TILE/2, vx:(Math.random()-.5)*4, vy:(Math.random()-.8)*4, life:1, color: Math.random()>0.5 ? '#f59e0b' : '#ef4444' });
     }
-  }
-  if(nearest){
-    burnVillage(nearest);
-    updateUI();
+    showMsg("SCORCHED EARTH!", "#f59e0b");
+    changeConf(CONF.scorched, "farmers curse you");
     return;
   }
-
-  // Otherwise miss
-  spawnFloat("MISS", fabius.x, fabius.y, "#aaa");
+  spawnFloat("...", fabius.x, fabius.y, "#aaa");
 }
 
 function updateUI(){
   document.getElementById('ui-conf').innerText = Math.floor(fabius.conf);
   document.getElementById('bar-conf').style.width = fabius.conf + "%";
-
-  document.getElementById('ui-hp').innerText = Math.floor(fabius.hp);
-  document.getElementById('bar-hp').style.width = (fabius.hp / STATS.fabHP) * 100 + "%";
-
-  document.getElementById('ui-han').innerText = Math.floor(hannibal.hp);
+  document.getElementById('ui-hp').innerText = Math.max(0, Math.floor(fabius.hp));
+  document.getElementById('bar-hp').style.width = Math.max(0, fabius.hp / STATS.fabHP) * 100 + "%";
+  document.getElementById('ui-month').innerText = month() + " / 6";
   document.getElementById('ui-food').innerText = Math.floor(hannibal.food);
   document.getElementById('bar-food').style.width = hannibal.food + "%";
 }
@@ -720,19 +736,40 @@ function updateUI(){
 // ===================================================
 //  END SCREEN -> HISTORY -> MAP
 // ===================================================
-function finishRun(title, line){
+const ENDINGS = {
+  term: { title:'SIX MONTHS', col:'#fbbf24', line:'Your dictatorship is over. The army is intact.',
+    text:'You did not lose. That was the problem. Rome wanted a victory, and the voters elected consuls who promised one. One of them was Gaius Terentius Varro.' },
+  recalled: { title:'RECALLED', col:'#ef4444', line:'Rome has run out of patience.',
+    text:'“Cunctator,” they call you: the Delayer. The Senate strips you of real power and hands the war to men who promise to fight. Next summer they will march eight legions to a place called Cannae.' },
+  dead: { title:'DEFEAT', col:'#ef4444', line:'You gave Hannibal the battle he wanted.',
+    text:'On open ground, against Hannibal, a Roman army could not win. Fabius understood this. You forgot it for one afternoon.' },
+  starved: { title:'HANNIBAL WITHDRAWS', col:'#fbbf24', line:'Starving, his army pulls out of Campania.',
+    text:'Your strategy worked. Rome barely noticed: there was no great battle to celebrate. Your term ends, and the next consuls go looking for one at Cannae.' },
+};
+
+function finishRun(kind){
   gameActive=false;
+  spwMarkDone('fabian');
+  document.getElementById('battle-text').style.opacity = 0;
+  const E = ENDINGS[kind];
   const ov = document.getElementById('overlay');
   ov.style.display='flex';
   ov.innerHTML = `
-    <h1>${title}</h1>
-    <p><b>${line}</b></p>
-    ${HISTORY_HTML}
-    <button class="btn-start" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+    <h1 style="color:${E.col}">${E.title}</h1>
+    <p><b>${E.line}</b></p>
+    <p>${E.text}</p>
+    <p style="font-size:13px; color:#aaa;">Farms plundered: ${stats.plundered} · Burned on your orders: ${stats.scorched} · Foragers routed: ${stats.foragers}</p>
+    <button class="btn-start" id="btn-map" style="margin-top:12px;">CONTINUE CAMPAIGN</button>
     <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
+    <button class="btn-start" id="btn-hist" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">HISTORY</button>
   `;
   document.getElementById('btn-map').onclick = goToMap;
-  document.getElementById('btn-replay').onclick = ()=> { gameActive=false; renderIntro(); };
+  document.getElementById('btn-replay').onclick = ()=> location.reload();
+  document.getElementById('btn-hist').onclick = ()=> {
+    ov.innerHTML = `${HISTORY_HTML}
+      <button class="btn-start" id="btn-map2" style="margin-top:18px;">CONTINUE CAMPAIGN</button>`;
+    document.getElementById('btn-map2').onclick = goToMap;
+  };
 }
 
 // ===================================================
@@ -747,53 +784,55 @@ function draw(){
   let cy = VIEW_H/2 - cam.y;
   CTX.translate(Math.round(cx), Math.round(cy));
 
-  // Map
   for(let y=0; y<GRID_H; y++){
     for(let x=0; x<GRID_W; x++){
-      let t = grid[y][x];
-      CTX.fillStyle = (t===0) ? P.grass : (t===1 ? P.forest : P.hill);
-      CTX.fillRect(x*TILE, y*TILE, TILE, TILE);
-      if(t===1){ CTX.fillStyle='#0f3d20'; CTX.fillRect(x*TILE+8, y*TILE+4, 8, 12); }
-      if(t===2){ CTX.fillStyle='#44403c'; CTX.fillRect(x*TILE+4, y*TILE+10, 16, 6); }
+      const t = grid[y][x], X = x*TILE, Y = y*TILE;
+      if(t===TERR.HILL){
+        CTX.fillStyle = P.hill; CTX.fillRect(X, Y, TILE, TILE);
+        CTX.fillStyle = P.hillTop; CTX.fillRect(X+3, Y+3, TILE-8, 4);
+        CTX.fillStyle = '#4f4740'; CTX.fillRect(X+4, Y+14, 14, 4);
+      } else if(t===TERR.FOREST){
+        CTX.fillStyle = P.forest; CTX.fillRect(X, Y, TILE, TILE);
+        CTX.fillStyle='#0f3d20'; CTX.fillRect(X+8, Y+4, 8, 12);
+      } else {
+        CTX.fillStyle = P.grass; CTX.fillRect(X, Y, TILE, TILE);
+        if((x*7+y*11)%6===0){ CTX.fillStyle='#65a30d'; CTX.fillRect(X+6, Y+8, 3, 3); }
+      }
     }
   }
 
-  let all = [...units, fabius, hannibal].filter(Boolean);
+  const all = units.filter(u => u.hp > 0 || u.type==='village');
   all.sort((a,b)=>a.y - b.y);
-  for(let u of all) drawSprite(u, SCALE);
+  for(const u of all) drawSprite(u, SCALE);
+
+  // On the hills you are safe: a little banner marks it
+  if(onHill(fabius)){
+    CTX.font="bold 10px monospace"; CTX.textAlign="center"; CTX.fillStyle='#fde68a';
+    CTX.fillText("HIGH GROUND", fabius.x*TILE+TILE/2, fabius.y*TILE-22);
+  }
 
   for(let p of particles){ CTX.fillStyle=p.color; CTX.fillRect(p.x, p.y, SCALE, SCALE); }
+
   CTX.font="bold 12px monospace"; CTX.textAlign="center";
-  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=f.life; CTX.fillText(f.text, f.x+TILE/2, f.y); }
+  for(let f of floats){ CTX.fillStyle=f.color; CTX.globalAlpha=Math.max(0,f.life); CTX.fillText(f.text, f.x+TILE/2, f.y); }
   CTX.globalAlpha=1;
   CTX.restore();
 
-  // RAID ARROW (screen space)
-  if(raidAlert.active){
-    let rx = raidAlert.x * TILE + TILE/2;
-    let ry = raidAlert.y * TILE + TILE/2;
-    let dx = rx - cam.x;
-    let dy = ry - cam.y;
-
+  // Off-screen arrows: a farm being plundered, and Minucius
+  const arrows = [];
+  if(raidAlert.active) arrows.push({x:raidAlert.x, y:raidAlert.y, col:'239,68,68', label:'HELP!'});
+  if(minucius && minucius.hp > 0) arrows.push({x:minucius.x, y:minucius.y, col:'251,191,36', label:'MINUCIUS'});
+  for(const a of arrows){
+    const dx = a.x*TILE + TILE/2 - cam.x, dy = a.y*TILE + TILE/2 - cam.y;
     if(Math.abs(dx) > VIEW_W/2 || Math.abs(dy) > VIEW_H/2){
-      let angle = Math.atan2(dy, dx);
-      let distPx = 140;
-      let arrowX = VIEW_W/2 + Math.cos(angle)*distPx;
-      let arrowY = VIEW_H/2 + Math.sin(angle)*distPx;
-
-      CTX.save();
-      CTX.translate(arrowX, arrowY);
-      CTX.rotate(angle);
-      CTX.fillStyle = `rgba(239, 68, 68, ${ (Math.sin(Date.now()/100)+1)/2 + 0.5 })`;
-      CTX.beginPath();
-      CTX.moveTo(10, 0); CTX.lineTo(-10, 10); CTX.lineTo(-10, -10);
-      CTX.fill();
+      const ang = Math.atan2(dy, dx);
+      const ax = VIEW_W/2 + Math.cos(ang)*140, ay = VIEW_H/2 + Math.sin(ang)*140;
+      CTX.save(); CTX.translate(ax, ay); CTX.rotate(ang);
+      CTX.fillStyle = `rgba(${a.col}, ${ (Math.sin(Date.now()/100)+1)/4 + 0.5 })`;
+      CTX.beginPath(); CTX.moveTo(10,0); CTX.lineTo(-10,10); CTX.lineTo(-10,-10); CTX.fill();
       CTX.restore();
-
-      CTX.font="bold 16px sans-serif";
-      CTX.fillStyle="white";
-      CTX.textAlign="center";
-      CTX.fillText("HELP!", arrowX, arrowY + 30);
+      CTX.font="bold 14px sans-serif"; CTX.fillStyle="white"; CTX.textAlign="center";
+      CTX.fillText(a.label, ax, ay + 28);
     }
   }
 }

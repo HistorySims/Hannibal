@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-<title>Lake Trasimene: Two-Wide Column</title>
+<title>Lake Trasimene</title>
 <style>
   :root{
     --bg:#0e1114;
@@ -120,7 +120,7 @@
   <div id="overlay"></div>
 
   <div class="hud-top">
-    <span class="team-you">YOU: <span id="ui-you">50</span></span>
+    <span class="team-you">YOU: <span id="ui-you">60</span></span>
     <span class="team-rom">ROMANS: <span id="ui-rome">0</span></span>
     <span class="team-han">ENEMY: <span id="ui-han">0</span></span>
   </div>
@@ -139,6 +139,7 @@
   </div>
 </div>
 
+<script src="campaign.js"></script>
 <script>
 // ===================================================
 //  ROUTING / END FLOW
@@ -151,9 +152,9 @@ function goToMap(){ window.location.href = NEXT_PAGE; }
 // ===================================================
 const INTRO_HTML = `
   <h1>LAKE TRASIMENE</h1>
-  <p>Two-wide march, lake at your elbow. You’re in the column.</p>
-  <p><b>Rules:</b> Lake = death. Woods = uphill (slow).</p>
-  <p>“Hannibal’s camp is ahead…”</p>
+  <p><b>Dawn, June 217 BC.</b> Mist lies thick over the lake.</p>
+  <p>Consul Flaminius is hurrying the army along the narrow shore road after Hannibal. Scouts say his camp is just ahead. Keep marching.</p>
+  <p><b>Lake = drowning. Woods = uphill (slow).</b></p>
   <button class="btn-start" id="btn-start">MARCH OUT</button>
 `;
 
@@ -161,15 +162,15 @@ const HISTORY_HTML = `
   <h2 style="color:#f59e0b; margin:0 0 10px 0;">LAKE TRASIMENE (217 BC)</h2>
   <div style="text-align:left; font-size:14px; color:#ccc; line-height:1.6; max-width:520px;">
     <p><strong style="color:#fff">FORCES:</strong><br>
-    <span style="color:#ef4444">Rome:</span> ~30,000 (Gaius Flaminius)<br>
-    <span style="color:#3b82f6">Carthage:</span> ~55,000 (Hannibal)</p>
+    <span style="color:#ef4444">Rome:</span> ~25,000 (Gaius Flaminius)<br>
+    <span style="color:#3b82f6">Carthage:</span> ~50,000 (Hannibal)</p>
 
     <p><strong style="color:#fff">CASUALTIES:</strong><br>
-    <span style="color:#ef4444">Rome:</span> ~15,000 killed, ~15,000 captured<br>
+    <span style="color:#ef4444">Rome:</span> ~15,000 killed, ~10,000 captured<br>
     <span style="color:#3b82f6">Carthage:</span> ~2,500</p>
 
     <p><strong style="color:#fff">SIGNIFICANCE:</strong><br>
-    Often described as the largest ambush in military history. Hannibal hid forces in the hills above the lake’s fog. The Romans were strung out in marching formation (like in this game) and were pushed into the water. Flaminius was killed.</p>
+    The largest ambush in military history. Hannibal camped openly at the far end of a narrow strip between the hills and the lake, and hid his whole army on the slopes above it. Flaminius marched in at dawn, in column, through thick mist. When the trumpets sounded, the attack came downhill from every side at once. The Romans never formed a line; thousands were driven into the lake. Flaminius was killed by a Gallic horseman. About 6,000 men of the vanguard cut their way through, but were surrounded and captured the next day.</p>
   </div>
 `;
 
@@ -177,7 +178,6 @@ function renderIntro(){
   const ov = document.getElementById('overlay');
   ov.style.display = 'flex';
   ov.innerHTML = INTRO_HTML;
-
   const histBtn = document.createElement('button');
   histBtn.className = "btn-start";
   histBtn.style.backgroundColor = "#475569";
@@ -186,10 +186,8 @@ function renderIntro(){
   histBtn.textContent = "HISTORY";
   histBtn.onclick = () => renderHistory('intro');
   ov.appendChild(histBtn);
-
   document.getElementById('btn-start').onclick = startGame;
 }
-
 function renderHistory(backTo){
   const ov = document.getElementById('overlay');
   ov.style.display = 'flex';
@@ -197,9 +195,7 @@ function renderHistory(backTo){
     ${HISTORY_HTML}
     <button class="btn-start" id="btn-back" style="margin-top:20px; background:#475569; box-shadow:0 4px 0 #334155;">BACK</button>
   `;
-  document.getElementById('btn-back').onclick = () => {
-    if(backTo === 'intro') renderIntro();
-  };
+  document.getElementById('btn-back').onclick = () => { if(backTo === 'intro') renderIntro(); };
 }
 
 // ===================================================
@@ -207,36 +203,38 @@ function renderHistory(backTo){
 // ===================================================
 const P = {
   metal:'#b7bcc5', black:'#111114',
-  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21',
+  roman:'#c53030', you:'#1f9d55', inv:'#7a4a21', libyan:'#3567b5',
+  horse:'#6b4423', rider:'#7a4a21',
   gold:'#fbbf24', white:'#e7e7ea',
   shadow:'rgba(0,0,0,0.35)'
 };
 const CANVAS = document.getElementById('cv');
 const CTX = CANVAS.getContext('2d', { alpha:false });
 const BOX = document.getElementById('game-box');
-
 let DPR = 1, VIEW_W = 0, VIEW_H = 0;
 
 function px(x,y,s,c){CTX.fillStyle=c; CTX.fillRect(x,y,s,s);}
-function drawSprite(kind, x, y, scale){
-  const s = scale;
-  const coat =
-    kind==='roman' ? P.roman :
-    kind==='yours' ? P.you :
-    kind==='invader' ? P.inv : P.inv;
 
+function drawSprite(u, scale){
+  if(u.hidden) return;
+  const x = u.x*TILE - 4, y = u.y*TILE - 8, s = scale;
+  if(u.type==='cavalry'){
+    CTX.fillStyle=P.shadow; CTX.beginPath(); CTX.ellipse(x+5*s, y+9*s, 6*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
+    for(let dx=1; dx<=8; dx++){ px(x+dx*s, y+5*s, s, P.horse); px(x+dx*s, y+6*s, s, P.horse); }
+    px(x, y+4*s, s, P.horse); px(x, y+3*s, s, P.horse);
+    px(x+2*s, y+7*s, s, P.horse); px(x+2*s, y+8*s, s, P.black);
+    px(x+7*s, y+7*s, s, P.horse); px(x+7*s, y+8*s, s, P.black);
+    px(x+4*s, y+3*s, s, P.rider); px(x+4*s, y+4*s, s, P.rider); px(x+4*s, y+2*s, s, '#444');
+    return;
+  }
+  const coat = {roman:P.roman, yours:P.you, libyan:P.libyan}[u.type] || P.inv;
   CTX.fillStyle=P.shadow;
   CTX.beginPath(); CTX.ellipse(x+4*s, y+7*s, 4*s, 2*s, 0, 0, Math.PI*2); CTX.fill();
-
-  px(x+1*s, y+6*s, s, P.black);
-  px(x+6*s, y+6*s, s, P.black);
-  px(x+2*s, y+5*s, s, P.metal);
-  px(x+5*s, y+5*s, s, P.metal);
+  px(x+1*s, y+6*s, s, P.black); px(x+6*s, y+6*s, s, P.black);
+  px(x+2*s, y+5*s, s, P.metal); px(x+5*s, y+5*s, s, P.metal);
   for(let dx=2; dx<=5; dx++) px(x+dx*s, y+3*s, s, coat);
-
-  if(kind==='roman'){ px(x+3*s,y,s,P.gold); px(x+4*s,y,s,P.gold); }
-  else if(kind==='yours'){ px(x+3*s,y,s,P.white); px(x+4*s,y,s,P.white); }
-  else { px(x+3*s,y,s,'#444'); px(x+4*s,y,s,'#444'); }
+  const helm = u.type==='roman' ? P.gold : u.type==='yours' ? P.white : u.type==='libyan' ? P.metal : '#444';
+  px(x+3*s, y, s, helm); px(x+4*s, y, s, helm);
 }
 
 // ===================================================
@@ -244,46 +242,45 @@ function drawSprite(kind, x, y, scale){
 // ===================================================
 const TILE = 24;
 const GRID_W = 44;
-const GRID_H = 74;
+const GRID_H = 100;
 let SCALE = 2;
 
 const PACE = {
-  playerMove: 26,
+  playerMove: 22,
   romanMove: 34,
-  invaderMove: 34,
+  invaderMove: 30,
+  libyanMove: 32,
+  cavalryMove: 14,
   aiThinkJitter: 22,
-  combatDelay: 56
+  combatDelay: 52
 };
+const PLAYER_ATTACK = { cooldownFrames: 18, maxHits: 2, dmg: 1.5 };
 
-const PLAYER_ATTACK = { cooldownFrames: 18, maxHits: 2 };
 const TERRAIN = { PATH:0, WOODS:1, LAKE:2 };
+const LAKE_START = 31;
+const PATH_L = LAKE_START - 2, PATH_R = LAKE_START - 1;
+
 const MOVE_COST = {
   path: 1.0,
   woods: 2.4,
   uphillExtra: 1.45,
   romanPathBoost: 0.75,
-  invaderDownhillBoost: 0.62
+  invaderDownhillBoost: 0.55
 };
-const LAKE = { dmgPerTick: 2, splashDmgOnPush: 6 };
-const AMBUSH = {
-  triggerY: Math.floor(GRID_H * 0.50),
-  spawnBand: 10,
-  spawnCount: 32,
-  spawnWave2After: 420,
-  spawnWave2Count: 18
+// In the water you take damage every `dmgEvery` frames and wade slowly,
+// so a shove into the lake is deadly but can be fought out of.
+const LAKE = { dmg: 3, dmgEvery: 30, splashDmgOnPush: 4, wadeCost: 2.2 };
+
+const SHOVE = { baseChance: 0.5, downhillBonus: 0.5, pathBonus: 0.2, chainDepth: 4 };
+
+const PH = { MARCH:0, SIGNAL:1 };
+const SCRIPT = {
+  signalAtY: 11,       // when the head of the column reaches Hannibal's blocking force...
+  signalLatest: 1700,  // ...or at this frame at the latest
+  idleNudge: 110,      // frames standing still in the column before you're shoved along
+  vanguardDepth: 9,    // rows from the head of the column that count as the vanguard
 };
-const SHOVE = {
-  baseChance: 0.52,
-  downhillBonus: 0.55,
-  backBonus: 0.20,
-  tryLakeFirst: true,
-  chainDepth: 4
-};
-const CAMP = {
-  revealY: 2,
-  retreatReinforceAfter: 180,
-  retreatWaveCount: 22
-};
+const BLOCK_Y0 = 3, BLOCK_Y1 = 5;
 
 // ===================================================
 //  STATE
@@ -295,14 +292,14 @@ let units=[];
 let particles=[], floats=[];
 let player=null;
 let phaseTimer=0;
-let ambush=false;
-let ambushAt=0;
-let spawnedWave2=false;
+let battlePhase=PH.MARCH;
+let signalAt=0;
 let atkCD=0;
-let campFound=false;
-let retreat=false;
-let campAt=0;
-let spawnedRetreatWave=false;
+let romansAtStart=0;
+let idleT=0;
+let lastWarnAt=-999;
+let glintShown=false;
+let mist=1;
 
 // input
 let input={dx:0,dy:0};
@@ -316,13 +313,11 @@ function computeKeyboardDir(){
   const down = keysDown.has('ArrowDown') || keysDown.has('KeyS');
   const left = keysDown.has('ArrowLeft') || keysDown.has('KeyA');
   const right = keysDown.has('ArrowRight') || keysDown.has('KeyD');
-
   let dx=0, dy=0;
   if(left && !right) dx=-1;
   if(right && !left) dx=1;
   if(up && !down) dy=-1;
   if(down && !up) dy=1;
-
   if(dx!==0 && dy!==0){
     if(lastKeyDir.dx !== 0) dy=0;
     else dx=0;
@@ -344,7 +339,6 @@ function startGame(){
   const ov=document.getElementById('overlay');
   ov.style.display='none';
   if(gameActive) return;
-
   gameActive=true;
   resize();
   setupMap();
@@ -355,93 +349,61 @@ function toggleZoom(){ SCALE = (SCALE===2) ? 3 : 2; }
 // ===================================================
 //  MAP
 // ===================================================
+function isCarth(u){ return u.type==='invader' || u.type==='libyan' || u.type==='cavalry'; }
+
 function setupMap(){
-  phaseTimer=0; ambush=false; spawnedWave2=false; atkCD=0;
-  campFound=false; retreat=false; campAt=0; spawnedRetreatWave=false;
+  phaseTimer=0; battlePhase=PH.MARCH; signalAt=0; atkCD=0; idleT=0; glintShown=false; mist=1;
   units=[]; particles=[]; floats=[];
   grid = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(null));
   terrain = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(TERRAIN.WOODS));
   elev = Array(GRID_H).fill(0).map(()=>Array(GRID_W).fill(0));
+  for(let y=0;y<GRID_H;y++){
+    for(let x=0;x<GRID_W;x++){
+      terrain[y][x] = (x>=LAKE_START) ? TERRAIN.LAKE : TERRAIN.WOODS;
+      elev[y][x] = Math.max(0, LAKE_START-1-x);
+    }
+    terrain[y][PATH_L] = TERRAIN.PATH;
+    terrain[y][PATH_R] = TERRAIN.PATH;
+  }
 
-  buildTerrainTwoWide();
+  // THE COLUMN: two abreast along the shore road, strung out for miles
+  player = spawnUnit(PATH_L, 66, 'yours');
+  for(let y=40; y<=96; y++){
+    for(const x of [PATH_L, PATH_R]){
+      if(Math.random() < 0.85) spawnUnit(x, y, 'roman');
+    }
+  }
+  romansAtStart = units.filter(u=>u.type==='roman').length;
 
-  const midY = GRID_H - 18;
-  const start = findPathCellNear(midY);
-  spawnRomanTwoWideColumnAround(start.y);
+  // HANNIBAL'S "CAMP": Spanish and African infantry holding the far end of the road
+  for(let y=BLOCK_Y0; y<=BLOCK_Y1; y++){
+    for(let x=23; x<=PATH_R; x++){
+      if(Math.random() < 0.85){ const u = spawnUnit(x, y, 'libyan'); if(u){ u.role='block'; u.homeY=y; } }
+    }
+  }
 
-  const pSpot = findEmptyPathNear(start.y);
-  player = spawnUnit(pSpot.x, pSpot.y, 'yours');
+  // THE HILLSIDE: Gauls hidden in the woods along the whole length of the road
+  let made = 0, tries = 0;
+  while(made < 100 && tries < 5000){
+    tries++;
+    const y = randInt(12, 90);
+    const x = randInt(15, PATH_L-3);
+    if(grid[y][x]) continue;
+    const u = spawnUnit(x, y, 'invader');
+    if(u){ u.hidden = true; made++; }
+  }
+
+  // THE TRAP'S DOOR: cavalry waiting in the hills behind the tail of the column
+  for(let y=94; y<=99; y++){
+    for(let x=17; x<=24; x+=2){
+      const c = spawnUnit(x + (y%2), y, 'cavalry');
+      if(c){ c.hidden = true; c.f = Math.random(); }
+    }
+  }
 
   cam.x = player.x*TILE + TILE/2;
   cam.y = player.y*TILE + TILE/2;
-
-  showMsg("TWO-WIDE. KEEP MOVING.", "#fff");
-}
-
-function buildTerrainTwoWide(){
-  const lakeStart = 31;
-  for(let y=0;y<GRID_H;y++){
-    for(let x=0;x<GRID_W;x++){
-      terrain[y][x] = (x>=lakeStart) ? TERRAIN.LAKE : TERRAIN.WOODS;
-      const hill = Math.max(0, (lakeStart-1 - x));
-      elev[y][x] = hill;
-    }
-  }
-  const pathRight = lakeStart - 1;
-  const pathLeft  = lakeStart - 2;
-  for(let y=0;y<GRID_H;y++){
-    terrain[y][pathRight] = TERRAIN.PATH;
-    terrain[y][pathLeft]  = TERRAIN.PATH;
-  }
-}
-
-function findPathCellNear(y){
-  y = clamp(y, 0, GRID_H-1);
-  for(let r=0;r<14;r++){
-    const yy = clamp(y-r,0,GRID_H-1);
-    const cols = pathColsAtRow(yy);
-    if(terrain[yy][cols.left]===TERRAIN.PATH) return {x:cols.left, y:yy};
-  }
-  return {x:28,y:GRID_H-10};
-}
-
-function findEmptyPathNear(y){
-  const yy0 = clamp(y-6, 2, GRID_H-3);
-  const yy1 = clamp(y+6, 2, GRID_H-3);
-  for(let yy=yy0; yy<=yy1; yy++){
-    const cols = pathColsAtRow(yy);
-    const options=[cols.left, cols.right];
-    for(const x of options){
-      if(terrain[yy][x]===TERRAIN.PATH && !grid[yy][x]) return {x,y:yy};
-    }
-  }
-  for(let yy=GRID_H-3; yy>=2; yy--){
-    const cols = pathColsAtRow(yy);
-    if(!grid[yy][cols.left]) return {x:cols.left, y:yy};
-    if(!grid[yy][cols.right]) return {x:cols.right, y:yy};
-  }
-  return {x:28,y:GRID_H-10};
-}
-
-function spawnRomanTwoWideColumnAround(centerY){
-  const cols = pathColsAtRow(centerY);
-  const L = cols.left, R = cols.right;
-  let made=0;
-
-  for(let y=centerY-2; y>=Math.max(2, centerY-30); y-=2){
-    if(Math.random()>0.08){
-      if(!grid[y][L]){ const u=spawnUnit(L,y,'roman'); if(u){u.role=(y<centerY-12)?'front':'reserve'; made++;}}
-      if(!grid[y][R]){ const u=spawnUnit(R,y,'roman'); if(u){u.role=(y<centerY-12)?'front':'reserve'; made++;}}
-    }
-    if(made>=52) break;
-  }
-  for(let y=centerY+2; y<=Math.min(GRID_H-3, centerY+22); y+=2){
-    if(Math.random()>0.18){
-      if(!grid[y][L]){ const u=spawnUnit(L,y,'roman'); if(u){u.role='reserve'; made++;}}
-      if(!grid[y][R]){ const u=spawnUnit(R,y,'roman'); if(u){u.role='reserve'; made++;}}
-    }
-    if(made>=70) break;
-  }
+  showMsg("KEEP MARCHING. THE CAMP IS AHEAD.", "#fff");
 }
 
 // ===================================================
@@ -450,20 +412,15 @@ function spawnRomanTwoWideColumnAround(centerY){
 function spawnUnit(gx, gy, type){
   if(!inBounds(gx,gy) || grid[gy][gx]) return null;
   if(terrain[gy][gx]===TERRAIN.LAKE) return null;
-
-  let hp,maxHp,moveSpeed;
-  if(type==='yours'){ hp=50; maxHp=50; moveSpeed=PACE.playerMove; }
-  else if(type==='roman'){ hp=6; maxHp=6; moveSpeed=PACE.romanMove; }
-  else { hp=10; maxHp=10; moveSpeed=PACE.invaderMove; }
-
+  const S = {
+    yours:{hp:60, speed:PACE.playerMove}, roman:{hp:6, speed:PACE.romanMove},
+    invader:{hp:10, speed:PACE.invaderMove}, libyan:{hp:12, speed:PACE.libyanMove},
+    cavalry:{hp:12, speed:PACE.cavalryMove},
+  }[type];
   const u = {
-    id: Math.random(),
-    x: gx, y: gy,
-    type,
-    hp, maxHp,
-    cooldown: Math.random()*40,
-    moveSpeed,
-    role: null
+    id: Math.random(), x: gx, y: gy, type,
+    hp: S.hp, maxHp: S.hp, moveSpeed: S.speed,
+    cooldown: Math.random()*40, role: null, f: Math.random()
   };
   units.push(u);
   grid[gy][gx] = u;
@@ -476,67 +433,68 @@ function spawnUnit(gx, gy, type){
 function loop(){
   if(!gameActive) return;
   update();
-  draw();
+  if(gameActive) draw();
   requestAnimationFrame(loop);
 }
 
 // ===================================================
 //  UPDATE
 // ===================================================
+function warn(txt){
+  if(phaseTimer - lastWarnAt < 150) return;
+  lastWarnAt = phaseTimer;
+  showMsg(txt, "#fca5a5");
+}
+
+function sound(why){
+  if(battlePhase >= PH.SIGNAL) return;
+  battlePhase = PH.SIGNAL;
+  signalAt = phaseTimer;
+  for(const u of units) u.hidden = false;
+  // Everyone near the head of the column becomes the vanguard and keeps pushing forward.
+  const head = Math.min(...units.filter(u=>!isCarth(u)).map(u=>u.y));
+  for(const u of units) if(u.type==='roman' && u.y <= head + SCRIPT.vanguardDepth) u.vanguard = true;
+  showMsg(why || "TRUMPETS ON THE HILLS!", "#fde68a");
+  setTimeout(()=>{ if(gameActive) showMsg("THE WHOLE HILLSIDE IS MOVING!", "#fca5a5"); }, 1800);
+}
+
 function update(){
   phaseTimer++;
   if(atkCD>0) atkCD--;
-
-  // keyboard continuous direction
   setInputFromKeyboard();
 
-  if(!retreat && !ambush && player && player.y <= AMBUSH.triggerY){
-    ambush = true;
-    ambushAt = phaseTimer;
-    showMsg("AMBUSH! DOWNHILL FROM THE WOODS!", "#fca5a5");
-    spawnAmbushWave(AMBUSH.spawnCount);
-  }
-
-  if(!retreat && ambush && !spawnedWave2 && (phaseTimer-ambushAt) > AMBUSH.spawnWave2After){
-    spawnedWave2 = true;
-    showMsg("THEY POUR IN BEHIND YOU!", "#fde68a");
-    spawnAmbushWave(AMBUSH.spawnWave2Count, true);
-  }
-
-  if(!campFound && player && player.hp>0 && player.y <= CAMP.revealY){
-    campFound = true;
-    retreat = true;
-    campAt = phaseTimer;
-    showMsg("EMPTY TENTS. TURN BACK!", "#fde68a");
-    spawnFloat("EMPTY CAMP", player.x, player.y, "#fde68a");
-    spawnCampPressure();
-  }
-
-  if(retreat && !spawnedRetreatWave && (phaseTimer-campAt) > CAMP.retreatReinforceAfter){
-    spawnedRetreatWave = true;
-    showMsg("THEY CUT OFF THE REAR!", "#93c5fd");
-    spawnRetreatWave(CAMP.retreatWaveCount);
+  if(battlePhase===PH.MARCH){
+    const head = Math.min(...units.filter(u=>u.type==='roman').map(u=>u.y));
+    if(head <= SCRIPT.signalAtY || phaseTimer > SCRIPT.signalLatest) sound();
+  } else {
+    mist = Math.max(0.25, mist - 0.002);   // the sun burns some of the mist off
   }
 
   units.sort((a,b)=>a.y-b.y);
-
   for(const u of units){
     if(u.hp<=0) continue;
 
     if(terrain[u.y][u.x]===TERRAIN.LAKE){
-      u.hp -= LAKE.dmgPerTick;
-      if(u.type==='yours') spawnFloat("WATER!", u.x, u.y, "#93c5fd");
-      continue;
+      u.lakeT = (u.lakeT||0) + 1;
+      if(u.lakeT % LAKE.dmgEvery === 0){
+        u.hp -= LAKE.dmg;
+        if(u.type==='yours') spawnFloat("DROWNING!", u.x, u.y, "#93c5fd");
+      }
+      if(u.hp<=0){ u.diedInLake = true; grid[u.y][u.x]=null; continue; }
+    } else {
+      u.lakeT = 0;
     }
 
-    if(u.type==='yours'){
-      if(u.cooldown>0) u.cooldown--;
-      if(u.cooldown<=0 && (input.dx||input.dy)){
-        const cost = tryMove(u, input.dx, input.dy);
-        u.cooldown = Math.max(2, Math.round(u.moveSpeed * cost));
-      }
-    } else {
-      handleAI(u);
+    if(u.type==='yours') playerTurn(u);
+    else handleAI(u);
+  }
+
+  // Wandering into the hidden men springs the trap early
+  if(battlePhase===PH.MARCH && phaseTimer % 10 === 0){
+    for(const u of units){
+      if(!u.hidden) continue;
+      const n = nearestOf(u, 1.5, o => !isCarth(o));
+      if(n){ sound("AMBUSH! THEY'RE IN THE TREES!"); break; }
     }
   }
 
@@ -551,168 +509,122 @@ function update(){
 
   updateFX();
 
-  const enemyCount = units.filter(u=>u.type==='invader').length;
-  document.getElementById('ui-you').innerText = player ? Math.max(0, player.hp) : 0;
-  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman' || u.type==='yours').length;
-  document.getElementById('ui-han').innerText = enemyCount;
+  const enemyCount = units.filter(u=>isCarth(u) && !u.hidden).length;
+  document.getElementById('ui-you').innerText = player ? Math.max(0, Math.ceil(player.hp)) : 0;
+  document.getElementById('ui-rome').innerText = units.filter(u=>u.type==='roman').length;
+  document.getElementById('ui-han').innerText = battlePhase===PH.MARCH ? '?' : enemyCount;
 
-  // End conditions
-  if(!player || player.hp<=0){
-    finishRun("DEFEAT", "You went down at Trasimene.");
-    return;
-  }
-
-  // (If you ever “win”, still finish -> map)
-  if(campFound && enemyCount===0){
-    finishRun("SURVIVED", "Against the odds, you made it out of the kill zone.");
-    return;
-  }
+  if(!player || player.hp<=0){ finishRun(player && player.diedInLake ? 'drowned' : 'dead'); return; }
+  if(player.y <= 0){ finishRun('north'); return; }
+  if(player.y >= GRID_H-1 && battlePhase >= PH.SIGNAL){ finishRun('south'); return; }
 }
 
-// ===================================================
-//  CAMP EVENTS
-// ===================================================
-function spawnCampPressure(){
-  const y0 = 1, y1 = 14;
-  let made=0, tries=0;
-  while(made<18 && tries<900){
-    tries++;
-    const y = randInt(y0,y1);
-    const cols = pathColsAtRow(y);
-    const nearLeft = Math.min(cols.left, cols.right) - 1;
-    const x = randInt(Math.max(1, nearLeft-8), Math.max(2, nearLeft));
-    if(!inBounds(x,y)) continue;
-    if(terrain[y][x]!==TERRAIN.WOODS) continue;
-    if(grid[y][x]) continue;
-    const u = spawnUnit(x,y,'invader');
-    if(u){ u.role='press'; made++; }
+function playerTurn(u){
+  if(u.cooldown>0){ u.cooldown--; }
+  if(battlePhase===PH.MARCH){
+    // The column doesn't wait for you, and doesn't let you turn back.
+    if(input.dy > 0){ warn("KEEP MARCHING!"); input.dy = 0; }
+    if(input.dy < 0) idleT = 0; else idleT++;
+    if(idleT > SCRIPT.idleNudge && idleT % 30 === 0 && u.cooldown<=0){
+      if(tryMove(u, 0, -1) !== null){ spawnFloat("KEEP UP!", u.x, u.y, "#fca5a5"); }
+    }
   }
-}
-function spawnRetreatWave(n){
-  if(!player) return;
-  const y0 = clamp(player.y + 6, 2, GRID_H-3);
-  const y1 = clamp(player.y + 18, 2, GRID_H-3);
-  let tries=0, made=0;
-  while(made<n && tries<n*40){
-    tries++;
-    const y = randInt(y0,y1);
-    const cols = pathColsAtRow(y);
-    const nearLeft = Math.min(cols.left, cols.right) - 1;
-    const x = randInt(Math.max(1, nearLeft-9), Math.max(2, nearLeft));
-    if(!inBounds(x,y)) continue;
-    if(terrain[y][x]!==TERRAIN.WOODS) continue;
-    if(grid[y][x]) continue;
-    const u = spawnUnit(x,y,'invader');
-    if(u){ u.role='press'; made++; }
+  if(u.cooldown<=0 && (input.dx||input.dy)){
+    const cost = tryMove(u, input.dx, input.dy);
+    u.cooldown = Math.max(2, Math.round(u.moveSpeed * (cost ?? 1)));
   }
-}
-
-// ===================================================
-//  AMBUSH SPAWN
-// ===================================================
-function spawnAmbushWave(n, tighter=false){
-  if(!player) return;
-  const y0 = clamp(player.y - AMBUSH.spawnBand, 2, GRID_H-3);
-  const y1 = clamp(player.y + AMBUSH.spawnBand, 2, GRID_H-3);
-  let tries=0, made=0;
-  while(made<n && tries<n*35){
-    tries++;
-    const y = randInt(y0,y1);
-    const cols = pathColsAtRow(y);
-    const nearLeft = Math.min(cols.left, cols.right) - 1;
-    const xMax = Math.max(2, nearLeft - (tighter?0:1));
-    const x = randInt(Math.max(1, xMax-8), xMax);
-    if(!inBounds(x,y)) continue;
-    if(terrain[y][x]!==TERRAIN.WOODS) continue;
-    if(grid[y][x]) continue;
-    const u = spawnUnit(x,y,'invader');
-    if(u){ u.role = tighter ? 'press' : 'skirm'; made++; }
-  }
-}
-
-function pathColsAtRow(y){
-  let xs=[];
-  for(let x=0;x<GRID_W;x++){
-    if(terrain[y][x]===TERRAIN.PATH) xs.push(x);
-  }
-  xs.sort((a,b)=>a-b);
-  return {left: xs[0] ?? 0, right: xs[1] ?? xs[0] ?? 0};
 }
 
 // ===================================================
 //  AI
 // ===================================================
+function nearestOf(u, range, pred){
+  let best=null, bd=1e9;
+  for(const o of units){
+    if(o===u || o.hp<=0 || o.hidden) continue;
+    if(Math.abs(o.x-u.x)>range || Math.abs(o.y-u.y)>range) continue;
+    if(!pred(o)) continue;
+    const d = dist(u,o);
+    if(d<bd){ bd=d; best=o; }
+  }
+  return best;
+}
+function enemyOf(u, range){ return nearestOf(u, range, o => isCarth(o) !== isCarth(u)); }
+
 function handleAI(u){
   if(u.cooldown>0){ u.cooldown--; return; }
+  if(u.hidden){ u.cooldown = 20; return; }
 
-  let target=null, minDist=99;
-  for(const o of units){
-    if(o.hp<=0) continue;
-    if(Math.abs(o.x-u.x)>3 || Math.abs(o.y-u.y)>3) continue;
-    const isEnemy =
-      (u.type==='roman' && o.type==='invader') ||
-      (u.type==='invader' && (o.type==='roman' || o.type==='yours'));
-    if(isEnemy){
-      const d = dist(u,o);
-      if(d<minDist){ minDist=d; target=o; }
-    }
-  }
-
-  if(target && minDist<=1.5){
-    attack(u,target);
+  const target = enemyOf(u, 3);
+  const adj = target && dist(u,target) <= 1.5;
+  if(adj){
+    attack(u, target);
     u.cooldown = PACE.combatDelay + Math.random()*18;
     return;
   }
 
-  let md={x:0,y:0};
-
+  let md = {x:0, y:0};
   if(u.type==='roman'){
-    const dir = retreat ? 1 : -1;
-    if(terrain[u.y][u.x]!==TERRAIN.PATH){
-      const cols = pathColsAtRow(u.y);
-      const nx = (Math.abs(cols.left-u.x) < Math.abs(cols.right-u.x)) ? cols.left : cols.right;
-      md = {x: Math.sign(nx-u.x), y:0};
-    } else {
-      if(target) md = getStep(u, target);
-      else md = {x:0,y:dir};
+    if(battlePhase===PH.MARCH){
+      // March north along the road, stepping back onto it if jostled off
+      if(terrain[u.y][u.x]!==TERRAIN.PATH) md = {x: Math.sign(PATH_L - u.x) || 1, y:0};
+      else md = {x:0, y:-1};
+    } else if(terrain[u.y][u.x]===TERRAIN.LAKE){
+      md = {x:-1, y:0};                         // claw back out of the water
+    } else if(u.vanguard){
+      md = target ? getStep(u, target) : {x:0, y:-1};   // cut through and keep going
+    } else if(target){
+      md = getStep(u, target);                  // no line, no orders: fight whoever is nearest
     }
   }
-
-  if(u.type==='invader'){
-    const t = (player && player.hp>0) ? player : target;
-    if(terrain[u.y][u.x]===TERRAIN.WOODS){
-      if(Math.random()<0.82) md = {x:1,y:0};
-      else if(t) md = {x:1, y: Math.sign(t.y-u.y)};
-      else md = {x:1,y:0};
-    } else {
-      if(t && Math.random()<0.60) md = getStep(u, t);
-      else md = (Math.random()<0.78) ? {x:1,y:0} : {x:0,y:1};
-    }
+  else if(u.type==='libyan'){
+    if(target && dist(u,target) <= 2.2) md = getStep(u, target);
+    else if(u.y > u.homeY) md = {x:0, y:-1};
+  }
+  else if(u.type==='cavalry'){
+    // Ride along the road to seal the tail of the column, then roll it up
+    const t = enemyOf(u, 10);
+    if(t) md = getStep(u, t);
+    else md = getStep(u, {x: PATH_L - 1 + Math.round(u.f*2), y: 84});
+  }
+  else {
+    // Gauls charge downhill (east) onto the column
+    const t = target || enemyOf(u, 12);
+    if(terrain[u.y][u.x]===TERRAIN.WOODS && (!t || t.x > u.x+1) && Math.random() < 0.75) md = {x:1, y: t ? Math.sign(t.y-u.y) * (Math.random()<0.3?1:0) : 0};
+    else if(t) md = getStep(u, t);
+    if(md.x && md.y) md.y = 0;
   }
 
-  const cost = (md.x||md.y) ? tryMove(u, md.x, md.y) : 1.0;
-  u.cooldown = Math.max(2, Math.round(u.moveSpeed * cost + Math.random()*PACE.aiThinkJitter));
+  const cost = (md.x||md.y) ? tryMove(u, md.x, md.y) : null;
+  u.cooldown = Math.max(2, Math.round(u.moveSpeed * (cost ?? 1) + Math.random()*PACE.aiThinkJitter));
 }
 
 // ===================================================
 //  MOVEMENT + COSTS
 // ===================================================
+// Returns the move cost, or null if the move didn't happen.
 function tryMove(u, dx, dy){
   const tx=u.x+dx, ty=u.y+dy;
-  if(!inBounds(tx,ty)) return 1.0;
-  if(grid[ty][tx]) return 1.0;
-
+  if(!inBounds(tx,ty)) return null;
+  const occ = grid[ty][tx];
   const t = terrain[ty][tx];
-  if(t===TERRAIN.LAKE) return 1.0;
+  // You can't walk into the lake, but if you're already in it you can wade toward shore.
+  const wadingOut = terrain[u.y][u.x]===TERRAIN.LAKE && dx<0;
+  if(t===TERRAIN.LAKE && !wadingOut) return null;
 
   let cost = (t===TERRAIN.WOODS) ? MOVE_COST.woods : MOVE_COST.path;
+  if(terrain[u.y][u.x]===TERRAIN.LAKE) cost *= LAKE.wadeCost;
   if(u.type==='roman' && t===TERRAIN.PATH) cost *= MOVE_COST.romanPathBoost;
-  if(u.type==='invader' && terrain[u.y][u.x]===TERRAIN.WOODS && dx===1 && dy===0){
-    cost *= MOVE_COST.invaderDownhillBoost;
+  if(isCarth(u) && dx===1 && dy===0) cost *= MOVE_COST.invaderDownhillBoost;
+  if(elev[ty][tx] > elev[u.y][u.x]) cost *= MOVE_COST.uphillExtra;
+
+  // Shoulder past your own men in the column
+  if(occ && u.type==='yours' && occ.type==='roman'){
+    grid[u.y][u.x]=occ; occ.x=u.x; occ.y=u.y;
+    grid[ty][tx]=u; u.x=tx; u.y=ty;
+    return cost * 1.4;
   }
-  const e0 = elev[u.y][u.x];
-  const e1 = elev[ty][tx];
-  if(e1 > e0) cost *= MOVE_COST.uphillExtra;
+  if(occ) return null;
 
   grid[u.y][u.x]=null;
   u.x=tx; u.y=ty;
@@ -724,25 +636,23 @@ function tryMove(u, dx, dy){
 //  COMBAT + SHOVE (CHAIN)
 // ===================================================
 function attack(atk, def){
-  const dmg = 1;
+  let dmg = atk.type==='yours' ? PLAYER_ATTACK.dmg : (atk.type==='cavalry' ? 1.4 : 1);
   def.hp -= dmg;
   spawnBlood(def.x, def.y);
-  spawnFloat("-"+dmg, def.x, def.y, "#ef4444");
+  if(atk.type==='yours' || def.type==='yours') spawnFloat("-"+(+dmg.toFixed(1)), def.x, def.y, "#ef4444");
 
-  if(atk.type==='invader' && (def.type==='roman' || def.type==='yours') && def.hp>0){
+  // Charging downhill, the Carthaginians drive the column toward the water.
+  if(isCarth(atk) && !isCarth(def) && def.hp>0){
     let chance = SHOVE.baseChance;
-    const ea = elev[atk.y][atk.x];
-    const ed = elev[def.y][def.x];
-    if(ea > ed) chance += SHOVE.downhillBonus;
-    if(terrain[def.y][def.x]===TERRAIN.PATH) chance += SHOVE.backBonus;
-    if(Math.random()<chance){
-      if(shoveChain(def, atk)) spawnFloat("SHOVE!", def.x, def.y, "#fde68a");
-    }
+    if(elev[atk.y][atk.x] > elev[def.y][def.x]) chance += SHOVE.downhillBonus;
+    if(terrain[def.y][def.x]===TERRAIN.PATH) chance += SHOVE.pathBonus;
+    if(def.type==='yours') chance *= 0.5;   // a centurion braces better than a frightened recruit
+    if(Math.random()<chance && shoveChain(def, atk) && def.type==='yours') spawnFloat("SHOVED!", def.x, def.y, "#fde68a");
   }
 
   if(def.hp<=0){
     grid[def.y][def.x]=null;
-    spawnFloat("DOWN", def.x, def.y, P.gold);
+    if(atk.type==='yours') spawnFloat("DOWN", def.x, def.y, P.gold);
   }
 }
 
@@ -761,7 +671,7 @@ function shoveChain(def, atk){
     if(terrain[ty][tx]===TERRAIN.LAKE) w+=10;
     if(terrain[ty][tx]===TERRAIN.PATH) w+=2;
     if(terrain[ty][tx]===TERRAIN.WOODS) w-=2;
-    if(w>bestW){ bestW=w; best={dx:o.x,dy:o.y,tx,ty}; }
+    if(w>bestW){ bestW=w; best={dx:o.x,dy:o.y}; }
   }
   if(!best) return false;
   return tryChainPush(def, best.dx, best.dy, 0);
@@ -769,30 +679,20 @@ function shoveChain(def, atk){
 
 function tryChainPush(unit, dx, dy, depth){
   if(depth>SHOVE.chainDepth) return false;
-  const tx = unit.x + dx;
-  const ty = unit.y + dy;
+  const tx = unit.x + dx, ty = unit.y + dy;
   if(!inBounds(tx,ty)) return false;
-
-  if(terrain[ty][tx]===TERRAIN.LAKE){
-    if(grid[ty][tx]){
-      const ok = tryChainPush(grid[ty][tx], dx, dy, depth+1);
-      if(!ok) return false;
-    }
-    grid[unit.y][unit.x]=null;
-    unit.x=tx; unit.y=ty;
-    grid[ty][tx]=unit;
-    unit.hp -= LAKE.splashDmgOnPush;
-    spawnFloat("SPLASH", tx, ty, "#93c5fd");
-    return true;
-  }
-
   if(grid[ty][tx]){
-    const ok = tryChainPush(grid[ty][tx], dx, dy, depth+1);
-    if(!ok) return false;
+    if(isCarth(grid[ty][tx])) return false;
+    if(!tryChainPush(grid[ty][tx], dx, dy, depth+1)) return false;
   }
   grid[unit.y][unit.x]=null;
   unit.x=tx; unit.y=ty;
   grid[ty][tx]=unit;
+  if(terrain[ty][tx]===TERRAIN.LAKE){
+    unit.hp -= LAKE.splashDmgOnPush;
+    if(unit.type==='yours') spawnFloat("SPLASH", tx, ty, "#93c5fd");
+    if(unit.hp<=0){ unit.diedInLake = true; grid[ty][tx]=null; }
+  }
   return true;
 }
 
@@ -811,13 +711,12 @@ function doAttack(e){
   for(const d of dirs){
     const tx=player.x+d[0], ty=player.y+d[1];
     const u = (grid[ty] && grid[ty][tx]) ? grid[ty][tx] : null;
-    if(u && u.type==='invader') targets.push(u);
+    if(u && isCarth(u) && !u.hidden) targets.push(u);
   }
   if(!targets.length) return;
 
   targets.sort((a,b)=>dist(player,a)-dist(player,b));
   for(const t of targets.slice(0, PLAYER_ATTACK.maxHits)) attack(player, t);
-  spawnFloat("CLASH", player.x, player.y, "#fff");
 }
 
 // ===================================================
@@ -911,24 +810,48 @@ function updateFX(){
 function showMsg(txt, col){
   const el=document.getElementById('battle-text');
   el.innerText=txt; el.style.color=col; el.style.opacity=1;
-  setTimeout(()=>el.style.opacity=0, 2600);
+  clearTimeout(showMsg._t);
+  showMsg._t = setTimeout(()=>el.style.opacity=0, 2600);
 }
 
 // ===================================================
 //  FINISH (show history -> map)
 // ===================================================
-function finishRun(title, line){
+const ENDINGS = {
+  dead:    { title:'DEFEAT', col:'#ef4444', line:'You fell on the shore road.',
+             text:'The column never formed a line. Attacked from the hills on every side at once, some 15,000 Romans died in three hours, Flaminius among them.' },
+  drowned: { title:'DEFEAT', col:'#60a5fa', line:'Driven into the lake, you drowned.',
+             text:'Thousands waded out until only their heads were above water, weighed down by their armour. Most drowned or were cut down by horsemen riding in after them.' },
+  north:   { title:'BROKE THROUGH', col:'#fbbf24', line:'You cut your way out with the vanguard.',
+             text:'About 6,000 men at the head of the column fought through and reached a hilltop, where the lifting mist showed them the slaughter behind. The next day, surrounded by Maharbal’s cavalry, they surrendered.' },
+  south:   { title:'ESCAPED', col:'#fbbf24', line:'You fought your way back out of the defile.',
+             text:'The cavalry had sealed the road behind the column. Very few got back out the way they came in. You are one of them.' },
+};
+
+function finishRun(kind){
   gameActive = false;
+  spwMarkDone('tras');
+  document.getElementById('battle-text').style.opacity = 0;
+  const E = ENDINGS[kind];
+  const fallen = Math.max(0, romansAtStart - units.filter(u=>u.type==='roman').length);
   const ov = document.getElementById('overlay');
   ov.style.display = 'flex';
   ov.innerHTML = `
-    <h1>${title}</h1>
-    <p><b>${line}</b></p>
-    <p style="margin-top:-6px;">This battle is designed to punish the column.</p>
-    ${HISTORY_HTML}
-    <button class="btn-start" id="btn-map" style="margin-top:18px;">RETURN TO MAP</button>
+    <h1 style="color:${E.col}">${E.title}</h1>
+    <p><b>${E.line}</b></p>
+    <p>${E.text}</p>
+    <p style="color:#ef4444">Romans fallen: ${fallen} of ${romansAtStart}</p>
+    <button class="btn-start" id="btn-map" style="margin-top:8px;">CONTINUE CAMPAIGN</button>
+    <button class="btn-start" id="btn-replay" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">REPLAY</button>
+    <button class="btn-start" id="btn-hist" style="margin-top:10px; background:#475569; box-shadow:0 4px 0 #334155;">HISTORY</button>
   `;
   document.getElementById('btn-map').onclick = goToMap;
+  document.getElementById('btn-replay').onclick = () => location.reload();
+  document.getElementById('btn-hist').onclick = () => {
+    ov.innerHTML = `${HISTORY_HTML}
+      <button class="btn-start" id="btn-map2" style="margin-top:18px;">CONTINUE CAMPAIGN</button>`;
+    document.getElementById('btn-map2').onclick = goToMap;
+  };
 }
 
 // ===================================================
@@ -943,39 +866,58 @@ function draw(){
   const cy = VIEW_H/2 - cam.y;
   CTX.translate(Math.round(cx), Math.round(cy));
 
-  for(let y=0;y<GRID_H;y++){
+  // only draw tiles near the camera
+  const y0 = Math.max(0, Math.floor((cam.y - VIEW_H/2)/TILE) - 1), y1 = Math.min(GRID_H-1, Math.ceil((cam.y + VIEW_H/2)/TILE) + 1);
+  for(let y=y0;y<=y1;y++){
     for(let x=0;x<GRID_W;x++){
       const t = terrain[y][x];
-      if(t===TERRAIN.LAKE) CTX.fillStyle = '#0b2d52';
-      else if(t===TERRAIN.PATH) CTX.fillStyle = '#5b4a32';
-      else CTX.fillStyle = '#183a2a';
-      CTX.fillRect(x*TILE, y*TILE, TILE, TILE);
-
-      if(t===TERRAIN.WOODS){
+      const X = x*TILE, Y = y*TILE;
+      if(t===TERRAIN.LAKE){
+        CTX.fillStyle = '#0b2d52'; CTX.fillRect(X, Y, TILE, TILE);
+        if((x+y+((phaseTimer/8)|0))%19===0){ CTX.fillStyle='rgba(147,197,253,0.25)'; CTX.fillRect(X+6, Y+7, 3, 3); }
+      } else if(t===TERRAIN.PATH){
+        CTX.fillStyle = '#5b4a32'; CTX.fillRect(X, Y, TILE, TILE);
+        if((x*7+y*13)%5===0){ CTX.fillStyle='#4a3b26'; CTX.fillRect(X+5, Y+9, 4, 2); }
+      } else {
+        // wooded slope: darker and denser the higher up the hill
         const e = elev[y][x];
-        if(e>10){
-          CTX.fillStyle='rgba(0,0,0,0.14)';
-          CTX.fillRect(x*TILE, y*TILE, TILE, TILE);
-        }
-      }
-
-      if(t===TERRAIN.LAKE && ((x+y+((phaseTimer/8)|0))%19===0)){
-        CTX.fillStyle='rgba(147,197,253,0.25)';
-        CTX.fillRect(x*TILE+6, y*TILE+7, 3, 3);
+        CTX.fillStyle = e > 14 ? '#143022' : e > 6 ? '#183a2a' : '#1d4430';
+        CTX.fillRect(X, Y, TILE, TILE);
+        if((x*31+y*17)%3===0){ CTX.fillStyle='#0f2a1b'; CTX.fillRect(X+4+(x%3)*4, Y+3+(y%3)*4, 6, 8); }
+        if((x*13+y*7)%7===0){ CTX.fillStyle='#2a5a3e'; CTX.fillRect(X+12, Y+12, 3, 3); }
       }
     }
   }
 
-  for(const u of units){
-    drawSprite(u.type, u.x*TILE - 4, u.y*TILE - 8, SCALE);
+  // Hannibal's camp at the end of the road
+  for(const [tx,ty] of [[22,0],[24,1],[26,0],[20,2],[27,2]]){
+    const X = tx*TILE, Y = ty*TILE;
+    CTX.fillStyle='#d6c7a1'; CTX.beginPath(); CTX.moveTo(X, Y+18); CTX.lineTo(X+12, Y+2); CTX.lineTo(X+24, Y+18); CTX.fill();
+    CTX.fillStyle='#8a7a55'; CTX.fillRect(X+10, Y+10, 4, 8);
+  }
 
-    if(u.type==='yours' || u.hp < u.maxHp){
+  for(const u of units){
+    drawSprite(u, SCALE);
+    if(!u.hidden && (u.type==='yours' || u.hp < u.maxHp)){
       const sx=u.x*TILE - 4, sy=u.y*TILE - 8;
       CTX.fillStyle='#000'; CTX.fillRect(sx, sy-6, 24, 4);
-      CTX.fillStyle =
-        (u.type==='yours') ? '#1f9d55' :
-        (u.type==='invader') ? '#93c5fd' : '#ef4444';
+      CTX.fillStyle = (u.type==='yours') ? '#1f9d55' : isCarth(u) ? '#93c5fd' : '#ef4444';
       CTX.fillRect(sx+1, sy-5, Math.max(0,(u.hp/u.maxHp)*22), 2);
+    }
+  }
+
+  // A glint of metal among the trees, for those paying attention
+  if(battlePhase===PH.MARCH){
+    for(const u of units){
+      if(!u.hidden) continue;
+      if(((phaseTimer + Math.floor(u.f*997)) % 233) < 5){
+        CTX.fillStyle = '#fde68a';
+        CTX.fillRect(u.x*TILE+10, u.y*TILE+8, 3, 3);
+        if(!glintShown && Math.abs(u.y-player.y) < 6 && Math.abs(u.x-player.x) < 12){
+          glintShown = true;
+          spawnFloat("...something moved in the trees?", player.x-3, player.y-1, "#fde68a");
+        }
+      }
     }
   }
 
@@ -984,11 +926,19 @@ function draw(){
     CTX.fillRect(p.x, p.y, SCALE, SCALE);
   }
 
+  // Mist off the lake, lying thickest over the road and the water
+  const mg = CTX.createLinearGradient(14*TILE, 0, GRID_W*TILE, 0);
+  mg.addColorStop(0, 'rgba(210,220,228,0)');
+  mg.addColorStop(0.35, `rgba(210,220,228,${0.45*mist})`);
+  mg.addColorStop(1, `rgba(210,220,228,${0.7*mist})`);
+  CTX.fillStyle = mg;
+  CTX.fillRect(0, y0*TILE, GRID_W*TILE, (y1-y0+1)*TILE);
+
   CTX.font="bold 12px monospace";
   CTX.textAlign="center";
   for(const f of floats){
     CTX.fillStyle=f.color;
-    CTX.globalAlpha=f.life;
+    CTX.globalAlpha=Math.max(0, f.life);
     CTX.fillText(f.text, f.x+TILE/2, f.y);
   }
   CTX.globalAlpha=1;
